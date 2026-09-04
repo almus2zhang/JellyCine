@@ -110,7 +110,7 @@ internal class ServerSwitchDialogsState {
     fun openUsers(serverName: String?, users: List<AuthRepository.SavedServer>) {
         showServerSwitchDialog = false
         userSwitchServerName = serverName
-        userSwitchServerUrl = users.firstOrNull()?.serverUrl
+        userSwitchServerUrl = users.firstOrNull()?.let { it.sourceUrl ?: it.serverUrl }
         userSwitchUsers = users
         showUserSwitchDialog = true
     }
@@ -307,7 +307,7 @@ internal fun ServerSwitchDialog(
 ) {
     val serverGroups = remember(servers, activeServerId) {
         servers
-            .groupBy { canonicalServerUrlKey(it.serverUrl) }
+            .groupBy { it.sourceUrl ?: canonicalServerUrlKey(it.serverUrl) }
             .map { (_, groupedUsers) ->
                 val sortedUsers = groupedUsers.sortedWith(
                     compareByDescending<AuthRepository.SavedServer> {
@@ -318,7 +318,7 @@ internal fun ServerSwitchDialog(
                 val primary = activeUser ?: sortedUsers.first()
                 ServerGroupUiModel(
                     serverName = primary.serverName,
-                    serverUrl = primary.serverUrl,
+                    serverUrl = primary.sourceUrl ?: primary.serverUrl,
                     users = sortedUsers,
                     activeUser = activeUser
                 )

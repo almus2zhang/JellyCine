@@ -16,6 +16,9 @@ import com.jellycine.data.model.ServerInfo
 import com.jellycine.data.network.ServerEndpoint
 import com.jellycine.data.network.ServerType
 import com.jellycine.data.network.canonicalServerUrl
+import com.jellycine.data.network.canonicalServerUrlKey
+import com.jellycine.data.network.sameServerUrl
+import com.jellycine.data.network.trimTrailingSlash
 import com.jellycine.data.network.NetworkModule
 import com.jellycine.data.preferences.NetworkPreferences
 import com.jellycine.data.security.AuthSessionIds
@@ -44,6 +47,7 @@ class AuthRepository(private val context: Context) {
     private val secureSessionStore = SecureSessionStore(context)
     private val seerrRepository = SeerrRepository(context)
     private val legacyMigrationMutex = Mutex()
+    private val refreshSessionMutex = Mutex()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -68,6 +72,7 @@ class AuthRepository(private val context: Context) {
         private val IS_AUTHENTICATED_KEY = booleanPreferencesKey("is_authenticated")
         private val SAVED_SERVERS_KEY = stringPreferencesKey("saved_servers_v1")
         private val ACTIVE_SERVER_ID_KEY = stringPreferencesKey("active_server_id")
+        private val SOURCE_URL_KEY = stringPreferencesKey("source_url")
     }
 
     @Serializable
@@ -87,7 +92,9 @@ class AuthRepository(private val context: Context) {
         @SerialName("profileImageUrl")
         val profileImageUrl: String? = null,
         @SerialName("lastUsedAt")
-        val lastUsedAt: Long
+        val lastUsedAt: Long,
+        @SerialName("sourceUrl")
+        val sourceUrl: String? = null
     )
 
     @Serializable
@@ -109,7 +116,9 @@ class AuthRepository(private val context: Context) {
         @SerialName("lastUsedAt")
         val lastUsedAt: Long,
         @SerialName("accessToken")
-        val accessToken: String? = null
+        val accessToken: String? = null,
+        @SerialName("sourceUrl")
+        val sourceUrl: String? = null
     )
 
     data class ActiveSessionSnapshot(
@@ -118,7 +127,8 @@ class AuthRepository(private val context: Context) {
         val serverType: String?,
         val username: String?,
         val savedServers: List<SavedServer>,
-        val activeServerId: String?
+        val activeServerId: String?,
+        val sourceUrl: String? = null
     )
 
     private fun defaultServerName(serverType: ServerType): String {
@@ -202,6 +212,7 @@ class AuthRepository(private val context: Context) {
             ?.takeIf { it.isNotBlank() }
             ?: defaultServerName(serverType)
         val username = preferences[USERNAME_KEY].orEmpty()
+        val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() } ?: existingSavedServer?.sourceUrl
 
         return SavedServer(
             id = buildServerId(serverUrl = serverUrl, userId = userId),
@@ -211,7 +222,8 @@ class AuthRepository(private val context: Context) {
             username = username,
             userId = userId,
             profileImageUrl = existingSavedServer?.profileImageUrl,
-            lastUsedAt = System.currentTimeMillis()
+            lastUsedAt = System.currentTimeMillis(),
+            sourceUrl = sourceUrl
         )
     }
 
@@ -271,7 +283,10 @@ class AuthRepository(private val context: Context) {
                 ?.takeIf { it.isNotBlank() }
                 ?: resolvedActiveServer?.username,
             savedServers = currentSavedServers,
-            activeServerId = selectedServerId
+            activeServerId = selectedServerId,
+            sourceUrl = preferences[SOURCE_URL_KEY]
+                ?.takeIf { it.isNotBlank() }
+                ?: resolvedActiveServer?.sourceUrl
         )
     }
 
@@ -337,6 +352,37 @@ class AuthRepository(private val context: Context) {
             val targetServer = existingServers.firstOrNull { it.id == serverId }
                 ?: activeServer(preferences)?.takeIf { it.id == serverId }
                 ?: return Result.failure(Exception(string(R.string.auth_error_saved_server_not_found)))
+
+            if (is301Url(targetServer.sourceUrl)) {
+                val sourceUrl = targetServer.sourceUrl!!
+                val resolvedResult = resolve301ServerUrl(sourceUrl)
+                if (resolvedResult.isFailure) {
+                    return Result.failure(Exception("无法获取 301 服务器地址: ${resolvedResult.exceptionOrNull()?.message}"))
+                }
+                val newRealUrl = resolvedResult.getOrThrow()
+                val credentials = secureSessionStore.getCredentials(sourceUrl)
+                    ?: secureSessionStore.getCredentials(targetServer.id)
+
+                if (credentials != null) {
+                    val authResult = authenticateUser(
+                        serverUrl = newRealUrl,
+                        username = credentials.first,
+                        password = credentials.second,
+                        sourceUrl = sourceUrl
+                    )
+                    if (authResult.isSuccess) {
+                        val updatedPrefs = dataStore.data.first()
+                        val updatedServers = savedServers(updatedPrefs[SAVED_SERVERS_KEY])
+                        val switchedServer = updatedServers.firstOrNull { it.sourceUrl == sourceUrl }
+                            ?: activeServer(updatedPrefs)
+                            ?: targetServer
+                        return Result.success(switchedServer)
+                    } else {
+                        return Result.failure(Exception(authResult.exceptionOrNull()?.message ?: "301 自动登录失败"))
+                    }
+                }
+            }
+
             val accessToken = secureSessionStore.getToken(targetServer.id)
                 ?: return Result.failure(Exception(string(R.string.auth_error_saved_session_expired)))
 
@@ -353,6 +399,7 @@ class AuthRepository(private val context: Context) {
                 prefs[LEGACY_ACCESS_TOKEN_KEY] = ""
                 prefs[USER_ID_KEY] = switchedServer.userId
                 prefs[USERNAME_KEY] = switchedServer.username
+                prefs[SOURCE_URL_KEY] = switchedServer.sourceUrl ?: ""
                 prefs[IS_AUTHENTICATED_KEY] = accessToken.isNotBlank() &&
                     switchedServer.userId.isNotBlank()
             }
@@ -360,6 +407,45 @@ class AuthRepository(private val context: Context) {
             Result.success(switchedServer)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    suspend fun checkOrRefreshActiveSession(): Boolean {
+        return refreshSessionMutex.withLock {
+            try {
+                legacyStorageMigrated()
+                val preferences = dataStore.data.first()
+                val active = activeServer(preferences)
+                val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() } ?: active?.sourceUrl
+                if (!is301Url(sourceUrl)) {
+                    return@withLock true
+                }
+
+                val resolvedResult = resolve301ServerUrl(sourceUrl!!)
+                if (resolvedResult.isFailure) {
+                    return@withLock true
+                }
+                val newRealUrl = resolvedResult.getOrThrow()
+                val credentials = secureSessionStore.getCredentials(sourceUrl)
+                    ?: active?.id?.let { secureSessionStore.getCredentials(it) }
+                    ?: return@withLock true
+
+                val currentUrl = active?.serverUrl
+                val hasToken = active?.id?.let { secureSessionStore.hasToken(it) } == true
+                if (!sameServerUrl(currentUrl, newRealUrl) || !hasToken) {
+                    val authResult = authenticateUser(
+                        serverUrl = newRealUrl,
+                        username = credentials.first,
+                        password = credentials.second,
+                        sourceUrl = sourceUrl
+                    )
+                    authResult.isSuccess
+                } else {
+                    true
+                }
+            } catch (e: Exception) {
+                true
+            }
         }
     }
 
@@ -396,6 +482,10 @@ class AuthRepository(private val context: Context) {
                 }
             }
             secureSessionStore.removeToken(removeServer.id)
+            secureSessionStore.removeCredentials(removeServer.id)
+            if (!removeServer.sourceUrl.isNullOrBlank()) {
+                secureSessionStore.removeCredentials(removeServer.sourceUrl)
+            }
             seerrRepository.disconnect(removeServer.id)
 
             Result.success(Unit)
@@ -436,16 +526,96 @@ class AuthRepository(private val context: Context) {
         )
     }
 
+    fun is301Url(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        val trimmed = url.trim()
+        return trimmed.startsWith("301:", ignoreCase = true) || trimmed.startsWith("301：")
+    }
+
+    fun extract301TargetUrl(url: String): String {
+        val trimmed = url.trim()
+        return when {
+            trimmed.startsWith("301:", ignoreCase = true) -> trimmed.substring(4).trim()
+            trimmed.startsWith("301：") -> trimmed.substring(4).trim()
+            else -> trimmed
+        }
+    }
+
+    suspend fun resolve301ServerUrl(url: String): Result<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        try {
+            val targetUrlRaw = extract301TargetUrl(url)
+            if (targetUrlRaw.isBlank()) {
+                return@withContext Result.failure(Exception(string(R.string.auth_error_invalid_url_scheme)))
+            }
+            var targetUrl = targetUrlRaw
+            if (!targetUrl.startsWith("http://", ignoreCase = true) && !targetUrl.startsWith("https://", ignoreCase = true)) {
+                targetUrl = "https://$targetUrl"
+            }
+
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .build()
+
+            val request = okhttp3.Request.Builder()
+                .url(targetUrl)
+                .get()
+                .header("User-Agent", "JellyCine/1.3.3")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
+                }
+                val bodyString = response.body?.string()?.trim()
+                if (bodyString.isNullOrBlank()) {
+                    return@withContext Result.failure(Exception("301 返回内容为空"))
+                }
+                val realAddress = bodyString.lines().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+                if (realAddress.isBlank()) {
+                    return@withContext Result.failure(Exception("未在 301 响应中找到有效地址"))
+                }
+                val fullAddress = if (!realAddress.startsWith("http://", ignoreCase = true) && !realAddress.startsWith("https://", ignoreCase = true)) {
+                    "http://$realAddress"
+                } else {
+                    realAddress
+                }
+                Result.success(trimTrailingSlash(fullAddress.trim()))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resolveServerUrl(inputUrl: String): Result<String> {
+        val trimmed = inputUrl.trim()
+        return if (is301Url(trimmed)) {
+            resolve301ServerUrl(trimmed)
+        } else {
+            Result.success(trimmed)
+        }
+    }
+
     suspend fun testServerConnection(serverUrl: String): Result<ServerInfo> {
         legacyStorageMigrated()
         return try {
-            if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
+            val resolvedUrl = if (is301Url(serverUrl)) {
+                resolve301ServerUrl(serverUrl).getOrElse { error ->
+                    return Result.failure(Exception("无法获取 301 服务器地址: ${error.message}"))
+                }
+            } else {
+                serverUrl
+            }
+
+            if (!resolvedUrl.startsWith("http://") && !resolvedUrl.startsWith("https://")) {
                 return Result.failure(Exception(string(R.string.auth_error_invalid_url_scheme)))
             }
 
             val resolved = NetworkModule.serverEndpoint(
                     context = context,
-                    serverUrl = serverUrl,
+                    serverUrl = resolvedUrl,
                     storageDir = context.filesDir,
                     timeoutConfig = networkPreferences.getTimeoutConfig()
                 ).getOrElse { error ->
@@ -523,7 +693,8 @@ class AuthRepository(private val context: Context) {
     suspend fun authenticateUser(
         serverUrl: String,
         username: String,
-        password: String
+        password: String,
+        sourceUrl: String? = null
     ): Result<AuthenticationResult> {
         return try {
             legacyStorageMigrated()
@@ -579,14 +750,29 @@ class AuthRepository(private val context: Context) {
                     username = username,
                     userId = authResult.user.id,
                     profileImageUrl = null,
-                    lastUsedAt = System.currentTimeMillis()
+                    lastUsedAt = System.currentTimeMillis(),
+                    sourceUrl = sourceUrl
                 )
 
                 secureSessionStore.putToken(savedServer.id, authResult.accessToken)
+                secureSessionStore.saveCredentials(savedServer.id, username, password)
+                if (!sourceUrl.isNullOrBlank()) {
+                    secureSessionStore.saveCredentials(sourceUrl, username, password)
+                }
+
                 try {
                     dataStore.edit { prefs ->
                         val existingServers = savedServers(prefs[SAVED_SERVERS_KEY])
-                        val updatedServers = upsertSavedServer(existingServers, savedServer)
+                        val serversToRetain = if (!sourceUrl.isNullOrBlank()) {
+                            val oldMatch = existingServers.firstOrNull { it.sourceUrl == sourceUrl && it.id != savedServer.id }
+                            if (oldMatch != null) {
+                                secureSessionStore.removeToken(oldMatch.id)
+                            }
+                            existingServers.filterNot { it.sourceUrl == sourceUrl }
+                        } else {
+                            existingServers
+                        }
+                        val updatedServers = upsertSavedServer(serversToRetain, savedServer)
                         prefs[SAVED_SERVERS_KEY] = serializeSavedServers(updatedServers)
                         prefs[ACTIVE_SERVER_ID_KEY] = savedServer.id
                         prefs[SERVER_URL_KEY] = endpoint.baseUrl
@@ -595,6 +781,7 @@ class AuthRepository(private val context: Context) {
                         prefs[LEGACY_ACCESS_TOKEN_KEY] = ""
                         prefs[USER_ID_KEY] = authResult.user.id
                         prefs[USERNAME_KEY] = username
+                        prefs[SOURCE_URL_KEY] = sourceUrl ?: ""
                         prefs[IS_AUTHENTICATED_KEY] = true
                     }
                 } catch (error: Exception) {
@@ -733,6 +920,7 @@ class AuthRepository(private val context: Context) {
             preferences[SERVER_NAME_KEY] = ""
             preferences[SERVER_TYPE_KEY] = ""
             preferences[ACTIVE_SERVER_ID_KEY] = ""
+            preferences[SOURCE_URL_KEY] = ""
             preferences[IS_AUTHENTICATED_KEY] = false
         }
         seerrRepository.disconnect(loggedOutServerId)
@@ -798,7 +986,8 @@ class AuthRepository(private val context: Context) {
             username = username,
             userId = userId,
             profileImageUrl = profileImageUrl,
-            lastUsedAt = lastUsedAt
+            lastUsedAt = lastUsedAt,
+            sourceUrl = sourceUrl
         )
     }
 

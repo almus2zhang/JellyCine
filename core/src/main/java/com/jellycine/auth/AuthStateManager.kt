@@ -13,6 +13,7 @@ class AuthStateManager(private val context: Context) {
     
     suspend fun checkAuthenticationState(): Boolean {
         return try {
+            authRepository.checkOrRefreshActiveSession()
             authRepository.isAuthenticated.first()
         } catch (e: Exception) {
             false

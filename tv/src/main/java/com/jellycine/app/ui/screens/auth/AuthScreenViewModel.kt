@@ -66,16 +66,33 @@ class AuthScreenViewModel(application: Application) : AndroidViewModel(applicati
         )
         
         viewModelScope.launch {
-            val result = authRepository.testServerConnection(currentState.serverUrl)
+            val is301 = authRepository.is301Url(currentState.serverUrl)
+            val sourceUrl = if (is301) currentState.serverUrl.trim() else null
+            val actualUrl = if (is301) {
+                val resolvedResult = authRepository.resolve301ServerUrl(currentState.serverUrl)
+                if (resolvedResult.isFailure) {
+                    _uiState.value = _uiState.value.copy(
+                        isServerLoading = false,
+                        serverErrorMessage = "无法获取 301 服务器地址: ${resolvedResult.exceptionOrNull()?.message}"
+                    )
+                    return@launch
+                }
+                resolvedResult.getOrThrow()
+            } else {
+                currentState.serverUrl
+            }
+
+            val result = authRepository.testServerConnection(actualUrl)
             
             result.fold(
                 onSuccess = { serverInfo ->
                     _uiState.value = _uiState.value.copy(
                         isServerLoading = false,
                         serverInfo = serverInfo,
-                        isServerConnected = true
+                        isServerConnected = true,
+                        sourceUrl = sourceUrl
                     )
-                    onSuccess(currentState.serverUrl, serverInfo.serverName)
+                    onSuccess(actualUrl, serverInfo.serverName)
                 },
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
@@ -103,10 +120,12 @@ class AuthScreenViewModel(application: Application) : AndroidViewModel(applicati
         )
         
         viewModelScope.launch {
+            val effectiveSourceUrl = currentState.sourceUrl ?: currentState.serverUrl.takeIf { authRepository.is301Url(it) }
             val result = authRepository.authenticateUser(
                 serverUrl = serverUrl,
                 username = currentState.username,
-                password = currentState.password
+                password = currentState.password,
+                sourceUrl = effectiveSourceUrl
             )
             
             result.fold(
@@ -284,6 +303,7 @@ class AuthScreenViewModel(application: Application) : AndroidViewModel(applicati
 data class AuthScreenUiState(
     // Server connection state
     val serverUrl: String = "",
+    val sourceUrl: String? = null,
     val isServerLoading: Boolean = false,
     val isServerConnected: Boolean = false,
     val serverInfo: com.jellycine.data.model.ServerInfo? = null,

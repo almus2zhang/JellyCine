@@ -43,7 +43,32 @@ class SecureSessionStore(context: Context) {
 
     fun hasToken(serverId: String?): Boolean = !getToken(serverId).isNullOrBlank()
 
+    fun saveCredentials(key: String, username: String, password: String) {
+        if (key.isBlank()) return
+        prefs.edit()
+            .putString(usernameKey(key), username)
+            .putString(passwordKey(key), password)
+            .apply()
+    }
+
+    fun getCredentials(key: String?): Pair<String, String>? {
+        if (key.isNullOrBlank()) return null
+        val username = prefs.getString(usernameKey(key), null)?.takeIf { it.isNotBlank() } ?: return null
+        val password = prefs.getString(passwordKey(key), "") ?: ""
+        return Pair(username, password)
+    }
+
+    fun removeCredentials(key: String?) {
+        if (key.isNullOrBlank()) return
+        prefs.edit()
+            .remove(usernameKey(key))
+            .remove(passwordKey(key))
+            .apply()
+    }
+
     private fun tokenKey(serverId: String): String = "token_${sha256(serverId)}"
+    private fun usernameKey(key: String): String = "user_${sha256(key)}"
+    private fun passwordKey(key: String): String = "pass_${sha256(key)}"
 
     private fun sha256(value: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
