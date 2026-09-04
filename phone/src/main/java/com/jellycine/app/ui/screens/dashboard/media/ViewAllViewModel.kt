@@ -79,7 +79,7 @@ class ViewAllViewModel @Inject constructor(
         } else {
             parentId
         }
-        currentRequestKey = "$contentType|${effectiveParentId.orEmpty()}|${_uiState.value.browseMode}|${genreId.orEmpty()}"
+        currentRequestKey = "$contentType|${effectiveParentId.orEmpty()}|${_uiState.value.browseMode}|${_uiState.value.sortBy}|${_uiState.value.sortOrder}|${genreId.orEmpty()}"
 
         if (refresh) {
             currentPage = 0
@@ -106,15 +106,20 @@ class ViewAllViewModel @Inject constructor(
                     val isWatchedRequest = parentId == WATCHED_VIEW_ALL_PARENT_ID
                     val isFavoritesRequest = parentId == FAVORITES_VIEW_ALL_PARENT_ID
                     val result = if (isFolderMode && !effectiveParentId.isNullOrBlank()) {
+                        val folderSortBy = if (_uiState.value.sortBy.startsWith("IsFolder")) {
+                            _uiState.value.sortBy
+                        } else {
+                            "IsFolder," + _uiState.value.sortBy
+                        }
                         mediaRepository.getUserItems(
                             parentId = effectiveParentId,
                             includeItemTypes = "Folder,Movie,Series,Episode,Video,BoxSet",
-                            sortBy = "IsFolder,SortName",
-                            sortOrder = "Ascending",
+                            sortBy = folderSortBy,
+                            sortOrder = _uiState.value.sortOrder,
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = false,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks"
                         )
                     } else when (contentType) {
                         ContentType.SEERR_STUDIO -> seerrRepository.getStudios(

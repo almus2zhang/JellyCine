@@ -653,9 +653,10 @@ fun ViewAllScreen(
                                             isTablet = isTablet,
                                             mediaRepository = mediaRepository,
                                             onClick = {
+                                                val folderDisplayName = getItemDisplayName(item).ifBlank { item.name.orEmpty() }
                                                 viewModel.openFolder(
                                                     folderId = item.id.orEmpty(),
-                                                    folderName = item.name.orEmpty(),
+                                                    folderName = folderDisplayName,
                                                     contentType = contentType,
                                                     rootParentId = parentId,
                                                     genreId = genreId
@@ -668,6 +669,7 @@ fun ViewAllScreen(
                                             isTablet = isTablet,
                                             mediaRepository = mediaRepository,
                                             watchedViewAll = isWatchedViewAll,
+                                            isFolderMode = uiState.browseMode == BrowseMode.FOLDERS,
                                             onClick = { onItemClick(item) }
                                         )
                                     }
@@ -793,7 +795,7 @@ fun ViewAllScreen(
             )
         }
 
-        if (!isSeerrCatalog && !isWatchedEpisodeViewAll && !isAward && uiState.browseMode != BrowseMode.FOLDERS) {
+        if (!isSeerrCatalog && !isWatchedEpisodeViewAll && !isAward) {
             val expanded by remember {
                 derivedStateOf { gridState.firstVisibleItemIndex == 0 }
             }
@@ -813,6 +815,7 @@ fun ViewAllScreen(
                 currentSortOrder = uiState.sortOrder,
                 availableGenres = availableGenres,
                 selectedGenres = uiState.selectedGenres,
+                showGenres = uiState.browseMode != BrowseMode.FOLDERS,
                 onSortSelected = { sortBy, sortOrder ->
                     viewModel.setSort(sortBy, sortOrder, contentType, parentId, genreId)
                 },
@@ -834,6 +837,44 @@ private fun LazyGridScope.compactHeaderItem(
 
     item(span = { GridItemSpan(maxLineSpan) }) {
         content()
+    }
+}
+
+private fun formatRuntime(runTimeTicks: Long?): String? {
+    if (runTimeTicks == null || runTimeTicks <= 0L) return null
+    val totalSeconds = runTimeTicks / 10_000_000L
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        String.format(java.util.Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(java.util.Locale.US, "%02d:%02d", minutes, seconds)
+    }
+}
+
+private fun formatFileSize(bytes: Long?): String? {
+    if (bytes == null || bytes <= 0L) return null
+    val kb = bytes / 1024.0
+    val mb = kb / 1024.0
+    val gb = mb / 1024.0
+    return when {
+        gb >= 1.0 -> String.format(java.util.Locale.US, "%.1f GB", gb)
+        mb >= 1.0 -> String.format(java.util.Locale.US, "%.1f MB", mb)
+        kb >= 1.0 -> String.format(java.util.Locale.US, "%.1f KB", kb)
+        else -> "$bytes B"
+    }
+}
+
+private fun getItemDisplayName(item: BaseItemDto): String {
+    val fromPath = item.path?.trim()?.trimEnd('/', '\\')?.let { p ->
+        p.substringAfterLast('/').substringAfterLast('\\').ifBlank { null }
+    }
+    val rawName = fromPath ?: item.name ?: item.originalTitle ?: ""
+    return if (rawName.length > 200) {
+        rawName.take(200) + "…"
+    } else {
+        rawName
     }
 }
 
@@ -872,7 +913,7 @@ internal fun FolderCard(
     }
 
     val itemCount = item.childCount ?: item.recursiveItemCount
-    val displayName = item.name ?: stringResource(R.string.search_result_unknown_title)
+    val displayName = getItemDisplayName(item).ifBlank { stringResource(R.string.search_result_unknown_title) }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1001,7 +1042,7 @@ internal fun FolderCard(
             color = Color.White,
             fontSize = if (isTablet) 14.sp else 13.sp,
             fontWeight = FontWeight.Medium,
-            maxLines = 2,
+            maxLines = Int.MAX_VALUE,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 4.dp)
@@ -1017,6 +1058,7 @@ internal fun PosterCard(
     mediaRepository: MediaRepository,
     watchedViewAll: Boolean = false,
     showSeerrBadge: Boolean = true,
+    isFolderMode: Boolean = false,
     onClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -1057,10 +1099,24 @@ internal fun PosterCard(
         }
     }
 
-    val displayName = if (item.type == "Episode" && !item.seriesName.isNullOrBlank()) {
+    val displayName = if (isFolderMode) {
+        getItemDisplayName(item).ifBlank {
+            item.name ?: stringResource(R.string.search_result_unknown_title)
+        }
+    } else if (item.type == "Episode" && !item.seriesName.isNullOrBlank()) {
         item.seriesName!!
     } else {
         item.name ?: stringResource(R.string.search_result_unknown_title)
+    }
+
+    val runtimeText = remember(item.runTimeTicks) {
+        formatRuntime(item.runTimeTicks)
+    }
+    val fileSizeText = remember(item.mediaSources) {
+        formatFileSize(item.mediaSources?.firstOrNull()?.size)
+    }
+    val videoBadgeText = remember(runtimeText, fileSizeText) {
+        listOfNotNull(runtimeText, fileSizeText).joinToString(" · ")
     }
 
     Column(
@@ -1169,6 +1225,24 @@ internal fun PosterCard(
                     )
                 }
 
+                if (videoBadgeText.isNotBlank()) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.72f),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(6.dp)
+                    ) {
+                        Text(
+                            text = videoBadgeText,
+                            color = Color.White.copy(alpha = 0.95f),
+                            fontSize = if (isTablet) 11.sp else 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
             }
         }
 
@@ -1179,7 +1253,7 @@ internal fun PosterCard(
             color = Color.White,
             fontSize = if (isTablet) 15.sp else 13.sp,
             fontWeight = FontWeight.Medium,
-            maxLines = 2,
+            maxLines = if (isFolderMode) Int.MAX_VALUE else 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             lineHeight = if (isTablet) 18.sp else 16.sp,
@@ -1188,14 +1262,16 @@ internal fun PosterCard(
                 .padding(horizontal = 4.dp)
         )
 
-        item.productionYear?.let { year ->
-            Text(
-                text = year.toString(),
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = if (isTablet) 13.sp else 11.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 2.dp)
-            )
+        if (!isFolderMode) {
+            item.productionYear?.let { year ->
+                Text(
+                    text = year.toString(),
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = if (isTablet) 13.sp else 11.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
         }
     }
 }
@@ -1321,6 +1397,7 @@ private fun SortBottomSheet(
     currentSortOrder: String,
     availableGenres: List<String>,
     selectedGenres: Set<String>,
+    showGenres: Boolean = true,
     onSortSelected: (String, String) -> Unit,
     onGenreToggle: (String) -> Unit,
     onClearFilters: () -> Unit,
@@ -1408,71 +1485,73 @@ private fun SortBottomSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            if (showGenres) {
+                Spacer(modifier = Modifier.height(32.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
                 Row(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        modifier = Modifier.size(40.dp),
-                        color = Color(0xFFFF9F43).copy(alpha = 0.14f),
-                        shape = RoundedCornerShape(12.dp)
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Filled.LocalOffer,
-                                contentDescription = null,
-                                tint = Color(0xFFFF9F43),
-                                modifier = Modifier.size(20.dp)
-                           )
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            color = Color(0xFFFF9F43).copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Filled.LocalOffer,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF9F43),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Text(
+                            text = stringResource(R.string.view_all_genres),
+                            color = Color.White,
+                            fontSize = if (isTablet) 20.sp else 18.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    if (selectedGenres.isNotEmpty()) {
+                        TextButton(onClick = onClearFilters) {
+                            Text(
+                                text = stringResource(R.string.view_all_clear_filters),
+                                color = Color(0xFF3AA0FF),
+                                fontSize = if (isTablet) 16.sp else 14.sp
+                            )
                         }
                     }
+                }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
+                if (availableGenres.isEmpty()) {
                     Text(
-                        text = stringResource(R.string.view_all_genres),
-                        color = Color.White,
-                        fontSize = if (isTablet) 20.sp else 18.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = stringResource(R.string.view_all_no_genres),
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 14.sp
                     )
-                }
-
-                if (selectedGenres.isNotEmpty()) {
-                    TextButton(onClick = onClearFilters) {
-                        Text(
-                            text = stringResource(R.string.view_all_clear_filters),
-                            color = Color(0xFF3AA0FF),
-                            fontSize = if (isTablet) 16.sp else 14.sp
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (availableGenres.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.view_all_no_genres),
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 14.sp
-                )
-            } else {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    availableGenres.forEach { genre ->
-                        MediaFilterChip(
-                            label = genre,
-                            isSelected = selectedGenres.contains(genre),
-                            onClick = { onGenreToggle(genre) }
-                        )
+                } else {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        availableGenres.forEach { genre ->
+                            MediaFilterChip(
+                                label = genre,
+                                isSelected = selectedGenres.contains(genre),
+                                onClick = { onGenreToggle(genre) }
+                            )
+                        }
                     }
                 }
             }
