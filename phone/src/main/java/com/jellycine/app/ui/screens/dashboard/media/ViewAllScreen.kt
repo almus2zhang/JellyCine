@@ -14,7 +14,13 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.animation.*
 import androidx.compose.animation.core.spring
 import coil3.compose.AsyncImage
@@ -202,9 +208,13 @@ fun ViewAllScreen(
     )
     val compactHeader = if (usesCompactHeader) compactHeaderProgress else 0f
 
+    BackHandler(enabled = uiState.browseMode == BrowseMode.FOLDERS && uiState.folderStack.size > 1) {
+        viewModel.navigateBackFolder(contentType, parentId, genreId)
+    }
+
     // Load initial data
-    LaunchedEffect(contentType, parentId, genreId) {
-        viewModel.ensureItemsLoaded(contentType, parentId, genreId)
+    LaunchedEffect(contentType, parentId, genreId, resolvedTitle) {
+        viewModel.ensureItemsLoaded(contentType, parentId, genreId, resolvedTitle)
     }
 
     LaunchedEffect(userDataRefreshEvent, contentType, parentId, genreId) {
@@ -241,65 +251,206 @@ fun ViewAllScreen(
         modifier: Modifier = Modifier,
         compactProgress: Float = 0f
     ) {
-        if (!isSeerrCatalog || seerrLogoUrl == null) {
-            CompactPageHeader(
-                title = resolvedTitle,
-                subtitle = headerCountText,
-                modifier = modifier,
-                includeStatusBarsPadding = false,
-                horizontalPadding = if (usesCompactHeader) 0.dp else horizontalPadding,
-                verticalPadding = if (usesCompactHeader) 18.dp else 20.dp,
-                titleFontSize = if (isTablet) 28.sp else 24.sp,
-                titleFontWeight = FontWeight.Bold,
-                subtitleFontSize = if (isTablet) 15.sp else 13.sp,
-                centered = usesCompactHeader
-            )
-            return
+        val currentFolderTitle = if (uiState.browseMode == BrowseMode.FOLDERS && uiState.folderStack.isNotEmpty()) {
+            uiState.folderStack.last().name
+        } else {
+            resolvedTitle
         }
 
         Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(
-                    horizontal = if (usesCompactHeader) 0.dp else horizontalPadding,
-                    vertical = if (usesCompactHeader) 18.dp else 20.dp
-                ),
-            horizontalAlignment = if (usesCompactHeader) {
-                Alignment.CenterHorizontally
-            } else {
-                Alignment.Start
-            }
+            modifier = modifier.fillMaxWidth(),
+            horizontalAlignment = if (usesCompactHeader) Alignment.CenterHorizontally else Alignment.Start
         ) {
-            if (isSeerrCatalog && seerrLogoUrl != null) {
-                WarmImageUrl(imageUrl = seerrLogoUrl, allowRgb565 = true)
-                Box(
+            if (!isSeerrCatalog || seerrLogoUrl == null) {
+                CompactPageHeader(
+                    title = currentFolderTitle,
+                    subtitle = headerCountText,
+                    modifier = Modifier.fillMaxWidth(),
+                    includeStatusBarsPadding = false,
+                    horizontalPadding = if (usesCompactHeader) 0.dp else horizontalPadding,
+                    verticalPadding = if (usesCompactHeader) 14.dp else 16.dp,
+                    titleFontSize = if (isTablet) 28.sp else 24.sp,
+                    titleFontWeight = FontWeight.Bold,
+                    subtitleFontSize = if (isTablet) 15.sp else 13.sp,
+                    centered = usesCompactHeader
+                )
+            } else {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (isTablet) 132.dp else 92.dp)
-                        .padding(horizontal = if (isTablet) 128.dp else 52.dp)
-                        .clip(RoundedCornerShape(if (isTablet) 18.dp else 14.dp))
-                        .compactHeaderLogo(compactProgress),
-                    contentAlignment = Alignment.Center
+                        .padding(
+                            horizontal = if (usesCompactHeader) 0.dp else horizontalPadding,
+                            vertical = if (usesCompactHeader) 18.dp else 20.dp
+                        ),
+                    horizontalAlignment = if (usesCompactHeader) {
+                        Alignment.CenterHorizontally
+                    } else {
+                        Alignment.Start
+                    }
                 ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(seerrLogoUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = resolvedTitle,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
+                    if (isSeerrCatalog && seerrLogoUrl != null) {
+                        WarmImageUrl(imageUrl = seerrLogoUrl, allowRgb565 = true)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(if (isTablet) 132.dp else 92.dp)
+                                .padding(horizontal = if (isTablet) 128.dp else 52.dp)
+                                .clip(RoundedCornerShape(if (isTablet) 18.dp else 14.dp))
+                                .compactHeaderLogo(compactProgress),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(seerrLogoUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = resolvedTitle,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                    }
+                    if (headerCountText != null) {
+                        Text(
+                            text = headerCountText,
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = if (isTablet) 15.sp else 13.sp,
+                            textAlign = if (usesCompactHeader) TextAlign.Center else TextAlign.Unspecified,
+                            modifier = Modifier.padding(top = if (usesCompactHeader) 8.dp else 4.dp)
+                        )
+                    }
                 }
             }
-            if (headerCountText != null) {
-                Text(
-                    text = headerCountText,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = if (isTablet) 15.sp else 13.sp,
-                    textAlign = if (usesCompactHeader) TextAlign.Center else TextAlign.Unspecified,
-                    modifier = Modifier.padding(top = if (usesCompactHeader) 8.dp else 4.dp)
-                )
+
+            if (isLibraryCatalog) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = horizontalPadding, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Surface(
+                        color = Color(0xFF1E212B),
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(3.dp)
+                        ) {
+                            val isItems = uiState.browseMode == BrowseMode.ITEMS
+                            Surface(
+                                color = if (isItems) Color(0xFF0080FF) else Color.Transparent,
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .clickable {
+                                        viewModel.setBrowseMode(
+                                            BrowseMode.ITEMS,
+                                            contentType,
+                                            parentId,
+                                            resolvedTitle,
+                                            genreId
+                                        )
+                                    }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.GridView,
+                                        contentDescription = null,
+                                        tint = if (isItems) Color.White else Color.White.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.view_all_mode_items),
+                                        color = if (isItems) Color.White else Color.White.copy(alpha = 0.6f),
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isItems) FontWeight.SemiBold else FontWeight.Normal
+                                    )
+                                }
+                            }
+
+                            val isFolders = uiState.browseMode == BrowseMode.FOLDERS
+                            Surface(
+                                color = if (isFolders) Color(0xFF0080FF) else Color.Transparent,
+                                shape = RoundedCornerShape(20.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .clickable {
+                                        viewModel.setBrowseMode(
+                                            BrowseMode.FOLDERS,
+                                            contentType,
+                                            parentId,
+                                            resolvedTitle,
+                                            genreId
+                                        )
+                                    }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Folder,
+                                        contentDescription = null,
+                                        tint = if (isFolders) Color.White else Color.White.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.view_all_mode_folders),
+                                        color = if (isFolders) Color.White else Color.White.copy(alpha = 0.6f),
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isFolders) FontWeight.SemiBold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (uiState.browseMode == BrowseMode.FOLDERS && uiState.folderStack.isNotEmpty()) {
+                    val breadcrumbScrollState = rememberScrollState()
+                    LaunchedEffect(uiState.folderStack.size) {
+                        breadcrumbScrollState.animateScrollTo(breadcrumbScrollState.maxValue)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = horizontalPadding, vertical = 6.dp)
+                            .horizontalScroll(breadcrumbScrollState),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        uiState.folderStack.forEachIndexed { index, crumb ->
+                            val isLast = index == uiState.folderStack.size - 1
+                            Text(
+                                text = crumb.name,
+                                color = if (isLast) Color(0xFF0080FF) else Color.White.copy(alpha = 0.7f),
+                                fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable(enabled = !isLast) {
+                                        viewModel.navigateToFolderIndex(index, contentType, parentId, genreId)
+                                    }
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                            if (!isLast) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -396,25 +547,63 @@ fun ViewAllScreen(
                     }
                     
                     displayItems.isEmpty() -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                        LazyVerticalGrid(
+                            columns = viewAllGridCells,
+                            contentPadding = PaddingValues(
+                                start = horizontalPadding,
+                                top = if (usesCompactHeader) 0.dp else 16.dp,
+                                end = horizontalPadding,
+                                bottom = 120.dp
+                            ),
+                            modifier = Modifier.fillMaxSize()
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.view_all_empty_title),
-                                    color = Color.White,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Medium
+                            compactHeaderItem(usesCompactHeader) {
+                                HeaderContent(
+                                    modifier = Modifier
+                                        .statusBarsPadding()
+                                        .padding(bottom = 2.dp),
+                                    compactProgress = compactHeader
                                 )
-                                Text(
-                                    text = stringResource(R.string.view_all_empty_message),
-                                    color = Color.White.copy(alpha = 0.6f),
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
+                            }
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 80.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        if (uiState.browseMode == BrowseMode.FOLDERS) {
+                                            Icon(
+                                                imageVector = Icons.Default.Folder,
+                                                contentDescription = null,
+                                                tint = Color.White.copy(alpha = 0.3f),
+                                                modifier = Modifier.size(56.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                        }
+                                        Text(
+                                            text = if (uiState.browseMode == BrowseMode.FOLDERS) {
+                                                stringResource(R.string.view_all_folder_empty)
+                                            } else {
+                                                stringResource(R.string.view_all_empty_title)
+                                            },
+                                            color = Color.White,
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        if (uiState.browseMode != BrowseMode.FOLDERS) {
+                                            Text(
+                                                text = stringResource(R.string.view_all_empty_message),
+                                                color = Color.White.copy(alpha = 0.6f),
+                                                fontSize = 14.sp,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -447,6 +636,7 @@ fun ViewAllScreen(
                                     items = displayItems,
                                     key = ::viewAllItemKey
                                 ) { item ->
+                                    val isItemFolder = item.isFolder == true || item.type == "Folder" || item.type == "CollectionFolder"
                                     if (isWatchedEpisodeViewAll) {
                                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                             LibraryItemCard(
@@ -457,6 +647,21 @@ fun ViewAllScreen(
                                                 onClick = { onItemClick(item) }
                                             )
                                         }
+                                    } else if (isItemFolder) {
+                                        FolderCard(
+                                            item = item,
+                                            isTablet = isTablet,
+                                            mediaRepository = mediaRepository,
+                                            onClick = {
+                                                viewModel.openFolder(
+                                                    folderId = item.id.orEmpty(),
+                                                    folderName = item.name.orEmpty(),
+                                                    contentType = contentType,
+                                                    rootParentId = parentId,
+                                                    genreId = genreId
+                                                )
+                                            }
+                                        )
                                     } else {
                                         PosterCard(
                                             item = item,
@@ -527,7 +732,13 @@ fun ViewAllScreen(
         }
 
         BackButton(
-            onClick = onBackPressed,
+            onClick = {
+                if (uiState.browseMode == BrowseMode.FOLDERS && uiState.folderStack.size > 1) {
+                    viewModel.navigateBackFolder(contentType, parentId, genreId)
+                } else {
+                    onBackPressed()
+                }
+            },
             modifier = Modifier.align(Alignment.TopStart)
         )
 
@@ -549,8 +760,13 @@ fun ViewAllScreen(
         }
 
         if (isLibraryCatalog || isGenreCatalog) {
+            val currentFolderTitle = if (uiState.browseMode == BrowseMode.FOLDERS && uiState.folderStack.isNotEmpty()) {
+                uiState.folderStack.last().name
+            } else {
+                resolvedTitle
+            }
             CompactTopText(
-                text = resolvedTitle,
+                text = currentFolderTitle,
                 progress = compactHeader,
                 isTablet = isTablet,
                 onClick = {
@@ -577,7 +793,7 @@ fun ViewAllScreen(
             )
         }
 
-        if (!isSeerrCatalog && !isWatchedEpisodeViewAll && !isAward) {
+        if (!isSeerrCatalog && !isWatchedEpisodeViewAll && !isAward && uiState.browseMode != BrowseMode.FOLDERS) {
             val expanded by remember {
                 derivedStateOf { gridState.firstVisibleItemIndex == 0 }
             }
@@ -618,6 +834,178 @@ private fun LazyGridScope.compactHeaderItem(
 
     item(span = { GridItemSpan(maxLineSpan) }) {
         content()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun FolderCard(
+    item: BaseItemDto,
+    isTablet: Boolean,
+    mediaRepository: MediaRepository,
+    onClick: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val directImageUrl = item.imageUrl?.takeIf { it.isNotBlank() }
+    var imageUrl by remember(item.id, directImageUrl) { mutableStateOf(directImageUrl) }
+
+    LaunchedEffect(item.id, directImageUrl) {
+        if (directImageUrl != null) {
+            imageUrl = directImageUrl
+            return@LaunchedEffect
+        }
+        val itemId = item.id
+        if (itemId != null) {
+            try {
+                val url = mediaRepository.getImageUrl(
+                    itemId = itemId,
+                    width = 300,
+                    height = 450,
+                    quality = 90,
+                    enableImageEnhancers = true
+                ).first()
+                imageUrl = url
+            } catch (e: Exception) {
+                imageUrl = null
+            }
+        }
+    }
+
+    val itemCount = item.childCount ?: item.recursiveItemCount
+    val displayName = item.name ?: stringResource(R.string.search_result_unknown_title)
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f),
+            shape = RoundedCornerShape(if (isTablet) 18.dp else 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1B1E28)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            onClick = onClick
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (!imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(imageUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = displayName,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = 0.75f)
+                                    )
+                                )
+                            )
+                    )
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Folder,
+                            contentDescription = null,
+                            tint = Color(0xFF0080FF),
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .size(16.dp)
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color(0xFF242A38),
+                                        Color(0xFF141722)
+                                    )
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Surface(
+                                color = Color(0xFF0080FF).copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Folder,
+                                        contentDescription = null,
+                                        tint = Color(0xFF0080FF),
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            }
+                            if (itemCount != null && itemCount > 0) {
+                                Text(
+                                    text = stringResource(R.string.view_all_folder_item_count, itemCount),
+                                    color = Color.White.copy(alpha = 0.6f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (!imageUrl.isNullOrBlank() && itemCount != null && itemCount > 0) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.65f),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.view_all_folder_item_count, itemCount),
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = displayName,
+            color = Color.White,
+            fontSize = if (isTablet) 14.sp else 13.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
     }
 }
 

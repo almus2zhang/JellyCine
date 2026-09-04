@@ -168,8 +168,11 @@ dependencies {
     implementation 'androidx.media3:media3-ui:1.10.1'
     implementation 'androidx.media3:media3-session:1.10.1'
     implementation 'androidx.media3:media3-common:1.10.0'
-    implementation 'org.jellyfin.media3:media3-ffmpeg-decoder:1.9.0+1'
-    implementation 'org.jellycine.mpv:libmpv:1.0.4'
+    if (file('libs/libmpv-1.0.4.aar').exists()) {
+        implementation files('libs/libmpv-1.0.4.aar')
+    } else {
+        implementation 'org.jellycine.mpv:libmpv:1.0.4'
+    }
 
     // Audio and video processing
     implementation 'androidx.media3:media3-effect:1.10.1'

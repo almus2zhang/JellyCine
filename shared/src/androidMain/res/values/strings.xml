@@ -296,6 +296,10 @@
     <string name="view_all_sort_year_oldest">Year (Oldest)</string>
     <string name="view_all_sort_rating_high">Rating (High)</string>
     <string name="view_all_sort_rating_low">Rating (Low)</string>
+    <string name="view_all_mode_items">Items</string>
+    <string name="view_all_mode_folders">Folders</string>
+    <string name="view_all_folder_item_count">%1$d items</string>
+    <string name="view_all_folder_empty">Empty folder</string>
 
     <!-- Favorites -->
     <string name="favorites_load_failed">Unable to load favorites</string>

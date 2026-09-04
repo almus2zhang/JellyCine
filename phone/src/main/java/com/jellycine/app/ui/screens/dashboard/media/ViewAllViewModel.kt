@@ -47,9 +47,21 @@ class ViewAllViewModel @Inject constructor(
     fun ensureItemsLoaded(
         contentType: ContentType,
         parentId: String? = null,
-        genreId: String? = null
+        genreId: String? = null,
+        title: String = ""
     ) {
-        val requestKey = "$contentType|${parentId.orEmpty()}|${genreId.orEmpty()}"
+        val isFolderMode = _uiState.value.browseMode == BrowseMode.FOLDERS
+        if (isFolderMode && _uiState.value.folderStack.isEmpty() && !parentId.isNullOrBlank()) {
+            _uiState.value = _uiState.value.copy(
+                folderStack = listOf(FolderCrumb(id = parentId, name = title))
+            )
+        }
+        val effectiveParentId = if (isFolderMode) {
+            _uiState.value.folderStack.lastOrNull()?.id ?: parentId
+        } else {
+            parentId
+        }
+        val requestKey = "$contentType|${effectiveParentId.orEmpty()}|${_uiState.value.browseMode}|${genreId.orEmpty()}"
 
         if (currentRequestKey == requestKey && _items.value.isNotEmpty()) return
         loadItems(contentType, parentId, refresh = true, genreId = genreId)
@@ -61,7 +73,13 @@ class ViewAllViewModel @Inject constructor(
         refresh: Boolean = false,
         genreId: String? = null
     ) {
-        currentRequestKey = "$contentType|${parentId.orEmpty()}|${genreId.orEmpty()}"
+        val isFolderMode = _uiState.value.browseMode == BrowseMode.FOLDERS
+        val effectiveParentId = if (isFolderMode) {
+            _uiState.value.folderStack.lastOrNull()?.id ?: parentId
+        } else {
+            parentId
+        }
+        currentRequestKey = "$contentType|${effectiveParentId.orEmpty()}|${_uiState.value.browseMode}|${genreId.orEmpty()}"
 
         if (refresh) {
             currentPage = 0
@@ -87,7 +105,18 @@ class ViewAllViewModel @Inject constructor(
                     val selectedGenreIds = genreId?.takeIf { it.isNotBlank() }
                     val isWatchedRequest = parentId == WATCHED_VIEW_ALL_PARENT_ID
                     val isFavoritesRequest = parentId == FAVORITES_VIEW_ALL_PARENT_ID
-                    val result = when (contentType) {
+                    val result = if (isFolderMode && !effectiveParentId.isNullOrBlank()) {
+                        mediaRepository.getUserItems(
+                            parentId = effectiveParentId,
+                            includeItemTypes = "Folder,Movie,Series,Episode,Video,BoxSet",
+                            sortBy = "IsFolder,SortName",
+                            sortOrder = "Ascending",
+                            limit = pageSize,
+                            startIndex = currentPage * pageSize,
+                            recursive = false,
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData"
+                        )
+                    } else when (contentType) {
                         ContentType.SEERR_STUDIO -> seerrRepository.getStudios(
                             scopeId = authRepository.getActiveSessionSnapshot().activeServerId.orEmpty(),
                             studioId = parentId.orEmpty(),
@@ -284,7 +313,80 @@ class ViewAllViewModel @Inject constructor(
         )
         loadItems(contentType, parentId, refresh = true, genreId = genreId)
     }
+
+    fun setBrowseMode(
+        mode: BrowseMode,
+        contentType: ContentType,
+        rootParentId: String?,
+        rootTitle: String,
+        genreId: String? = null
+    ) {
+        if (_uiState.value.browseMode == mode) return
+        val initialStack = if (mode == BrowseMode.FOLDERS && !rootParentId.isNullOrBlank()) {
+            listOf(FolderCrumb(id = rootParentId, name = rootTitle))
+        } else {
+            emptyList()
+        }
+        _uiState.value = _uiState.value.copy(
+            browseMode = mode,
+            folderStack = initialStack,
+            selectedGenres = emptySet()
+        )
+        loadItems(contentType, rootParentId, refresh = true, genreId = genreId)
+    }
+
+    fun openFolder(
+        folderId: String,
+        folderName: String,
+        contentType: ContentType,
+        rootParentId: String?,
+        genreId: String? = null
+    ) {
+        val currentStack = _uiState.value.folderStack
+        _uiState.value = _uiState.value.copy(
+            folderStack = currentStack + FolderCrumb(id = folderId, name = folderName)
+        )
+        loadItems(contentType, rootParentId, refresh = true, genreId = genreId)
+    }
+
+    fun navigateBackFolder(
+        contentType: ContentType,
+        rootParentId: String?,
+        genreId: String? = null
+    ): Boolean {
+        val currentStack = _uiState.value.folderStack
+        if (currentStack.size <= 1) return false
+        _uiState.value = _uiState.value.copy(
+            folderStack = currentStack.dropLast(1)
+        )
+        loadItems(contentType, rootParentId, refresh = true, genreId = genreId)
+        return true
+    }
+
+    fun navigateToFolderIndex(
+        index: Int,
+        contentType: ContentType,
+        rootParentId: String?,
+        genreId: String? = null
+    ) {
+        val currentStack = _uiState.value.folderStack
+        if (index < 0 || index >= currentStack.size - 1) return
+        _uiState.value = _uiState.value.copy(
+            folderStack = currentStack.take(index + 1)
+        )
+        loadItems(contentType, rootParentId, refresh = true, genreId = genreId)
+    }
 }
+
+enum class BrowseMode {
+    ITEMS,
+    FOLDERS
+}
+
+data class FolderCrumb(
+    val id: String,
+    val name: String
+)
 
 data class ViewAllUiState(
     val isLoading: Boolean = false,
@@ -293,7 +395,9 @@ data class ViewAllUiState(
     val sortOrder: String = "Descending",
     val selectedGenres: Set<String> = emptySet(),
     val totalItems: Int = 0,
-    val hasMorePages: Boolean = true
+    val hasMorePages: Boolean = true,
+    val browseMode: BrowseMode = BrowseMode.ITEMS,
+    val folderStack: List<FolderCrumb> = emptyList()
 )
 
 enum class ContentType {

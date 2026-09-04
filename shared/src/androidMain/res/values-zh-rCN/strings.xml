@@ -281,6 +281,10 @@
     <string name="view_all_sort_year_oldest">年份（最旧）</string>
     <string name="view_all_sort_rating_high">评分（高）</string>
     <string name="view_all_sort_rating_low">评级（低）</string>
+    <string name="view_all_mode_items">全部项目</string>
+    <string name="view_all_mode_folders">文件夹</string>
+    <string name="view_all_folder_item_count">%1$d 个项目</string>
+    <string name="view_all_folder_empty">空文件夹</string>
     <!-- Favorites -->
     <string name="favorites_load_failed">无法加载收藏夹</string>
     <string name="favorites_unknown_error">未知错误</string>

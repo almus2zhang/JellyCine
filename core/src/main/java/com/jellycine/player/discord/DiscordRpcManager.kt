@@ -64,20 +64,8 @@ class DiscordRpcManager private constructor(private val context: Context) {
     }
 
     fun initialize() {
-        if (isInitialized) return
-        if (!isDiscordInstalled()) return
-        val accessToken = encryptedPrefs.getString(KEY_ACCESS_TOKEN, null)
-        if (accessToken.isNullOrBlank()) return
-        try {
-            val activity = activityRef ?: return
-            com.discord.socialsdk.DiscordSocialSdkInit.setEngineActivity(activity)
-            System.loadLibrary("discord_bridge")
-            isInitialized = nativeInitialize(APPLICATION_ID, accessToken)
-        } catch (e: UnsatisfiedLinkError) {
-            Log.e(TAG, "Failed to load discord_bridge native library", e)
-        } catch (e: Exception) {
-            Log.e(TAG, "Discord SDK initialization error", e)
-        }
+        // Discord SDK bypassed
+        return
     }
 
     fun isDiscordInstalled(): Boolean {
@@ -196,38 +184,14 @@ class DiscordRpcManager private constructor(private val context: Context) {
     }
 
     fun updatePresence(info: NowPlayingInfo) {
-        if (!isInitialized) initialize()
-        if (!isInitialized) return
-        try {
-            nativeUpdatePresence(
-                details = info.discordDetails,
-                state = info.discordState.orEmpty(),
-                largeImageKey = info.imageUrl.orEmpty(),
-                largeImageText = info.title,
-                startTimestamp = info.startTimestampMs,
-                activityType = activityTypeFor(info.mediaType)
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to update Discord presence", e)
-        }
+        // Discord SDK bypassed
     }
 
     fun clearPresence() {
-        if (!isInitialized) return
-        try {
-            nativeClearPresence()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to clear Discord presence", e)
-        }
+        // Discord SDK bypassed
     }
 
     fun shutdown() {
-        if (!isInitialized) return
-        try {
-            nativeShutdown()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to shutdown Discord SDK", e)
-        }
         isInitialized = false
     }
 
@@ -248,16 +212,4 @@ class DiscordRpcManager private constructor(private val context: Context) {
             else -> 3
         }
     }
-
-    private external fun nativeInitialize(applicationId: String, accessToken: String): Boolean
-    private external fun nativeUpdatePresence(
-        details: String,
-        state: String,
-        largeImageKey: String,
-        largeImageText: String,
-        startTimestamp: Long,
-        activityType: Int
-    )
-    private external fun nativeClearPresence()
-    private external fun nativeShutdown()
 }
