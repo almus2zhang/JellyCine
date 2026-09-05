@@ -77,8 +77,69 @@ fun isFolderItem(item: BaseItemDto): Boolean {
         item.type.equals("UserView", ignoreCase = true)
 }
 
+private val DATE_REGEX_YMD_HYPHEN = Regex("""(?:19|20)\d{2}[-_./](?:1[0-2]|0?[1-9])[-_./](?:[12]\d|3[01]|0?[1-9])""")
+private val DATE_REGEX_YMD_CHINESE = Regex("""((?:19|20)\d{2})年(?:1[0-2]|0?[1-9])月(?:[12]\d|3[01]|0?[1-9])日?""")
+private val DATE_REGEX_YMD_COMPACT = Regex("""\b((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\b""")
+private val DATE_REGEX_YM_CHINESE = Regex("""((?:19|20)\d{2})年(?:1[0-2]|0?[1-9])月?""")
+private val DATE_REGEX_YM_HYPHEN = Regex("""\b((?:19|20)\d{2})[-_./](1[0-2]|0?[1-9])\b""")
+private val DATE_REGEX_YEAR_ONLY = Regex("""\b((?:19|20)\d{2})\b""")
+
+fun extractDateFromNameOrPath(text: String?): String? {
+    if (text.isNullOrBlank()) return null
+
+    // 1. 2024-03-15 / 2024.03.15 / 2024_03_15 / 2024/03/15
+    DATE_REGEX_YMD_HYPHEN.find(text)?.let { m ->
+        val parts = m.value.split('-', '_', '.', '/')
+        if (parts.size == 3) {
+            val y = parts[0].padStart(4, '0')
+            val mon = parts[1].padStart(2, '0')
+            val d = parts[2].padStart(2, '0')
+            return "$y-$mon-$d"
+        }
+    }
+
+    // 2. 2024年3月15日
+    DATE_REGEX_YMD_CHINESE.find(text)?.let { m ->
+        val nums = Regex("""\d+""").findAll(m.value).map { it.value }.toList()
+        if (nums.size >= 3) {
+            return "${nums[0].padStart(4, '0')}-${nums[1].padStart(2, '0')}-${nums[2].padStart(2, '0')}"
+        }
+    }
+
+    // 3. 20240315
+    DATE_REGEX_YMD_COMPACT.find(text)?.let { m ->
+        val y = m.groupValues[1]
+        val mon = m.groupValues[2]
+        val d = m.groupValues[3]
+        return "$y-$mon-$d"
+    }
+
+    // 4. 2024年3月
+    DATE_REGEX_YM_CHINESE.find(text)?.let { m ->
+        val nums = Regex("""\d+""").findAll(m.value).map { it.value }.toList()
+        if (nums.size >= 2) {
+            return "${nums[0].padStart(4, '0')}-${nums[1].padStart(2, '0')}-01"
+        }
+    }
+
+    // 5. 2024-03 / 2024.03
+    DATE_REGEX_YM_HYPHEN.find(text)?.let { m ->
+        val y = m.groupValues[1]
+        val mon = m.groupValues[2].padStart(2, '0')
+        return "$y-$mon-01"
+    }
+
+    // 6. Year only, e.g. 2024
+    DATE_REGEX_YEAR_ONLY.find(text)?.let { m ->
+        val y = m.groupValues[1]
+        return "$y-01-01"
+    }
+
+    return null
+}
+
 fun getItemEffectiveDate(item: BaseItemDto): String? {
-    return if (isFolderItem(item)) {
+    val serverDate = if (isFolderItem(item)) {
         item.dateLastMediaAdded
             ?: item.dateCreated
             ?: item.premiereDate
@@ -91,6 +152,11 @@ fun getItemEffectiveDate(item: BaseItemDto): String? {
             ?: item.userData?.lastPlayedDate
             ?: item.productionYear?.let { "$it-01-01" }
     }
+    if (!serverDate.isNullOrBlank()) return serverDate
+
+    // Fallback: extract date from folder name, display name, or path
+    val name = getItemRawDisplayName(item)
+    return extractDateFromNameOrPath(name) ?: extractDateFromNameOrPath(item.path)
 }
 
 fun parseDateToMillis(dateStr: String?): Long? {
