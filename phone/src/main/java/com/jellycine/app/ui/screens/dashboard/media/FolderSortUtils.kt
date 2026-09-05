@@ -69,20 +69,35 @@ fun getItemRawDisplayName(item: BaseItemDto): String {
     return fromPath ?: item.name ?: item.originalTitle.orEmpty()
 }
 
+private val PHOTO_EXTENSIONS = setOf(
+    "jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif", "tiff", "tif", "raw", "cr2", "nef", "arw", "dng", "avif"
+)
+
 fun isFolderItem(item: BaseItemDto): Boolean {
     return item.isFolder == true ||
         item.type.equals("Folder", ignoreCase = true) ||
+        item.type.equals("PhotoAlbum", ignoreCase = true) ||
         item.type.equals("CollectionFolder", ignoreCase = true) ||
         item.type.equals("Directory", ignoreCase = true) ||
         item.type.equals("UserView", ignoreCase = true)
 }
 
 fun isPhotoItem(item: BaseItemDto): Boolean {
-    return item.type.equals("Photo", ignoreCase = true) ||
-        item.mediaType.equals("Photo", ignoreCase = true)
+    if (isFolderItem(item)) return false
+    if (item.type.equals("Photo", ignoreCase = true)) return true
+    if (item.mediaType.equals("Photo", ignoreCase = true)) return true
+    val containerExt = item.container?.trim()?.trimStart('.')?.lowercase()
+    if (containerExt != null && containerExt in PHOTO_EXTENSIONS) return true
+    val pathExt = item.path?.substringAfterLast('.', "")?.trim()?.lowercase()
+    if (!pathExt.isNullOrBlank() && pathExt in PHOTO_EXTENSIONS) return true
+    val nameExt = item.name?.substringAfterLast('.', "")?.trim()?.lowercase()
+    if (!nameExt.isNullOrBlank() && nameExt in PHOTO_EXTENSIONS) return true
+    return false
 }
 
 fun isVideoItem(item: BaseItemDto): Boolean {
+    if (isFolderItem(item)) return false
+    if (isPhotoItem(item)) return false
     return item.mediaType.equals("Video", ignoreCase = true) ||
         item.type in listOf("Movie", "Episode", "Video") ||
         !item.mediaSources.isNullOrEmpty() ||

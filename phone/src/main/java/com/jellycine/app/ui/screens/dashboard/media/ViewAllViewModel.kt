@@ -120,13 +120,13 @@ class ViewAllViewModel @Inject constructor(
                         val folderSortBy = _uiState.value.sortBy.removePrefix("IsFolder,").trim()
                         mediaRepository.getUserItems(
                             parentId = effectiveParentId,
-                            includeItemTypes = "Folder,Movie,Series,Episode,Video,BoxSet,Photo",
+                            includeItemTypes = null,
                             sortBy = folderSortBy,
                             sortOrder = _uiState.value.sortOrder,
                             limit = folderLimit,
                             startIndex = currentPage * folderLimit,
                             recursive = false,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate,MediaType,Container"
                         )
                     } else when (contentType) {
                         ContentType.SEERR_STUDIO -> seerrRepository.getStudios(
@@ -149,13 +149,13 @@ class ViewAllViewModel @Inject constructor(
                         } else mediaRepository.getUserItems(
                             parentId = parentId,
                             genres = selectedGenres,
-                            includeItemTypes = "Movie,BoxSet",
+                            includeItemTypes = "Movie,BoxSet,Video,Photo",
                             sortBy = _uiState.value.sortBy,
                             sortOrder = _uiState.value.sortOrder,
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate,MediaType,Container"
                         )
                         ContentType.SERIES -> if (isWatchedRequest) {
                             mediaRepository.loadWatchedItems("Episode")
@@ -172,7 +172,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate,MediaType,Container"
                         )
                         ContentType.EPISODES -> if (isWatchedRequest) {
                             mediaRepository.loadWatchedItems("Episode")
@@ -188,7 +188,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "SeriesName,SeriesId,SeasonName,SeasonId,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
+                            fields = "SeriesName,SeriesId,SeasonName,SeasonId,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate,MediaType,Container"
                         )
                         ContentType.MOVIES_GENRE -> mediaRepository.getUserItems(
                             parentId = parentId,
@@ -200,7 +200,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate,MediaType,Container"
                         )
                         ContentType.TVSHOWS_GENRE -> mediaRepository.getUserItems(
                             parentId = parentId,
@@ -212,18 +212,18 @@ class ViewAllViewModel @Inject constructor(
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate,MediaType,Container"
                         )
                         ContentType.ALL -> mediaRepository.getUserItems(
                             parentId = parentId,
                             genres = selectedGenres,
-                            includeItemTypes = "Movie,Series",
+                            includeItemTypes = "Movie,Series,Video,Photo,BoxSet",
                             sortBy = _uiState.value.sortBy,
                             sortOrder = _uiState.value.sortOrder,
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate,MediaType,Container"
                         )
                         ContentType.AWARD -> loadAwardItems(parentId)
                     }

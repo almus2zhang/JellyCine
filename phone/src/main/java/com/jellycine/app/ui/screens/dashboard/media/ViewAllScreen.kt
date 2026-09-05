@@ -219,11 +219,11 @@ fun ViewAllScreen(
             items
         }.distinctBy(::viewAllItemKey)
 
+        val validItems = filterFolderItems(filteredItems)
         if (uiState.browseMode == BrowseMode.FOLDERS) {
-            val validFolderItems = filterFolderItems(filteredItems)
-            sortFolderItems(validFolderItems, uiState.sortBy, uiState.sortOrder)
+            sortFolderItems(validItems, uiState.sortBy, uiState.sortOrder)
         } else {
-            filteredItems
+            validItems
         }
     }
     var viewingPhotoItem by remember { mutableStateOf<BaseItemDto?>(null) }
@@ -1709,8 +1709,8 @@ internal fun PhotoCard(
             try {
                 val url = mediaRepository.getImageUrl(
                     itemId = itemId,
-                    width = 400,
-                    height = 600,
+                    width = 500,
+                    height = null,
                     quality = 90,
                     enableImageEnhancers = false
                 ).first()
@@ -1849,9 +1849,9 @@ internal fun PhotoViewerDialog(
                         try {
                             val url = mediaRepository.getImageUrl(
                                 itemId = itemId,
-                                width = 2560,
-                                height = 1440,
-                                quality = 95,
+                                width = null,
+                                height = null,
+                                quality = 100,
                                 enableImageEnhancers = false
                             ).first()
                             highResUrl = url
