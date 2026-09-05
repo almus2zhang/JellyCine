@@ -79,20 +79,33 @@ fun isFolderItem(item: BaseItemDto): Boolean {
 
 fun getItemEffectiveDate(item: BaseItemDto): String? {
     return if (isFolderItem(item)) {
-        item.dateLastMediaAdded ?: item.dateCreated ?: item.premiereDate
+        item.dateLastMediaAdded
+            ?: item.dateCreated
+            ?: item.premiereDate
+            ?: item.userData?.lastPlayedDate
+            ?: item.productionYear?.let { "$it-01-01" }
     } else {
-        item.dateCreated ?: item.dateLastMediaAdded ?: item.premiereDate
+        item.dateCreated
+            ?: item.dateLastMediaAdded
+            ?: item.premiereDate
+            ?: item.userData?.lastPlayedDate
+            ?: item.productionYear?.let { "$it-01-01" }
     }
 }
 
 fun parseDateToMillis(dateStr: String?): Long? {
     if (dateStr.isNullOrBlank()) return null
+    val s = dateStr.trim().replace(' ', 'T')
     return runCatching {
-        java.time.Instant.parse(dateStr).toEpochMilli()
+        java.time.Instant.parse(s).toEpochMilli()
     }.recoverCatching {
-        java.time.LocalDate.parse(dateStr).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+        java.time.OffsetDateTime.parse(s).toInstant().toEpochMilli()
     }.recoverCatching {
-        dateStr.toLongOrNull()
+        java.time.LocalDateTime.parse(s).toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
+    }.recoverCatching {
+        java.time.LocalDate.parse(s).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+    }.recoverCatching {
+        s.toLongOrNull()
     }.getOrNull()
 }
 
@@ -111,14 +124,14 @@ fun sortFolderItems(
             return@sortedWith if (isFolderA) -1 else 1
         }
 
-        val cleanSortBy = sortBy.removePrefix("IsFolder,").trim()
-        val cmp = when (cleanSortBy) {
+        val primarySort = sortBy.split(',').map { it.trim() }.firstOrNull { it != "IsFolder" } ?: sortBy.trim()
+        val cmp = when (primarySort) {
             "SortName", "Name" -> {
                 val nameA = getItemRawDisplayName(a)
                 val nameB = getItemRawDisplayName(b)
                 NaturalOrderComparator.compare(nameA, nameB)
             }
-            "DateCreated", "DateLastMediaAdded", "PremiereDate" -> {
+            "DateCreated", "DateLastMediaAdded", "PremiereDate", "DatePlayed", "DateAdded" -> {
                 val timeA = parseDateToMillis(getItemEffectiveDate(a))
                 val timeB = parseDateToMillis(getItemEffectiveDate(b))
                 when {

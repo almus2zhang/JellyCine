@@ -391,7 +391,7 @@ private fun CastSeekBar(
 ) {
     Canvas(
         modifier = modifier
-            .height(PROGRESS_BAR_HEIGHT_DP.dp)
+            .height(44.dp)
             .pointerInput(enabled) {
                 detectTapGestures { offset ->
                     if (!enabled || size.width <= 0f) return@detectTapGestures
@@ -404,7 +404,7 @@ private fun CastSeekBar(
         val trackInset = 2.dp.toPx()
         val trackStart = Offset(trackInset, yOffset)
         val trackEnd = Offset(size.width - trackInset, yOffset)
-        val trackHeight = size.height * 0.55f
+        val trackHeight = 4.dp.toPx()
         val inactiveColor = if (enabled) {
             Color.White.copy(alpha = 0.35f)
         } else {

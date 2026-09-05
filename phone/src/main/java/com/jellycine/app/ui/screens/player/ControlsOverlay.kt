@@ -2,6 +2,7 @@ package com.jellycine.app.ui.screens.player
 
 import android.view.MotionEvent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -459,7 +460,7 @@ fun ControlsOverlay(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 // Seekbar (full width)
                 SeekBar(
@@ -511,15 +512,15 @@ private fun SeekBar(
     var dragActive by remember { mutableStateOf(false) }
     var widthPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
-    val trackHeightFraction by animateFloatAsState(
-        targetValue = if (dragActive) 0.95f else 0.55f,
+    val animatedTrackHeightDp by animateDpAsState(
+        targetValue = if (dragActive) 7.dp else 4.dp,
         label = "seekTrackHeight"
     )
-    val thumbRadiusFraction by animateFloatAsState(
-        targetValue = if (dragActive) 0.52f else 0.36f,
+    val animatedThumbRadiusDp by animateDpAsState(
+        targetValue = if (dragActive) 8.dp else 5.dp,
         label = "seekThumbRadius"
     )
-    val bubbleYOffsetPx = with(density) { (-42).dp.roundToPx() }
+    val bubbleYOffsetPx = with(density) { (-46).dp.roundToPx() }
 
     LaunchedEffect(progress) {
         if (!dragActive) {
@@ -529,7 +530,7 @@ private fun SeekBar(
 
     Box(
         modifier = modifier
-            .height(PROGRESS_BAR_HEIGHT_DP.dp)
+            .height(44.dp)
             .onSizeChanged { widthPx = it.width }
             .pointerInteropFilter { event ->
                 if (widthPx <= 0) return@pointerInteropFilter false
@@ -568,15 +569,14 @@ private fun SeekBar(
 
         Canvas(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(PROGRESS_BAR_HEIGHT_DP.dp)
-                .align(Alignment.BottomCenter)
+                .fillMaxSize()
         ) {
             val yOffset = size.height / 2
             val trackInset = 2.dp.toPx()
             val trackStart = Offset(trackInset, yOffset)
             val trackEnd = Offset(size.width - trackInset, yOffset)
-            val trackHeight = size.height * trackHeightFraction
+            val trackHeight = animatedTrackHeightDp.toPx()
+            val thumbRadius = animatedThumbRadiusDp.toPx()
             val markerSpacingPx = 6.dp.toPx()
             val markerStrokeWidth = 1.5.dp.toPx()
             val markerVerticalInset = 1.dp.toPx()
@@ -625,7 +625,7 @@ private fun SeekBar(
             progressX?.let { thumbX ->
                 drawCircle(
                     color = Color.White,
-                    radius = size.height * thumbRadiusFraction,
+                    radius = thumbRadius,
                     center = Offset(thumbX, yOffset)
                 )
             }

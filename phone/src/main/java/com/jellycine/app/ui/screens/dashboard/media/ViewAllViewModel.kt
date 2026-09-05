@@ -155,7 +155,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
                         )
                         ContentType.SERIES -> if (isWatchedRequest) {
                             mediaRepository.loadWatchedItems("Episode")
@@ -172,7 +172,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
                         )
                         ContentType.EPISODES -> if (isWatchedRequest) {
                             mediaRepository.loadWatchedItems("Episode")
@@ -188,7 +188,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "SeriesName,SeriesId,SeasonName,SeasonId,Overview,UserData"
+                            fields = "SeriesName,SeriesId,SeasonName,SeasonId,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
                         )
                         ContentType.MOVIES_GENRE -> mediaRepository.getUserItems(
                             parentId = parentId,
@@ -200,7 +200,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
                         )
                         ContentType.TVSHOWS_GENRE -> mediaRepository.getUserItems(
                             parentId = parentId,
@@ -212,7 +212,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
                         )
                         ContentType.ALL -> mediaRepository.getUserItems(
                             parentId = parentId,
@@ -223,7 +223,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = pageSize,
                             startIndex = currentPage * pageSize,
                             recursive = true,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
                         )
                         ContentType.AWARD -> loadAwardItems(parentId)
                     }
