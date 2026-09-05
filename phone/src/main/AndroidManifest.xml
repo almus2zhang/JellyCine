@@ -58,7 +58,8 @@
             android:exported="true"
             android:theme="@style/Theme.JellyCine.Splash"
             android:launchMode="singleTop"
-            android:configChanges="orientation|screenSize|keyboardHidden|colorMode">
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|colorMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

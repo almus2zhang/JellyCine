@@ -43,6 +43,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -261,16 +262,19 @@ internal fun PlayerScreenEffects(
         while (true) {
             val currentPosition = viewModel.getCurrentPosition()
             val bufferedPosition = viewModel.getBufferedPosition()
+            val cacheSpeed = viewModel.getCacheSpeed()
             val isPlayingNow = viewModel.isPlayingNow()
             val uiState = uiStateProvider()
             if (uiState.currentPosition != currentPosition ||
                 uiState.bufferedPosition != bufferedPosition ||
+                uiState.cacheSpeed != cacheSpeed ||
                 uiState.isPlaying != isPlayingNow
             ) {
                 onUiStateChange(
                     uiState.copy(
                         currentPosition = currentPosition,
                         bufferedPosition = bufferedPosition,
+                        cacheSpeed = cacheSpeed,
                         isPlaying = isPlayingNow
                     )
                 )
@@ -390,8 +394,30 @@ internal fun BoxScope.PlayerOverlayHost(
     onShowAudioTrackDialog: () -> Unit,
     onShowSubtitleTrackDialog: () -> Unit,
     onToggleOrientation: () -> Unit = {},
-    onToggleAutoRotation: (() -> Unit)? = null
+    onToggleAutoRotation: (() -> Unit)? = null,
+    onEnterPip: () -> Unit = {}
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = context as? Activity
+    var isInPipMode by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                activity?.isInPictureInPictureMode == true
+            } else false
+        )
+    }
+
+    DisposableEffect(activity) {
+        val componentActivity = activity as? androidx.activity.ComponentActivity
+        val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { info ->
+            isInPipMode = info.isInPictureInPictureMode
+        }
+        componentActivity?.addOnPictureInPictureModeChangedListener(listener)
+        onDispose {
+            componentActivity?.removeOnPictureInPictureModeChangedListener(listener)
+        }
+    }
+
     var nextEpisodeButtonProgress by remember(
         activeCreditsSegment?.startMs,
         activeCreditsSegment?.endMs,
@@ -425,7 +451,7 @@ internal fun BoxScope.PlayerOverlayHost(
         onWatchNextEpisode()
     }
 
-    if (uiState.controlsVisible) {
+    if (uiState.controlsVisible && !isInPipMode) {
         ControlsOverlay(
             title = playerState.mediaTitle,
             mediaLogoUrl = playerState.mediaLogoUrl,
@@ -434,6 +460,7 @@ internal fun BoxScope.PlayerOverlayHost(
             isPlaying = playerState.playWhenReady,
             currentPosition = uiState.currentPosition,
             bufferedPosition = uiState.bufferedPosition,
+            cacheSpeed = uiState.cacheSpeed,
             duration = viewModel.getDuration(),
             onBackClick = {
                 viewModel.releasePlayer()
@@ -520,6 +547,10 @@ internal fun BoxScope.PlayerOverlayHost(
                     toggleAutoRotation()
                 }
             },
+            onEnterPip = {
+                resetAutoHideTimer()
+                onEnterPip()
+            },
             modifier = Modifier.fillMaxSize()
         )
     }
@@ -527,7 +558,8 @@ internal fun BoxScope.PlayerOverlayHost(
     AnimatedVisibility(
         visible = activeSkippableSegment != null &&
             activeSkippableSegment.type != SkippableSegmentType.CREDITS &&
-            uiState.controlsVisible,
+            uiState.controlsVisible &&
+            !isInPipMode,
         enter = fadeIn(),
         exit = fadeOut(),
         modifier = Modifier
@@ -566,7 +598,8 @@ internal fun BoxScope.PlayerOverlayHost(
 
     AnimatedVisibility(
         visible = activeCreditsSegment != null &&
-            !dismissedCreditsPrompt,
+            !dismissedCreditsPrompt &&
+            !isInPipMode,
         enter = fadeIn(),
         exit = fadeOut(),
         modifier = Modifier
@@ -608,20 +641,40 @@ internal fun BoxScope.PlayerOverlayHost(
         }
     }
 
-    GestureIndicators(
-        volumeLevel = uiState.volumeLevel,
-        brightnessLevel = uiState.brightnessLevel,
-        seekPosition = uiState.seekPosition,
-        seekSide = uiState.seekSide,
-        zoomScale = uiState.zoomIndicatorScale
-    )
+    if (!isInPipMode) {
+        GestureIndicators(
+            volumeLevel = uiState.volumeLevel,
+            brightnessLevel = uiState.brightnessLevel,
+            seekPosition = uiState.seekPosition,
+            seekSide = uiState.seekSide,
+            zoomScale = uiState.zoomIndicatorScale
+        )
+    }
 
     val isTransformed = playerState.videoScale != 1f ||
         playerState.videoOffsetX != 0f ||
         playerState.videoOffsetY != 0f
 
+    var showZoomBadgeTemporary by remember { mutableStateOf(false) }
+
+    LaunchedEffect(
+        playerState.videoScale,
+        playerState.videoOffsetX,
+        playerState.videoOffsetY
+    ) {
+        if (isTransformed) {
+            showZoomBadgeTemporary = true
+            delay(3000L)
+            showZoomBadgeTemporary = false
+        } else {
+            showZoomBadgeTemporary = false
+        }
+    }
+
+    val zoomBadgeVisible = !isInPipMode && isTransformed && (uiState.controlsVisible || showZoomBadgeTemporary)
+
     AnimatedVisibility(
-        visible = isTransformed,
+        visible = zoomBadgeVisible,
         enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
         exit = fadeOut() + slideOutVertically(targetOffsetY = { -it }),
         modifier = Modifier
@@ -658,7 +711,7 @@ internal fun BoxScope.PlayerOverlayHost(
         }
     }
 
-    if (playerState.isLoading) {
+    if (playerState.isLoading && !isInPipMode) {
         Box(
             modifier = Modifier
                 .fillMaxSize()

@@ -196,6 +196,9 @@
     <string name="player_settings_free_zoom_and_pan">无极缩放与双指移动</string>
     <string name="player_settings_free_zoom_and_pan_summary">开启后支持双指自由缩放与平移画面，字幕位置保持不变</string>
     <string name="player_reset_zoom">重置画面</string>
+    <string name="player_pip">小窗播放</string>
+    <string name="player_pip_unsupported">当前设备不支持小窗播放</string>
+    <string name="player_buffer_speed">缓存速度</string>
     <string name="player_settings_start_maximized">启动时默认全屏</string>
     <string name="player_settings_start_maximized_summary">开始播放视频时直接进入全屏模式</string>
     <string name="player_settings_seek_backward">快退步长</string>

@@ -51,6 +51,7 @@ data class PlayerUiState(
     val controlsVisible: Boolean = true,
     val currentPosition: Long = 0L,
     val bufferedPosition: Long = 0L,
+    val cacheSpeed: Long = 0L,
     val isPlaying: Boolean = false,
     val volumeLevel: Float? = null,
     val brightnessLevel: Float? = null,
@@ -146,6 +147,27 @@ fun PlayerScreen(
                 Toast.LENGTH_SHORT
             ).show()
             hideSystemBars()
+        }
+        Unit
+    }
+
+    val enterPip = {
+        (context as? Activity)?.let { act ->
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val hasPipFeature = act.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
+                if (hasPipFeature) {
+                    val isPortrait = act.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+                    val aspectRatio = if (isPortrait) android.util.Rational(9, 16) else android.util.Rational(16, 9)
+                    val params = android.app.PictureInPictureParams.Builder()
+                        .setAspectRatio(aspectRatio)
+                        .build()
+                    act.enterPictureInPictureMode(params)
+                } else {
+                    Toast.makeText(context, context.getString(R.string.player_pip_unsupported), Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(context, context.getString(R.string.player_pip_unsupported), Toast.LENGTH_SHORT).show()
+            }
         }
         Unit
     }
@@ -538,7 +560,8 @@ fun PlayerScreen(
             onShowAudioTrackDialog = { showAudioTrackDialog = true },
             onShowSubtitleTrackDialog = { showSubtitleTrackDialog = true },
             onToggleOrientation = toggleOrientation,
-            onToggleAutoRotation = toggleAutoRotation
+            onToggleAutoRotation = toggleAutoRotation,
+            onEnterPip = enterPip
         )
 
         PlayerDialogsHost(

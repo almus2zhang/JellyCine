@@ -791,6 +791,22 @@ class PlayerViewModel @Inject constructor(
         exoPlayer?.bufferedPosition?.coerceAtLeast(0L) ?: 0L
     }
 
+    fun getCacheSpeed(): Long {
+        if (isMpvPlayback()) {
+            return mpvPlayer?.cacheSpeedBytes ?: 0L
+        }
+        val exo = exoPlayer
+        if (exo != null) {
+            val ctx = playerContext
+            if (ctx != null) {
+                val bandwidthMeter = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.getSingletonInstance(ctx.applicationContext)
+                val estimate = bandwidthMeter.bitrateEstimate
+                if (estimate > 0L) return (estimate / 8L)
+            }
+        }
+        return 0L
+    }
+
     fun isPlayingNow(): Boolean = exoPlayer?.isPlaying == true || mpvPlayer?.isPlaying == true
 
     fun getDuration(): Long {

@@ -193,6 +193,10 @@
     <string name="player_settings_progress_seek_gesture_summary">双击屏幕左侧快退，双击右侧快进</string>
     <string name="player_settings_zoom_gesture">画面缩放手势</string>
     <string name="player_settings_zoom_gesture_summary">双指捏合在适应屏幕与画面裁剪拉伸之间切换</string>
+    <string name="player_reset_zoom">重置画面</string>
+    <string name="player_pip">小窗播放</string>
+    <string name="player_pip_unsupported">当前设备不支持小窗播放</string>
+    <string name="player_buffer_speed">缓存速度</string>
     <string name="player_settings_start_maximized">启动时默认全屏</string>
     <string name="player_settings_start_maximized_summary">开始播放视频时直接进入全屏模式</string>
     <string name="player_settings_seek_backward">快退步长</string>

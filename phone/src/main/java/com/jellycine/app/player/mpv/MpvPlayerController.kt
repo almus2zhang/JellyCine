@@ -34,6 +34,7 @@ class MpvPlayerController(
     private var durationMs: Long = 0L
     private var positionMs: Long = 0L
     private var bufferedPositionMs: Long = 0L
+    private var cacheSpeedBps: Long = 0L
     private var playWhenReady = true
     private var pendingSubtitleUrls: List<String> = emptyList()
     private var pendingSelectedSubtitleUrl: String? = null
@@ -64,6 +65,17 @@ class MpvPlayerController(
             }
         }
 
+    val cacheSpeedBytes: Long
+        get() {
+            if (released) return 0L
+            val speed = mpv.getPropertyDouble("cache-speed")
+                ?: mpv.getPropertyDouble("demuxer-cache-state/raw-input-rate")
+            if (speed != null && speed >= 0.0) {
+                cacheSpeedBps = speed.toLong()
+            }
+            return cacheSpeedBps
+        }
+
     val duration: Long
         get() = durationMs
 
@@ -75,6 +87,7 @@ class MpvPlayerController(
         mpv.observeProperty("duration", MpvFormat.MPV_FORMAT_DOUBLE)
         mpv.observeProperty("demuxer-cache-time", MpvFormat.MPV_FORMAT_DOUBLE)
         mpv.observeProperty("demuxer-cache-duration", MpvFormat.MPV_FORMAT_DOUBLE)
+        mpv.observeProperty("cache-speed", MpvFormat.MPV_FORMAT_DOUBLE)
         mpv.observeProperty("paused-for-cache", MpvFormat.MPV_FORMAT_FLAG)
         mpv.observeProperty("eof-reached", MpvFormat.MPV_FORMAT_FLAG)
     }
@@ -268,6 +281,7 @@ class MpvPlayerController(
                 val cacheDurationMs = (value * 1000.0).toLong().coerceAtLeast(0L)
                 bufferedPositionMs = (positionMs + cacheDurationMs).coerceAtLeast(positionMs)
             }
+            "cache-speed" -> cacheSpeedBps = value.toLong().coerceAtLeast(0L)
         }
     }
 

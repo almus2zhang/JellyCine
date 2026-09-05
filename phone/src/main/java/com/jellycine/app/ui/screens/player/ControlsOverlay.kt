@@ -68,6 +68,8 @@ fun ControlsOverlay(
     isPlaying: Boolean,
     currentPosition: Long,
     bufferedPosition: Long = 0L,
+    cacheSpeed: Long = 0L,
+    onEnterPip: () -> Unit = {},
     duration: Long,
     onBackClick: () -> Unit,
     onPlayPause: () -> Unit,
@@ -204,10 +206,10 @@ fun ControlsOverlay(
                             modifier = Modifier.size(24.dp)
                         )
                     }
-                    IconButton(onClick = onToggleOrientation) {
+                    IconButton(onClick = onEnterPip) {
                         Icon(
-                            imageVector = Icons.Outlined.ScreenRotation,
-                            contentDescription = stringResource(R.string.player_toggle_orientation),
+                            imageVector = Icons.Outlined.PictureInPictureAlt,
+                            contentDescription = stringResource(R.string.player_pip),
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
@@ -396,12 +398,41 @@ fun ControlsOverlay(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${formatTime(displayedPosition)} - ${formatTime(if (duration > 0) duration else 0L)}",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "${formatTime(displayedPosition)} - ${formatTime(if (duration > 0) duration else 0L)}",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .background(
+                                    color = Color.White.copy(alpha = 0.14f),
+                                    shape = RoundedCornerShape(6.dp)
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Speed,
+                                contentDescription = stringResource(R.string.player_buffer_speed),
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = formatSpeed(cacheSpeed),
+                                color = Color.White.copy(alpha = 0.92f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -847,4 +878,15 @@ private fun osdHdrLabel(format: String): String {
 
 private fun osdDescription(label: String): String {
     return if (label == "DV") "Dolby Vision" else label
+}
+
+private fun formatSpeed(bytesPerSecond: Long): String {
+    if (bytesPerSecond <= 0L) return "0 KB/s"
+    val kb = bytesPerSecond / 1024.0
+    val mb = kb / 1024.0
+    return if (mb >= 1.0) {
+        String.format(java.util.Locale.US, "%.1f MB/s", mb)
+    } else {
+        String.format(java.util.Locale.US, "%.0f KB/s", kb)
+    }
 }
