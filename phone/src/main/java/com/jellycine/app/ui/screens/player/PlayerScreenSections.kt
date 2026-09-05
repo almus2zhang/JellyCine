@@ -137,7 +137,7 @@ internal fun PlayerScreenEffects(
             } ?: false
 
             act.requestedOrientation = if (isVerticalVideo) {
-                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             } else {
                 ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             }

@@ -8,8 +8,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -56,6 +58,7 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ControlsOverlay(
     title: String,
@@ -196,6 +199,14 @@ fun ControlsOverlay(
                         Icon(
                             imageVector = Icons.Outlined.AspectRatio,
                             contentDescription = "Aspect Ratio",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = onToggleOrientation) {
+                        Icon(
+                            imageVector = Icons.Outlined.ScreenRotation,
+                            contentDescription = stringResource(R.string.player_toggle_orientation),
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
@@ -466,12 +477,10 @@ fun ControlsOverlay(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onTap = { onToggleOrientation() },
-                                        onLongPress = { onToggleAutoRotation?.invoke() }
-                                    )
-                                },
+                                .combinedClickable(
+                                    onClick = onToggleOrientation,
+                                    onLongClick = onToggleAutoRotation
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(

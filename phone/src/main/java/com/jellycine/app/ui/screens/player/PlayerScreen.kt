@@ -112,9 +112,11 @@ fun PlayerScreen(
 
     val toggleOrientation = {
         (context as? Activity)?.let { act ->
-            val currentOrientation = act.resources.configuration.orientation
-            if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            val isLandscape = act.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE ||
+                act.requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE ||
+                act.requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            if (isLandscape) {
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 Toast.makeText(
                     context,
                     context.getString(R.string.player_orientation_switched_portrait),
