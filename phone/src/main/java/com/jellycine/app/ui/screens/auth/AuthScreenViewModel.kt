@@ -68,7 +68,7 @@ class AuthScreenViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             val is301 = authRepository.is301Url(currentState.serverUrl)
             val sourceUrl = if (is301) currentState.serverUrl.trim() else null
-            val actualUrl = if (is301) {
+            val rawActualUrl = if (is301) {
                 val resolvedResult = authRepository.resolve301ServerUrl(currentState.serverUrl)
                 if (resolvedResult.isFailure) {
                     _uiState.value = _uiState.value.copy(
@@ -81,6 +81,7 @@ class AuthScreenViewModel(application: Application) : AndroidViewModel(applicati
             } else {
                 authRepository.resolveDirectRedirect(currentState.serverUrl)
             }
+            val actualUrl = authRepository.sanitizeMediaServerUrl(rawActualUrl)
 
             val result = authRepository.testServerConnection(actualUrl)
             

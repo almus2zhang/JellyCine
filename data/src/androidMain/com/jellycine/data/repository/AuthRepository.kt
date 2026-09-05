@@ -634,8 +634,13 @@ class AuthRepository(private val context: Context) {
         }
     }
 
-    private fun sanitizeMediaServerUrl(url: String): String {
+    fun sanitizeMediaServerUrl(url: String): String {
         var clean = url.trim()
+        val malformedPortRegex = Regex(""":(\d+)(web/.*|web.*)""", RegexOption.IGNORE_CASE)
+        val match = malformedPortRegex.find(clean)
+        if (match != null) {
+            clean = clean.replace(match.value, ":${match.groupValues[1]}")
+        }
         val hashIdx = clean.indexOf('#')
         if (hashIdx != -1) {
             clean = clean.substring(0, hashIdx)
@@ -649,12 +654,53 @@ class AuthRepository(private val context: Context) {
             clean = clean.substring(0, webIndex)
         } else if (clean.endsWith("/index.html", ignoreCase = true)) {
             clean = clean.substring(0, clean.length - "/index.html".length)
+        } else if (clean.endsWith("/web", ignoreCase = true)) {
+            clean = clean.substring(0, clean.length - "/web".length)
         }
         return trimTrailingSlash(clean)
     }
 
+    private fun resolveRedirectUrl(baseUrl: String, location: String): String {
+        val loc = location.trim()
+        if (loc.startsWith("http://", ignoreCase = true) || loc.startsWith("https://", ignoreCase = true)) {
+            return loc
+        }
+        val uri = try {
+            java.net.URI(baseUrl)
+        } catch (_: Exception) {
+            null
+        }
+        val normalizedBase = if (uri == null || uri.rawPath.isNullOrEmpty()) {
+            if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        } else {
+            baseUrl
+        }
+        return try {
+            java.net.URI(normalizedBase).resolve(loc).toString()
+        } catch (_: Exception) {
+            val scheme = uri?.scheme ?: "http"
+            val authority = uri?.rawAuthority ?: uri?.host ?: ""
+            if (loc.startsWith("/")) {
+                "$scheme://$authority$loc"
+            } else {
+                val baseWithSlash = if (normalizedBase.endsWith("/")) normalizedBase else "$normalizedBase/"
+                baseWithSlash + loc
+            }
+        }
+    }
+
+    private fun isWebClientRedirect(target: String): Boolean {
+        val trimmed = target.trim()
+        return trimmed.contains("/web/", ignoreCase = true) ||
+            trimmed.contains("/web/index.html", ignoreCase = true) ||
+            trimmed.contains("web/index.html", ignoreCase = true) ||
+            trimmed.endsWith("/web", ignoreCase = true) ||
+            trimmed.equals("web", ignoreCase = true) ||
+            trimmed.startsWith("web/", ignoreCase = true)
+    }
+
     private fun fetch301WithRedirects(startUrl: String, maxHops: Int = 5): String {
-        var currentUrl = startUrl
+        var currentUrl = sanitizeMediaServerUrl(startUrl)
         val visited = mutableSetOf<String>()
 
         for (hop in 0 until maxHops) {
@@ -664,13 +710,10 @@ class AuthRepository(private val context: Context) {
             val location = response.location
 
             if ((statusCode in 301..303 || statusCode == 307 || statusCode == 308) && !location.isNullOrBlank()) {
-                val nextUri = try {
-                    val baseUri = java.net.URI(currentUrl)
-                    baseUri.resolve(location.trim())
-                } catch (_: Exception) {
-                    java.net.URI(location.trim())
+                val nextUrl = resolveRedirectUrl(currentUrl, location)
+                if (isWebClientRedirect(location) || isWebClientRedirect(nextUrl)) {
+                    return sanitizeMediaServerUrl(nextUrl)
                 }
-                val nextUrl = nextUri.toString()
                 if (nextUrl.contains("0.0.0.0") || visited.contains(nextUrl.trimEnd('/'))) {
                     break
                 }
@@ -687,7 +730,7 @@ class AuthRepository(private val context: Context) {
                      candidate.startsWith("https://", ignoreCase = true) ||
                      (candidate.contains(":") && !candidate.contains("<") && !candidate.contains("{") && !candidate.contains(" ")))
                 ) {
-                    return candidate
+                    return sanitizeMediaServerUrl(candidate)
                 }
             }
 
@@ -697,7 +740,7 @@ class AuthRepository(private val context: Context) {
             }
 
             if (bodyStr.isNotBlank() && !bodyStr.contains("<html", ignoreCase = true)) {
-                return bodyStr
+                return sanitizeMediaServerUrl(bodyStr)
             }
 
             return sanitizeMediaServerUrl(currentUrl)
@@ -707,10 +750,10 @@ class AuthRepository(private val context: Context) {
     }
 
     suspend fun resolveDirectRedirect(url: String): String = kotlinx.coroutines.withContext(Dispatchers.IO) {
-        val trimmed = url.trim()
+        val sanitized = sanitizeMediaServerUrl(url)
         val normalized = when {
-            trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true) -> trimmed
-            else -> "http://$trimmed"
+            sanitized.startsWith("http://", ignoreCase = true) || sanitized.startsWith("https://", ignoreCase = true) -> sanitized
+            else -> "http://$sanitized"
         }
         var currentUrl = normalized
         val visited = mutableSetOf<String>()
@@ -727,13 +770,10 @@ class AuthRepository(private val context: Context) {
                 val location = response.location
 
                 if ((statusCode in 301..303 || statusCode == 307 || statusCode == 308) && !location.isNullOrBlank()) {
-                    val nextUri = try {
-                        val baseUri = java.net.URI(currentUrl)
-                        baseUri.resolve(location.trim())
-                    } catch (_: Exception) {
-                        java.net.URI(location.trim())
+                    val nextUrl = resolveRedirectUrl(currentUrl, location)
+                    if (isWebClientRedirect(location) || isWebClientRedirect(nextUrl)) {
+                        return@withContext sanitizeMediaServerUrl(nextUrl)
                     }
-                    val nextUrl = nextUri.toString()
                     if (nextUrl.contains("0.0.0.0") || visited.contains(nextUrl.trimEnd('/'))) {
                         break
                     }
@@ -743,29 +783,30 @@ class AuthRepository(private val context: Context) {
                 break
             }
 
-            val sanitized = sanitizeMediaServerUrl(currentUrl)
-            if (sanitized.isNotBlank() && (sanitized.startsWith("http://", ignoreCase = true) || sanitized.startsWith("https://", ignoreCase = true))) {
-                sanitized
+            val result = sanitizeMediaServerUrl(currentUrl)
+            if (result.isNotBlank() && (result.startsWith("http://", ignoreCase = true) || result.startsWith("https://", ignoreCase = true))) {
+                result
             } else {
-                trimmed
+                sanitized
             }
         } catch (_: Exception) {
-            trimmed
+            sanitized
         }
     }
 
     suspend fun resolve301ServerUrl(url: String): Result<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
         try {
             val targetUrlRaw = extract301TargetUrl(url)
-            if (targetUrlRaw.isBlank()) {
+            val sanitizedTarget = sanitizeMediaServerUrl(targetUrlRaw)
+            if (sanitizedTarget.isBlank()) {
                 return@withContext Result.failure(Exception(string(R.string.auth_error_invalid_url_scheme)))
             }
 
             val urlsToTry = when {
-                targetUrlRaw.startsWith("http://", ignoreCase = true) || targetUrlRaw.startsWith("https://", ignoreCase = true) ->
-                    listOf(targetUrlRaw)
+                sanitizedTarget.startsWith("http://", ignoreCase = true) || sanitizedTarget.startsWith("https://", ignoreCase = true) ->
+                    listOf(sanitizedTarget)
                 else ->
-                    listOf("https://$targetUrlRaw", "http://$targetUrlRaw")
+                    listOf("https://$sanitizedTarget", "http://$sanitizedTarget")
             }
 
             var lastException: Exception? = null
@@ -792,33 +833,35 @@ class AuthRepository(private val context: Context) {
     }
 
     suspend fun resolveServerUrl(inputUrl: String): Result<String> {
-        val trimmed = inputUrl.trim()
-        return if (is301Url(trimmed)) {
-            resolve301ServerUrl(trimmed)
+        val sanitized = sanitizeMediaServerUrl(inputUrl)
+        return if (is301Url(sanitized)) {
+            resolve301ServerUrl(sanitized)
         } else {
-            val redirected = resolveDirectRedirect(trimmed)
-            Result.success(redirected)
+            val redirected = resolveDirectRedirect(sanitized)
+            Result.success(sanitizeMediaServerUrl(redirected))
         }
     }
 
     suspend fun testServerConnection(serverUrl: String): Result<ServerInfo> {
         legacyStorageMigrated()
         return try {
-            val resolvedUrl = if (is301Url(serverUrl)) {
-                resolve301ServerUrl(serverUrl).getOrElse { error ->
+            val sanitized = sanitizeMediaServerUrl(serverUrl)
+            val resolvedUrl = if (is301Url(sanitized)) {
+                resolve301ServerUrl(sanitized).getOrElse { error ->
                     return Result.failure(Exception("无法获取 301 服务器地址: ${error.message}"))
                 }
             } else {
-                resolveDirectRedirect(serverUrl)
+                resolveDirectRedirect(sanitized)
             }
+            val finalCleanUrl = sanitizeMediaServerUrl(resolvedUrl)
 
-            if (!resolvedUrl.startsWith("http://") && !resolvedUrl.startsWith("https://")) {
+            if (!finalCleanUrl.startsWith("http://") && !finalCleanUrl.startsWith("https://")) {
                 return Result.failure(Exception(string(R.string.auth_error_invalid_url_scheme)))
             }
 
             val resolved = NetworkModule.serverEndpoint(
                     context = context,
-                    serverUrl = resolvedUrl,
+                    serverUrl = finalCleanUrl,
                     storageDir = context.filesDir,
                     timeoutConfig = networkPreferences.getTimeoutConfig()
                 ).getOrElse { error ->
