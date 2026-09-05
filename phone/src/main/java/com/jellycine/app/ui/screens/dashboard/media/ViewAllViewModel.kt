@@ -120,7 +120,7 @@ class ViewAllViewModel @Inject constructor(
                         val folderSortBy = _uiState.value.sortBy.removePrefix("IsFolder,").trim()
                         mediaRepository.getUserItems(
                             parentId = effectiveParentId,
-                            includeItemTypes = "Folder,Movie,Series,Episode,Video,BoxSet",
+                            includeItemTypes = "Folder,Movie,Series,Episode,Video,BoxSet,Photo",
                             sortBy = folderSortBy,
                             sortOrder = _uiState.value.sortOrder,
                             limit = folderLimit,

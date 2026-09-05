@@ -14,15 +14,24 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -211,10 +220,15 @@ fun ViewAllScreen(
         }.distinctBy(::viewAllItemKey)
 
         if (uiState.browseMode == BrowseMode.FOLDERS) {
-            sortFolderItems(filteredItems, uiState.sortBy, uiState.sortOrder)
+            val validFolderItems = filterFolderItems(filteredItems)
+            sortFolderItems(validFolderItems, uiState.sortBy, uiState.sortOrder)
         } else {
             filteredItems
         }
+    }
+    var viewingPhotoItem by remember { mutableStateOf<BaseItemDto?>(null) }
+    val allPhotosInCurrentFolder = remember(displayItems) {
+        displayItems.filter { isPhotoItem(it) }
     }
     val headerTotalCount = uiState.totalItems
     val headerCountText = if (headerTotalCount > 0) {
@@ -804,6 +818,25 @@ fun ViewAllScreen(
                                                  onClick = onFolderClick
                                              )
                                          }
+                                     } else if (isPhotoItem(item)) {
+                                         val onPhotoClick = {
+                                             viewingPhotoItem = item
+                                         }
+                                         if (isFolderListMode) {
+                                             PhotoListItemRow(
+                                                 item = item,
+                                                 isTablet = isTablet,
+                                                 mediaRepository = mediaRepository,
+                                                 onClick = onPhotoClick
+                                             )
+                                         } else {
+                                             PhotoCard(
+                                                 item = item,
+                                                 isTablet = isTablet,
+                                                 mediaRepository = mediaRepository,
+                                                 onClick = onPhotoClick
+                                             )
+                                         }
                                      } else {
                                          val isVideo = item.mediaType == "Video" || item.type in listOf("Movie", "Episode", "Video") || !item.mediaSources.isNullOrEmpty() || (item.runTimeTicks ?: 0L) > 0L
                                          val handleItemClick = {
@@ -991,6 +1024,15 @@ fun ViewAllScreen(
                 onDismiss = { showSortSheet = false }
             )
         }
+
+        if (viewingPhotoItem != null) {
+            PhotoViewerDialog(
+                initialPhoto = viewingPhotoItem!!,
+                photos = allPhotosInCurrentFolder,
+                mediaRepository = mediaRepository,
+                onDismiss = { viewingPhotoItem = null }
+            )
+        }
     }
 }
 
@@ -1142,6 +1184,114 @@ internal fun FolderListItemRow(
                         fontSize = 12.sp
                     )
                 }
+            }
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.35f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+internal fun PhotoListItemRow(
+    item: BaseItemDto,
+    isTablet: Boolean,
+    mediaRepository: MediaRepository,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val directImageUrl = item.imageUrl?.takeIf { it.isNotBlank() }
+    var imageUrl by remember(item.id, directImageUrl) { mutableStateOf(directImageUrl) }
+
+    LaunchedEffect(item.id, directImageUrl) {
+        if (directImageUrl != null) {
+            imageUrl = directImageUrl
+            return@LaunchedEffect
+        }
+        val itemId = item.id
+        if (itemId != null) {
+            try {
+                val url = mediaRepository.getImageUrl(
+                    itemId = itemId,
+                    width = 240,
+                    height = 160,
+                    quality = 85,
+                    enableImageEnhancers = false
+                ).first()
+                imageUrl = url
+            } catch (_: Exception) {
+                imageUrl = null
+            }
+        }
+    }
+
+    val displayName = getItemDisplayName(item).ifBlank { item.name.orEmpty() }
+
+    Surface(
+        color = Color(0xFF151922),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                color = Color(0xFF00E5FF).copy(alpha = 0.12f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.size(width = if (isTablet) 68.dp else 56.dp, height = if (isTablet) 48.dp else 42.dp)
+            ) {
+                if (!imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(imageUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = displayName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = null,
+                            tint = Color(0xFF00E5FF),
+                            modifier = Modifier.size(if (isTablet) 28.dp else 24.dp)
+                        )
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = displayName,
+                    color = Color.White,
+                    fontSize = if (isTablet) 15.sp else 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = stringResource(R.string.photos),
+                    color = Color(0xFF00E5FF).copy(alpha = 0.7f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
 
             Icon(
@@ -1534,6 +1684,304 @@ internal fun FolderCard(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 4.dp)
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PhotoCard(
+    item: BaseItemDto,
+    isTablet: Boolean,
+    mediaRepository: MediaRepository,
+    onClick: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val directImageUrl = item.imageUrl?.takeIf { it.isNotBlank() }
+    var imageUrl by remember(item.id, directImageUrl) { mutableStateOf(directImageUrl) }
+
+    LaunchedEffect(item.id, directImageUrl) {
+        if (directImageUrl != null) {
+            imageUrl = directImageUrl
+            return@LaunchedEffect
+        }
+        val itemId = item.id
+        if (itemId != null) {
+            try {
+                val url = mediaRepository.getImageUrl(
+                    itemId = itemId,
+                    width = 400,
+                    height = 600,
+                    quality = 90,
+                    enableImageEnhancers = false
+                ).first()
+                imageUrl = url
+            } catch (_: Exception) {
+                imageUrl = null
+            }
+        }
+    }
+
+    val displayName = getItemDisplayName(item).ifBlank { item.name.orEmpty() }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f / 3f),
+            shape = RoundedCornerShape(if (isTablet) 18.dp else 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1B1E28)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            onClick = onClick
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (!imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(imageUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = displayName,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF222838)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.4f),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                }
+
+                Surface(
+                    color = Color.Black.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        tint = Color(0xFF00E5FF),
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .size(16.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = displayName,
+            color = Color.White,
+            fontSize = if (isTablet) 14.sp else 13.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+    }
+}
+
+@Composable
+internal fun PhotoViewerDialog(
+    initialPhoto: BaseItemDto,
+    photos: List<BaseItemDto>,
+    mediaRepository: MediaRepository,
+    onDismiss: () -> Unit
+) {
+    if (photos.isEmpty()) {
+        onDismiss()
+        return
+    }
+
+    val initialIndex = remember(initialPhoto.id, photos) {
+        val idx = photos.indexOfFirst { it.id == initialPhoto.id }
+        if (idx >= 0) idx else 0
+    }
+
+    val pagerState = rememberPagerState(
+        initialPage = initialIndex,
+        pageCount = { photos.size }
+    )
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val currentPhoto = photos.getOrNull(pagerState.currentPage) ?: initialPhoto
+    val currentTitle = getItemDisplayName(currentPhoto).ifBlank { currentPhoto.name.orEmpty() }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val photo = photos[page]
+                var highResUrl by remember(photo.id) { mutableStateOf<String?>(null) }
+                LaunchedEffect(photo.id) {
+                    val itemId = photo.id
+                    if (itemId != null) {
+                        try {
+                            val url = mediaRepository.getImageUrl(
+                                itemId = itemId,
+                                width = 2560,
+                                height = 1440,
+                                quality = 95,
+                                enableImageEnhancers = false
+                            ).first()
+                            highResUrl = url
+                        } catch (_: Exception) {
+                            highResUrl = null
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!highResUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(highResUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = photo.name,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            color = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                }
+            }
+
+            // Top Bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.85f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+                    .statusBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = currentTitle,
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${pagerState.currentPage + 1} / ${photos.size}",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.size(48.dp))
+                }
+            }
+
+            // Left arrow
+            if (pagerState.currentPage > 0) {
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 12.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        contentDescription = "Previous",
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            // Right arrow
+            if (pagerState.currentPage < photos.size - 1) {
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 12.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Next",
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+        }
     }
 }
 

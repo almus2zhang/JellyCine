@@ -77,6 +77,67 @@ fun isFolderItem(item: BaseItemDto): Boolean {
         item.type.equals("UserView", ignoreCase = true)
 }
 
+fun isPhotoItem(item: BaseItemDto): Boolean {
+    return item.type.equals("Photo", ignoreCase = true) ||
+        item.mediaType.equals("Photo", ignoreCase = true)
+}
+
+fun isVideoItem(item: BaseItemDto): Boolean {
+    return item.mediaType.equals("Video", ignoreCase = true) ||
+        item.type in listOf("Movie", "Episode", "Video") ||
+        !item.mediaSources.isNullOrEmpty() ||
+        (item.runTimeTicks ?: 0L) > 0L
+}
+
+fun getItemBaseName(item: BaseItemDto): String {
+    val raw = item.path?.trim()?.trimEnd('/', '\\')?.let { p ->
+        p.substringAfterLast('/').substringAfterLast('\\')
+    } ?: item.name.orEmpty()
+    return raw.substringBeforeLast('.').trim().lowercase()
+}
+
+private val METADATA_BASE_NAMES = setOf(
+    "folder", "poster", "cover", "fanart", "backdrop", "banner", "thumb", "logo", "clearart", "disc"
+)
+
+private val METADATA_SUFFIXES = listOf(
+    "-poster", "-thumb", "-fanart", "-backdrop", "-banner", "-cover",
+    "_poster", "_thumb", "_fanart", "_backdrop", "_banner", "_cover"
+)
+
+fun isMetadataOrPosterPhoto(photoItem: BaseItemDto, videoBaseNames: Set<String>): Boolean {
+    val base = getItemBaseName(photoItem)
+    if (base.isBlank()) return false
+    if (base in METADATA_BASE_NAMES) return true
+    if (base in videoBaseNames) return true
+
+    for (suffix in METADATA_SUFFIXES) {
+        if (base.endsWith(suffix)) {
+            val prefix = base.removeSuffix(suffix).trim()
+            if (prefix.isBlank() || prefix in videoBaseNames || prefix in METADATA_BASE_NAMES) {
+                return true
+            }
+            return true
+        }
+    }
+    return false
+}
+
+fun filterFolderItems(items: List<BaseItemDto>): List<BaseItemDto> {
+    val videoBaseNames = items.filter { isVideoItem(it) }
+        .map { getItemBaseName(it) }
+        .filter { it.isNotBlank() }
+        .toSet()
+
+    return items.filter { item ->
+        if (isPhotoItem(item)) {
+            !isMetadataOrPosterPhoto(item, videoBaseNames)
+        } else {
+            true
+        }
+    }
+}
+
 private val DATE_REGEX_YMD_HYPHEN = Regex("""(?:19|20)\d{2}[-_./](?:1[0-2]|0?[1-9])[-_./](?:[12]\d|3[01]|0?[1-9])""")
 private val DATE_REGEX_YMD_CHINESE = Regex("""((?:19|20)\d{2})年(?:1[0-2]|0?[1-9])月(?:[12]\d|3[01]|0?[1-9])日?""")
 private val DATE_REGEX_YMD_COMPACT = Regex("""\b((?:19|20)\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\b""")
@@ -146,9 +207,9 @@ fun getItemEffectiveDate(item: BaseItemDto): String? {
             ?: item.userData?.lastPlayedDate
             ?: item.productionYear?.let { "$it-01-01" }
     } else {
-        item.dateCreated
+        item.premiereDate
+            ?: item.dateCreated
             ?: item.dateLastMediaAdded
-            ?: item.premiereDate
             ?: item.userData?.lastPlayedDate
             ?: item.productionYear?.let { "$it-01-01" }
     }
