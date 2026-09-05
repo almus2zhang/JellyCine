@@ -1050,6 +1050,7 @@ internal fun FolderListItemRow(
     val context = LocalContext.current
     val directImageUrl = item.imageUrl?.takeIf { it.isNotBlank() }
     var imageUrl by remember(item.id, directImageUrl) { mutableStateOf(directImageUrl) }
+    var isImageError by remember(item.id, directImageUrl) { mutableStateOf(false) }
 
     LaunchedEffect(item.id, directImageUrl) {
         if (directImageUrl != null) {
@@ -1095,9 +1096,9 @@ internal fun FolderListItemRow(
             Surface(
                 color = Color(0xFF0080FF).copy(alpha = 0.15f),
                 shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.size(if (isTablet) 56.dp else 48.dp)
+                modifier = Modifier.size(width = if (isTablet) 68.dp else 56.dp, height = if (isTablet) 48.dp else 42.dp)
             ) {
-                if (!imageUrl.isNullOrBlank()) {
+                if (!imageUrl.isNullOrBlank() && !isImageError) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(imageUrl)
@@ -1105,7 +1106,10 @@ internal fun FolderListItemRow(
                             .build(),
                         contentDescription = displayName,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        onError = {
+                            isImageError = true
+                        }
                     )
                 } else {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -1113,7 +1117,7 @@ internal fun FolderListItemRow(
                             imageVector = Icons.Default.Folder,
                             contentDescription = null,
                             tint = Color(0xFF0080FF),
-                            modifier = Modifier.size(if (isTablet) 30.dp else 26.dp)
+                            modifier = Modifier.size(if (isTablet) 28.dp else 24.dp)
                         )
                     }
                 }
@@ -1368,6 +1372,7 @@ internal fun FolderCard(
     val context = LocalContext.current
     val directImageUrl = item.imageUrl?.takeIf { it.isNotBlank() }
     var imageUrl by remember(item.id, directImageUrl) { mutableStateOf(directImageUrl) }
+    var isImageError by remember(item.id, directImageUrl) { mutableStateOf(false) }
 
     LaunchedEffect(item.id, directImageUrl) {
         if (directImageUrl != null) {
@@ -1412,7 +1417,7 @@ internal fun FolderCard(
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
-                if (!imageUrl.isNullOrBlank()) {
+                if (!imageUrl.isNullOrBlank() && !isImageError) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(imageUrl)
@@ -1420,7 +1425,10 @@ internal fun FolderCard(
                             .build(),
                         contentDescription = displayName,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        onError = {
+                            isImageError = true
+                        }
                     )
                     Box(
                         modifier = Modifier
@@ -1449,6 +1457,24 @@ internal fun FolderCard(
                                 .padding(4.dp)
                                 .size(16.dp)
                         )
+                    }
+
+                    if (itemCount != null && itemCount > 0) {
+                        Surface(
+                            color = Color.Black.copy(alpha = 0.65f),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(8.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.view_all_folder_item_count, itemCount),
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 } else {
                     Box(
@@ -1492,24 +1518,6 @@ internal fun FolderCard(
                                 )
                             }
                         }
-                    }
-                }
-
-                if (!imageUrl.isNullOrBlank() && itemCount != null && itemCount > 0) {
-                    Surface(
-                        color = Color.Black.copy(alpha = 0.65f),
-                        shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(8.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.view_all_folder_item_count, itemCount),
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
                     }
                 }
             }
