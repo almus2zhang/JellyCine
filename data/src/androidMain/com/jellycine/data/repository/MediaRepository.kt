@@ -10,6 +10,7 @@ import com.jellycine.data.api.MediaServerApi
 import com.jellycine.data.api.TmdbApi
 import com.jellycine.data.datastore.DataStoreProvider
 import com.jellycine.data.datastore.HomeSnapshotStore
+import com.jellycine.data.datastore.MediaCacheStore
 import com.jellycine.data.model.AudioTranscodeMode
 import com.jellycine.data.model.BaseItemDto
 import com.jellycine.data.model.HomeLibrarySectionData
@@ -132,6 +133,7 @@ class MediaRepository(private val context: Context) {
     private var cachedImageAuthAt: Long = 0L
 
     private val homeSnapshotStore = HomeSnapshotStore(context.filesDir)
+    private val mediaCacheStore = MediaCacheStore(context.filesDir)
     private val theIntroDbClient = TheIntroDbClient(
         getSeriesItem = { seriesId -> getItemById(seriesId).getOrNull() }
     )
@@ -293,6 +295,21 @@ class MediaRepository(private val context: Context) {
 
     suspend fun clearPersistedHomeSnapshot() {
         homeSnapshotStore.clearPersistedHomeSnapshot()
+        mediaCacheStore.clearCache()
+    }
+
+    suspend fun clearMediaCache() {
+        mediaCacheStore.clearCache()
+    }
+
+    fun getCachedItem(itemId: String): BaseItemDto? {
+        return mediaCacheStore.getItem(itemId)
+    }
+
+    fun getCachedUserViews(): QueryResult<BaseItemDto>? {
+        val session = cachedSession ?: return null
+        val queryKey = "user_views|${session.userId}"
+        return mediaCacheStore.getQuery(queryKey)
     }
 
     suspend fun getLatestItems(
@@ -413,8 +430,10 @@ class MediaRepository(private val context: Context) {
 
     suspend fun getItemById(itemId: String): Result<BaseItemDto> {
         return try {
-            val api = getApi() ?: return Result.failure(Exception(string(R.string.data_error_api_not_available)))
-            val userId = getUserId() ?: return Result.failure(Exception(string(R.string.data_error_user_id_not_available)))
+            val api = getApi() ?: return mediaCacheStore.getItem(itemId)?.let { Result.success(it) }
+                ?: Result.failure(Exception(string(R.string.data_error_api_not_available)))
+            val userId = getUserId() ?: return mediaCacheStore.getItem(itemId)?.let { Result.success(it) }
+                ?: Result.failure(Exception(string(R.string.data_error_user_id_not_available)))
             val detailFields = "People,Studios,Genres,Overview,ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,OfficialRating,UserData,Chapters,ProviderIds,IndexNumber,ParentIndexNumber,RemoteTrailers,MediaStreams,MediaSources"
             val response = api.getItemById(
                 userId = userId,
@@ -448,11 +467,14 @@ class MediaRepository(private val context: Context) {
                     item
                 }
 
+                mediaCacheStore.saveItem(mappedItem)
                 Result.success(mappedItem)
             } else {
+                mediaCacheStore.getItem(itemId)?.let { return Result.success(it) }
                 Result.failure(Exception(string(R.string.media_error_fetch_item_failed, response.code())))
             }
         } catch (e: Exception) {
+            mediaCacheStore.getItem(itemId)?.let { return Result.success(it) }
             Result.failure(e)
         }
     }
@@ -568,6 +590,56 @@ class MediaRepository(private val context: Context) {
         }
     }
 
+    fun buildUserItemsCacheKey(
+        parentId: String? = null,
+        personIds: String? = null,
+        genres: String? = null,
+        genreIds: String? = null,
+        includeItemTypes: String? = null,
+        recursive: Boolean? = null,
+        sortBy: String? = null,
+        sortOrder: String? = null,
+        limit: Int? = null,
+        startIndex: Int? = null,
+        filters: String? = null,
+        anyProviderIdEquals: String? = null
+    ): String {
+        val session = cachedSession
+        val userId = session?.userId.orEmpty()
+        return "user_items|$userId|$parentId|$personIds|$genres|$genreIds|$includeItemTypes|$recursive|$sortBy|$sortOrder|$limit|$startIndex|$filters|$anyProviderIdEquals"
+    }
+
+    fun getCachedUserItems(
+        parentId: String? = null,
+        personIds: String? = null,
+        genres: String? = null,
+        genreIds: String? = null,
+        includeItemTypes: String? = null,
+        recursive: Boolean? = null,
+        sortBy: String? = null,
+        sortOrder: String? = null,
+        limit: Int? = null,
+        startIndex: Int? = null,
+        filters: String? = null,
+        anyProviderIdEquals: String? = null
+    ): QueryResult<BaseItemDto>? {
+        val queryKey = buildUserItemsCacheKey(
+            parentId = parentId,
+            personIds = personIds,
+            genres = genres,
+            genreIds = genreIds,
+            includeItemTypes = includeItemTypes,
+            recursive = recursive,
+            sortBy = sortBy,
+            sortOrder = sortOrder,
+            limit = limit,
+            startIndex = startIndex,
+            filters = filters,
+            anyProviderIdEquals = anyProviderIdEquals
+        )
+        return mediaCacheStore.getQuery(queryKey)
+    }
+
     suspend fun getUserItems(
         parentId: String? = null,
         personIds: String? = null,
@@ -584,9 +656,26 @@ class MediaRepository(private val context: Context) {
         fields: String? = "ChildCount,RecursiveItemCount,EpisodeCount,Genres,CommunityRating,ProductionYear,OfficialRating,Overview",
         enableUserData: Boolean? = null
     ): Result<QueryResult<BaseItemDto>> {
+        val queryKey = buildUserItemsCacheKey(
+            parentId = parentId,
+            personIds = personIds,
+            genres = genres,
+            genreIds = genreIds,
+            includeItemTypes = includeItemTypes,
+            recursive = recursive,
+            sortBy = sortBy,
+            sortOrder = sortOrder,
+            limit = limit,
+            startIndex = startIndex,
+            filters = filters,
+            anyProviderIdEquals = anyProviderIdEquals
+        )
+
         return try {
-            val api = getApi() ?: return Result.failure(Exception(string(R.string.data_error_api_not_available)))
-            val userId = getUserId() ?: return Result.failure(Exception(string(R.string.data_error_user_id_not_available)))
+            val api = getApi() ?: return mediaCacheStore.getQuery(queryKey)?.let { Result.success(it) }
+                ?: Result.failure(Exception(string(R.string.data_error_api_not_available)))
+            val userId = getUserId() ?: return mediaCacheStore.getQuery(queryKey)?.let { Result.success(it) }
+                ?: Result.failure(Exception(string(R.string.data_error_user_id_not_available)))
 
             val response = api.getUserItems(
                 userId = userId,
@@ -607,11 +696,16 @@ class MediaRepository(private val context: Context) {
             )
 
             if (response.isSuccessful && response.body() != null) {
-                Result.success(response.body()!!)
+                val body = response.body()!!
+                mediaCacheStore.saveQuery(queryKey, body)
+                mediaCacheStore.saveItems(body.items.orEmpty())
+                Result.success(body)
             } else {
+                mediaCacheStore.getQuery(queryKey)?.let { return Result.success(it) }
                 Result.failure(Exception(string(R.string.media_error_fetch_user_items_failed, response.code())))
             }
         } catch (e: Exception) {
+            mediaCacheStore.getQuery(queryKey)?.let { return Result.success(it) }
             Result.failure(e)
         }
     }
@@ -778,8 +872,13 @@ class MediaRepository(private val context: Context) {
     }
 
     suspend fun getUserViews(): Result<QueryResult<BaseItemDto>> {
+        val session = getApiSession()
+        val queryKey = session?.let { "user_views|${it.userId}" } ?: "user_views_unknown"
         return try {
-            val session = getApiSession() ?: return Result.failure(Exception(string(R.string.data_error_session_not_available)))
+            if (session == null) {
+                return mediaCacheStore.getQuery(queryKey)?.let { Result.success(it) }
+                    ?: Result.failure(Exception(string(R.string.data_error_session_not_available)))
+            }
             val response = session.api.getUserViews(session.userId)
 
             if (response.isSuccessful && response.body() != null) {
@@ -789,15 +888,18 @@ class MediaRepository(private val context: Context) {
                     ?.configuration
                     ?.orderedViews
 
-                Result.success(
-                    queryResult.copy(
-                        items = queryResult.items?.orderedViews(orderedViewIds)
-                    )
+                val finalResult = queryResult.copy(
+                    items = queryResult.items?.orderedViews(orderedViewIds)
                 )
+                mediaCacheStore.saveQuery(queryKey, finalResult)
+                mediaCacheStore.saveItems(finalResult.items.orEmpty())
+                Result.success(finalResult)
             } else {
+                mediaCacheStore.getQuery(queryKey)?.let { return Result.success(it) }
                 Result.failure(Exception(string(R.string.media_error_fetch_user_views_failed, response.code())))
             }
         } catch (e: Exception) {
+            mediaCacheStore.getQuery(queryKey)?.let { return Result.success(it) }
             Result.failure(e)
         }
     }

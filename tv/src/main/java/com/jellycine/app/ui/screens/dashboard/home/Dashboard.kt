@@ -1593,28 +1593,28 @@ fun Dashboard(
             )
         }
 
-        val persistedFeaturedItems = if (selectedCategory == HomeCategory.HOME && isNetworkAvailable) {
+        val persistedFeaturedItems = if (selectedCategory == HomeCategory.HOME) {
             persistedHomeSnapshot?.featuredHomeItems.orEmpty()
         } else {
             emptyList()
         }
         val FeaturedItems = featuredQuery.data ?: persistedFeaturedItems
 
-        val persistedContinueWatchingItems = if (selectedCategory == HomeCategory.HOME && isNetworkAvailable && continueWatchingEnabled) {
+        val persistedContinueWatchingItems = if (selectedCategory == HomeCategory.HOME && continueWatchingEnabled) {
             persistedHomeSnapshot?.continueWatchingItems.orEmpty()
         } else {
             emptyList()
         }
         val ContinueWatchingItems = continueWatchingQuery.data ?: persistedContinueWatchingItems
 
-        val persistedNextUpItems = if (selectedCategory == HomeCategory.HOME && isNetworkAvailable && nextUpEnabled) {
+        val persistedNextUpItems = if (selectedCategory == HomeCategory.HOME && nextUpEnabled) {
             persistedHomeSnapshot?.nextUpItems.orEmpty()
         } else {
             emptyList()
         }
         val NextUpItems = nextUpQuery.data ?: persistedNextUpItems
 
-        val persistedLibrarySections = if (selectedCategory == HomeCategory.HOME && isNetworkAvailable) {
+        val persistedLibrarySections = if (selectedCategory == HomeCategory.HOME) {
             persistedHomeSnapshot?.homeLibrarySections
                 .orEmpty()
                 .map { it.toUiSection() }
@@ -1623,7 +1623,7 @@ fun Dashboard(
         }
         val LibrarySections = homeLibraryBurstQuery.data ?: persistedLibrarySections
 
-        val persistedMyMediaLibraries = if (selectedCategory == HomeCategory.HOME && isNetworkAvailable) {
+        val persistedMyMediaLibraries = if (selectedCategory == HomeCategory.HOME) {
             persistedHomeSnapshot?.myMediaLibraries.orEmpty()
         } else {
             emptyList()

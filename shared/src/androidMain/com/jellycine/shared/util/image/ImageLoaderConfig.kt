@@ -50,23 +50,21 @@ object ImageLoaderConfig {
     private fun DiskCacheSize(context: Context): Long {
         val availableBytes = context.filesDir.usableSpace
         val percent = when {
-            availableBytes > 32L * 1024 * 1024 * 1024 -> 0.02
-            availableBytes > 8L * 1024 * 1024 * 1024 -> 0.04
-            else -> 0.05
+            availableBytes > 64L * 1024 * 1024 * 1024 -> 0.05
+            availableBytes > 16L * 1024 * 1024 * 1024 -> 0.05
+            availableBytes > 4L * 1024 * 1024 * 1024 -> 0.04
+            else -> 0.03
         }
 
         val calculatedSize = (availableBytes * percent).toLong()
-        val finalSize = max(50L * 1024 * 1024, min(500L * 1024 * 1024, calculatedSize))
+        val finalSize = max(100L * 1024 * 1024, min(2048L * 1024 * 1024, calculatedSize))
 
         return finalSize
     }
 
     private fun configuredImageCacheBytes(context: Context): Long? {
-        val configuredMb = NetworkPreferences(context).getImageMemoryCacheMb()
-        if (configuredMb == NetworkPreferences.AUTO_IMAGE_MEMORY_CACHE_MB) {
-            return null
-        }
-        return configuredMb * BYTES_PER_MB
+        // Disk cache size is decoupled from memory cache to allow generous persistent caching
+        return null
     }
 
     private fun getOptimalMemoryPercent(context: Context): Double {
@@ -93,6 +91,12 @@ object ImageLoaderConfig {
             return null
         }
         return configuredMb * BYTES_PER_MB
+    }
+
+    fun clearDiskCache(context: Context) {
+        runCatching {
+            persistentImageCacheDir(context).deleteRecursively()
+        }
     }
 
     private fun createAuthenticatedOkHttpClient(context: Context): OkHttpClient {
@@ -142,7 +146,7 @@ object ImageLoaderConfig {
             val newRequest = originalRequest.newBuilder()
                 .addHeader("Authorization", authHeader)
                 .addHeader("X-Emby-Authorization", authHeader)
-                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "image/webp,image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5")
                 .build()
 
             var response = chain.proceed(newRequest)
@@ -157,6 +161,27 @@ object ImageLoaderConfig {
             response
         }
 
+        val imageCachingInterceptor = Interceptor { chain ->
+            val request = chain.request()
+            val response = chain.proceed(request)
+            val urlString = request.url.toString()
+            val isImage = urlString.contains("/Images/", ignoreCase = true) ||
+                (urlString.contains("/Items/", ignoreCase = true) && urlString.contains("/Images", ignoreCase = true)) ||
+                urlString.contains("image.tmdb.org", ignoreCase = true) ||
+                urlString.contains("/api/v1/image", ignoreCase = true) ||
+                response.header("Content-Type")?.startsWith("image/") == true
+
+            if (response.isSuccessful && isImage) {
+                response.newBuilder()
+                    .removeHeader("Pragma")
+                    .removeHeader("Cache-Control")
+                    .header("Cache-Control", "public, max-age=31536000, immutable")
+                    .build()
+            } else {
+                response
+            }
+        }
+
         val dispatcher = Dispatcher().apply {
             maxRequests = 128
             maxRequestsPerHost = 32
@@ -169,6 +194,7 @@ object ImageLoaderConfig {
             .dispatcher(dispatcher)
             .connectionPool(ConnectionPool(24, 5, TimeUnit.MINUTES))
             .addInterceptor(authInterceptor)
+            .addNetworkInterceptor(imageCachingInterceptor)
             .build()
     }
 

@@ -62,13 +62,52 @@ class ViewAllViewModel @Inject constructor(
 
         if (!hasMorePages && !refresh) return
 
+        if (!::mediaRepository.isInitialized) {
+            mediaRepository = MediaRepositoryProvider.getInstance(context)
+        }
+
+        if (refresh || currentPage == 0) {
+            val includeTypes = when (contentType) {
+                ContentType.MOVIES -> "Movie,BoxSet"
+                ContentType.SERIES -> "Series"
+                ContentType.EPISODES -> "Episode"
+                ContentType.MOVIES_GENRE -> "Movie"
+                ContentType.TVSHOWS_GENRE -> "Series"
+                else -> null
+            }
+            if (includeTypes != null) {
+                val selectedGenres = _uiState.value.selectedGenres
+                    .toList()
+                    .sorted()
+                    .joinToString("|")
+                    .ifBlank { null }
+                val cachedResult = mediaRepository.getCachedUserItems(
+                    parentId = parentId,
+                    genres = selectedGenres,
+                    genreIds = genreId?.takeIf { it.isNotBlank() },
+                    includeItemTypes = includeTypes,
+                    sortBy = _uiState.value.sortBy,
+                    sortOrder = _uiState.value.sortOrder,
+                    limit = pageSize,
+                    startIndex = 0,
+                    recursive = true
+                )
+                val items = cachedResult?.items
+                if (!items.isNullOrEmpty()) {
+                    _items.value = items
+                    totalItems = cachedResult?.totalRecordCount ?: items.size
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        totalItems = totalItems
+                    )
+                }
+            }
+        }
+
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            _uiState.value = _uiState.value.copy(isLoading = _items.value.isEmpty(), error = null)
 
             try {
-                if (!::mediaRepository.isInitialized) {
-                    mediaRepository = MediaRepositoryProvider.getInstance(context)
-                }
 
                 withContext(Dispatchers.IO) {
                     val selectedGenres = _uiState.value.selectedGenres
@@ -193,7 +232,7 @@ class ViewAllViewModel @Inject constructor(
                             withContext(Dispatchers.Main) {
                                 _uiState.value = _uiState.value.copy(
                                     isLoading = false,
-                                    error = exception.message ?: "Unknown error occurred"
+                                    error = if (_items.value.isEmpty()) exception.message ?: "Unknown error occurred" else null
                                 )
                             }
                         }
@@ -202,7 +241,7 @@ class ViewAllViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    error = e.message ?: "Unknown error occurred"
+                    error = if (_items.value.isEmpty()) e.message ?: "Unknown error occurred" else null
                 )
             }
         }

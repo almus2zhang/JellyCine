@@ -108,8 +108,8 @@ fun DetailScreenContainer(
     val activeServerId by authRepository.getActiveServerId()
         .collectAsState(initial = authRepository.getActiveSessionSnapshot().activeServerId)
 
-    var item by remember { mutableStateOf<BaseItemDto?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
+    var item by remember(itemId) { mutableStateOf<BaseItemDto?>(mediaRepository.getCachedItem(itemId)) }
+    var isLoading by remember(itemId) { mutableStateOf(item == null) }
     var error by remember { mutableStateOf<String?>(null) }
     var showPlayer by remember { mutableStateOf(false) }
     var remoteTrailerUrl by remember { mutableStateOf<String?>(null) }
@@ -451,7 +451,9 @@ fun DetailScreenContainer(
 
     LaunchedEffect(itemId, activeServerId) {
         try {
-            isLoading = true
+            if (item == null) {
+                isLoading = true
+            }
             error = null
 
             val result = loadDetailItem(
@@ -466,12 +468,16 @@ fun DetailScreenContainer(
                     isLoading = false
                 },
                 onFailure = { exception ->
-                    error = exception.message
+                    if (item == null) {
+                        error = exception.message
+                    }
                     isLoading = false
                 }
             )
         } catch (e: Exception) {
-            error = e.message
+            if (item == null) {
+                error = e.message
+            }
             isLoading = false
         }
     }
@@ -483,9 +489,15 @@ fun DetailScreenContainer(
         }
 
         try {
-            isEpisodeLoading = true
+            val cachedEpisode = mediaRepository.getCachedItem(targetEpisodeId)
+            if (cachedEpisode != null) {
+                episodeItem = cachedEpisode
+                isEpisodeLoading = false
+            } else {
+                isEpisodeLoading = true
+                episodeItem = null
+            }
             episodeError = null
-            episodeItem = null
 
             val result = mediaRepository.getItemById(targetEpisodeId)
             result.fold(
@@ -494,14 +506,16 @@ fun DetailScreenContainer(
                     isEpisodeLoading = false
                 },
                 onFailure = { exception ->
-                    episodeError = exception.message
-                    episodeItem = null
+                    if (episodeItem == null) {
+                        episodeError = exception.message
+                    }
                     isEpisodeLoading = false
                 }
             )
         } catch (e: Exception) {
-            episodeError = e.message
-            episodeItem = null
+            if (episodeItem == null) {
+                episodeError = e.message
+            }
             isEpisodeLoading = false
         }
     }
