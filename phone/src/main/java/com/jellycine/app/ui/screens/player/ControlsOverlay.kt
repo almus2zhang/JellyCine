@@ -67,6 +67,7 @@ fun ControlsOverlay(
     chapterMarkers: List<ChapterMarker> = emptyList(),
     isPlaying: Boolean,
     currentPosition: Long,
+    bufferedPosition: Long = 0L,
     duration: Long,
     onBackClick: () -> Unit,
     onPlayPause: () -> Unit,
@@ -500,6 +501,9 @@ fun ControlsOverlay(
                     progress = if (duration > 0 && currentPosition >= 0) {
                         (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
                     } else 0f,
+                    bufferedProgress = if (duration > 0 && bufferedPosition >= 0) {
+                        (bufferedPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                    } else 0f,
                     duration = duration,
                     chapterMarkers = chapterMarkers,
                     onSeek = onSeek,
@@ -535,6 +539,7 @@ private fun replayforwardIcon(seconds: Int): ImageVector {
 @Composable
 private fun SeekBar(
     progress: Float,
+    bufferedProgress: Float = 0f,
     duration: Long,
     chapterMarkers: List<ChapterMarker>,
     onSeek: (Float) -> Unit,
@@ -615,14 +620,29 @@ private fun SeekBar(
             val markerVerticalInset = 1.dp.toPx()
             var progressX: Float? = null
 
+            // Background full track
             drawLine(
-                color = Color.White.copy(alpha = 0.35f),
+                color = Color.White.copy(alpha = 0.28f),
                 start = trackStart,
                 end = trackEnd,
                 strokeWidth = trackHeight,
                 cap = StrokeCap.Round
             )
 
+            // Buffered progress track
+            val clampedBufferedProgress = bufferedProgress.coerceIn(0f, 1f)
+            if (clampedBufferedProgress > 0f) {
+                val bufferedX = trackStart.x + (trackEnd.x - trackStart.x) * clampedBufferedProgress
+                drawLine(
+                    color = Color.White.copy(alpha = 0.55f),
+                    start = trackStart,
+                    end = Offset(bufferedX, yOffset),
+                    strokeWidth = trackHeight,
+                    cap = StrokeCap.Round
+                )
+            }
+
+            // Played progress track
             if (renderedProgress > 0f) {
                 progressX = trackStart.x + (trackEnd.x - trackStart.x) * renderedProgress
                 drawLine(
@@ -800,6 +820,7 @@ fun ControlsOverlayPreviewPaused() {
 fun SeekBarPreview() {
     SeekBar(
         progress = 0.35f,
+        bufferedProgress = 0.60f,
         duration = 7200000L,
         chapterMarkers = listOf(
             ChapterMarker(positionMs = 900000L, label = "Intro"),
