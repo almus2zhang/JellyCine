@@ -263,6 +263,10 @@
     <string name="player_watch_next_episode">Watch Next Episode</string>
     <string name="player_previous_episode">Previous Episode</string>
     <string name="player_next_episode">Next Episode</string>
+    <string name="player_toggle_orientation">Toggle Orientation</string>
+    <string name="player_orientation_switched_portrait">Switched to portrait</string>
+    <string name="player_orientation_switched_landscape">Switched to landscape</string>
+    <string name="player_orientation_switched_sensor">Auto-rotation enabled</string>
 
     <!-- Home Dashboard -->
     <string name="dashboard_server_fallback">Server</string>

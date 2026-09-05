@@ -116,7 +116,31 @@ internal fun PlayerScreenEffects(
         val activity = context as? Activity
         val originalRequestedOrientation = activity?.requestedOrientation
         activity?.let { act ->
-            act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            val isVerticalVideo = initialItemDetails?.let { item ->
+                val hasPortraitStream = item.mediaStreams?.any { stream ->
+                    stream.type.equals("Video", ignoreCase = true) &&
+                        (stream.height ?: 0) > (stream.width ?: 0) &&
+                        (stream.width ?: 0) > 0
+                } == true
+                val isPortraitRatio = item.aspectRatio?.let { ratio ->
+                    val parts = ratio.split(':')
+                    if (parts.size == 2) {
+                        val w = parts[0].trim().toFloatOrNull() ?: 0f
+                        val h = parts[1].trim().toFloatOrNull() ?: 0f
+                        h > w && w > 0f
+                    } else {
+                        val r = ratio.toFloatOrNull() ?: 0f
+                        r in 0.01f..0.99f
+                    }
+                } == true
+                hasPortraitStream || isPortraitRatio
+            } ?: false
+
+            act.requestedOrientation = if (isVerticalVideo) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            }
             act.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             hideSystemBars()
         }
@@ -351,7 +375,9 @@ internal fun BoxScope.PlayerOverlayHost(
     onShowStreamingQualityDialog: () -> Unit,
     onShowAudioTranscodingDialog: () -> Unit,
     onShowAudioTrackDialog: () -> Unit,
-    onShowSubtitleTrackDialog: () -> Unit
+    onShowSubtitleTrackDialog: () -> Unit,
+    onToggleOrientation: () -> Unit = {},
+    onToggleAutoRotation: (() -> Unit)? = null
 ) {
     var nextEpisodeButtonProgress by remember(
         activeCreditsSegment?.startMs,
@@ -470,6 +496,16 @@ internal fun BoxScope.PlayerOverlayHost(
             },
             seekBackwardSeconds = seekBackwardSeconds,
             seekForwardSeconds = seekForwardSeconds,
+            onToggleOrientation = {
+                resetAutoHideTimer()
+                onToggleOrientation()
+            },
+            onToggleAutoRotation = onToggleAutoRotation?.let { toggleAutoRotation ->
+                {
+                    resetAutoHideTimer()
+                    toggleAutoRotation()
+                }
+            },
             modifier = Modifier.fillMaxSize()
         )
     }

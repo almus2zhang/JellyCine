@@ -2,8 +2,11 @@ package com.jellycine.app.ui.screens.player
 
 import android.app.Activity
 import android.content.Context
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.media.AudioManager
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -105,6 +108,42 @@ fun PlayerScreen(
     val resetAutoHideTimer = {
         autoHideKey++
         hideSystemBars()
+    }
+
+    val toggleOrientation = {
+        (context as? Activity)?.let { act ->
+            val currentOrientation = act.resources.configuration.orientation
+            if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.player_orientation_switched_portrait),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.player_orientation_switched_landscape),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            hideSystemBars()
+        }
+        Unit
+    }
+
+    val toggleAutoRotation = {
+        (context as? Activity)?.let { act ->
+            act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            Toast.makeText(
+                context,
+                context.getString(R.string.player_orientation_switched_sensor),
+                Toast.LENGTH_SHORT
+            ).show()
+            hideSystemBars()
+        }
+        Unit
     }
 
     // Dialog states
@@ -481,7 +520,9 @@ fun PlayerScreen(
                 showAudioTranscodingDialog = true
             },
             onShowAudioTrackDialog = { showAudioTrackDialog = true },
-            onShowSubtitleTrackDialog = { showSubtitleTrackDialog = true }
+            onShowSubtitleTrackDialog = { showSubtitleTrackDialog = true },
+            onToggleOrientation = toggleOrientation,
+            onToggleAutoRotation = toggleAutoRotation
         )
 
         PlayerDialogsHost(

@@ -261,6 +261,10 @@
     <string name="player_watch_next_episode">播放下一集</string>
     <string name="player_previous_episode">上一集</string>
     <string name="player_next_episode">下一集</string>
+    <string name="player_toggle_orientation">切换横竖屏</string>
+    <string name="player_orientation_switched_portrait">已切换为竖屏</string>
+    <string name="player_orientation_switched_landscape">已切换为横屏</string>
+    <string name="player_orientation_switched_sensor">已开启自动旋转（跟随重力感应）</string>
 
     <!-- Home Dashboard -->
     <string name="dashboard_server_fallback">服务器</string>

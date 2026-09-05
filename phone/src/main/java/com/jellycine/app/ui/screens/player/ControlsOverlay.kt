@@ -10,8 +10,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -86,7 +90,9 @@ fun ControlsOverlay(
     canPlayNextEpisode: Boolean = false,
     onPlayPreviousEpisode: () -> Unit = {},
     onPlayNextEpisode: () -> Unit = {},
-    onScrubStateChange: (Boolean) -> Unit = {}
+    onScrubStateChange: (Boolean) -> Unit = {},
+    onToggleOrientation: () -> Unit = {},
+    onToggleAutoRotation: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var scrubPreviewProgress by remember { mutableStateOf<Float?>(null) }
@@ -385,77 +391,95 @@ fun ControlsOverlay(
                         fontWeight = FontWeight.Medium
                     )
 
-                    if (isSpatialAudioEnabled || hdrBadgeLabel.isNotBlank()) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (hdrBadgeLabel.isNotBlank()) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (hdrBadgeLabel.isNotBlank()) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .background(
+                                        color = hdrChipColor,
+                                        shape = hdrChipShape
+                                    )
+                                    .padding(
+                                        horizontal = hdrChipHorizontalPadding,
+                                        vertical = hdrChipVerticalPadding
+                                    )
+                            ) {
+                                Image(
+                                    painter = painterResource(
+                                        when {
+                                            useDolbyVisionBadge -> R.drawable.dolby_vision_badge
+                                            useHdr10PlusBadge -> R.drawable.hdr10plus_badge
+                                            useHdr10Badge -> R.drawable.hdr10_badge
+                                            else -> R.drawable.hdr_badge
+                                        }
+                                    ),
+                                    contentDescription = osdDescription(hdrBadgeLabel),
+                                    contentScale = ContentScale.Fit,
                                     modifier = Modifier
-                                        .background(
-                                            color = hdrChipColor,
-                                            shape = hdrChipShape
-                                        )
-                                        .padding(
-                                            horizontal = hdrChipHorizontalPadding,
-                                            vertical = hdrChipVerticalPadding
-                                        )
-                                ) {
-                                    Image(
-                                        painter = painterResource(
+                                        .width(
                                             when {
-                                                useDolbyVisionBadge -> R.drawable.dolby_vision_badge
-                                                useHdr10PlusBadge -> R.drawable.hdr10plus_badge
-                                                useHdr10Badge -> R.drawable.hdr10_badge
-                                                else -> R.drawable.hdr_badge
+                                                useDolbyVisionBadge -> 48.dp
+                                                useHdr10PlusBadge -> 78.dp
+                                                useHdrBadge -> 58.dp
+                                                else -> 68.dp
                                             }
-                                        ),
-                                        contentDescription = osdDescription(hdrBadgeLabel),
-                                        contentScale = ContentScale.Fit,
-                                        modifier = Modifier
-                                            .width(
-                                                when {
-                                                    useDolbyVisionBadge -> 48.dp
-                                                    useHdr10PlusBadge -> 78.dp
-                                                    useHdrBadge -> 58.dp
-                                                    else -> 68.dp
-                                                }
-                                            )
-                                            .height(if (useDolbyVisionBadge) 18.dp else 16.dp)
-                                    )
-                                }
-                            }
-
-                            if (isSpatialAudioEnabled) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .background(
-                                            color = Color(0xFF4CAF50).copy(alpha = 0.2f),
-                                            shape = RoundedCornerShape(8.dp)
                                         )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = ImageVector.vectorResource(R.drawable.ic_spatial_audio),
-                                        contentDescription = null,
-                                        tint = Color(0xFF4CAF50),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-
-                                    Text(
-                                        text = "Spatial Audio",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF4CAF50),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                        .height(if (useDolbyVisionBadge) 18.dp else 16.dp)
+                                )
                             }
+                        }
+
+                        if (isSpatialAudioEnabled) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .background(
+                                        color = Color(0xFF4CAF50).copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_spatial_audio),
+                                    contentDescription = null,
+                                    tint = Color(0xFF4CAF50),
+                                    modifier = Modifier.size(14.dp)
+                                )
+
+                                Text(
+                                    text = "Spatial Audio",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF4CAF50),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onTap = { onToggleOrientation() },
+                                        onLongPress = { onToggleAutoRotation?.invoke() }
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ScreenRotation,
+                                contentDescription = stringResource(R.string.player_toggle_orientation),
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
                     }
                 }
