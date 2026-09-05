@@ -79,7 +79,7 @@ class AuthScreenViewModel(application: Application) : AndroidViewModel(applicati
                 }
                 resolvedResult.getOrThrow()
             } else {
-                currentState.serverUrl
+                authRepository.resolveDirectRedirect(currentState.serverUrl)
             }
 
             val result = authRepository.testServerConnection(actualUrl)

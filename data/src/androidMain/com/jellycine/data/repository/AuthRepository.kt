@@ -541,7 +541,13 @@ class AuthRepository(private val context: Context) {
         }
     }
 
-    private fun fetch301Content(urlString: String): String {
+    private data class HttpResponseSnapshot(
+        val statusCode: Int,
+        val location: String?,
+        val body: String
+    )
+
+    private fun executeHttpSocketRequest(urlString: String): HttpResponseSnapshot {
         val uri = java.net.URI(urlString)
         val scheme = uri.scheme?.lowercase(java.util.Locale.US) ?: "http"
         val host = uri.host ?: throw java.net.MalformedURLException("Invalid host: $urlString")
@@ -568,8 +574,8 @@ class AuthRepository(private val context: Context) {
             val ipOnly = java.net.InetAddress.getByAddress(ip.address)
 
             val raw = java.net.Socket()
-            raw.connect(java.net.InetSocketAddress(ipOnly, port), 10000)
-            raw.soTimeout = 10000
+            raw.connect(java.net.InetSocketAddress(ipOnly, port), 8000)
+            raw.soTimeout = 8000
 
             val ssl = sc.socketFactory.createSocket(raw, null, port, true) as javax.net.ssl.SSLSocket
             try {
@@ -581,8 +587,8 @@ class AuthRepository(private val context: Context) {
             socket = ssl
         } else {
             socket = java.net.Socket()
-            socket.connect(java.net.InetSocketAddress(host, port), 10000)
-            socket.soTimeout = 10000
+            socket.connect(java.net.InetSocketAddress(host, port), 8000)
+            socket.soTimeout = 8000
         }
 
         socket.use { s ->
@@ -597,7 +603,7 @@ class AuthRepository(private val context: Context) {
             out.flush()
 
             val reader = java.io.BufferedReader(java.io.InputStreamReader(s.getInputStream(), Charsets.UTF_8))
-            val statusLine = reader.readLine() ?: throw java.io.IOException("301 服务器无响应")
+            val statusLine = reader.readLine() ?: throw java.io.IOException("服务器无响应")
             var statusCode = 200
             val parts = statusLine.split(" ")
             if (parts.size >= 2) {
@@ -613,29 +619,138 @@ class AuthRepository(private val context: Context) {
                 }
             }
 
-            if ((statusCode == 301 || statusCode == 302 || statusCode == 307 || statusCode == 308) &&
-                !location.isNullOrBlank() && !location.contains("0.0.0.0")
-            ) {
-                return location
-            }
-
             val body = java.lang.StringBuilder()
             while (true) {
                 val line = reader.readLine() ?: break
                 body.append(line).append("\n")
+                if (body.length > 65536) break
             }
 
-            val bodyStr = body.toString().trim()
+            return HttpResponseSnapshot(
+                statusCode = statusCode,
+                location = location,
+                body = body.toString()
+            )
+        }
+    }
+
+    private fun sanitizeMediaServerUrl(url: String): String {
+        var clean = url.trim()
+        val hashIdx = clean.indexOf('#')
+        if (hashIdx != -1) {
+            clean = clean.substring(0, hashIdx)
+        }
+        val queryIdx = clean.indexOf('?')
+        if (queryIdx != -1) {
+            clean = clean.substring(0, queryIdx)
+        }
+        val webIndex = clean.indexOf("/web", ignoreCase = true)
+        if (webIndex != -1) {
+            clean = clean.substring(0, webIndex)
+        } else if (clean.endsWith("/index.html", ignoreCase = true)) {
+            clean = clean.substring(0, clean.length - "/index.html".length)
+        }
+        return trimTrailingSlash(clean)
+    }
+
+    private fun fetch301WithRedirects(startUrl: String, maxHops: Int = 5): String {
+        var currentUrl = startUrl
+        val visited = mutableSetOf<String>()
+
+        for (hop in 0 until maxHops) {
+            visited.add(currentUrl.trimEnd('/'))
+            val response = executeHttpSocketRequest(currentUrl)
+            val statusCode = response.statusCode
+            val location = response.location
+
+            if ((statusCode in 301..303 || statusCode == 307 || statusCode == 308) && !location.isNullOrBlank()) {
+                val nextUri = try {
+                    val baseUri = java.net.URI(currentUrl)
+                    baseUri.resolve(location.trim())
+                } catch (_: Exception) {
+                    java.net.URI(location.trim())
+                }
+                val nextUrl = nextUri.toString()
+                if (nextUrl.contains("0.0.0.0") || visited.contains(nextUrl.trimEnd('/'))) {
+                    break
+                }
+                currentUrl = nextUrl
+                continue
+            }
+
+            // Not a redirect (e.g. 200 OK)
+            val bodyStr = response.body.trim()
             for (line in bodyStr.lines()) {
                 val candidate = line.trim()
-                if (candidate.isNotBlank() && (candidate.startsWith("http://", ignoreCase = true) || candidate.startsWith("https://", ignoreCase = true) || candidate.contains(":"))) {
+                if (candidate.isNotBlank() &&
+                    (candidate.startsWith("http://", ignoreCase = true) ||
+                     candidate.startsWith("https://", ignoreCase = true) ||
+                     (candidate.contains(":") && !candidate.contains("<") && !candidate.contains("{") && !candidate.contains(" ")))
+                ) {
                     return candidate
                 }
             }
-            if (bodyStr.isNotBlank()) {
+
+            // If body has no candidate address, but we followed at least one redirect:
+            if (hop > 0) {
+                return sanitizeMediaServerUrl(currentUrl)
+            }
+
+            if (bodyStr.isNotBlank() && !bodyStr.contains("<html", ignoreCase = true)) {
                 return bodyStr
             }
-            throw java.io.IOException("301 响应内容为空 (HTTP $statusCode)")
+
+            return sanitizeMediaServerUrl(currentUrl)
+        }
+
+        return sanitizeMediaServerUrl(currentUrl)
+    }
+
+    suspend fun resolveDirectRedirect(url: String): String = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        val trimmed = url.trim()
+        val normalized = when {
+            trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true) -> trimmed
+            else -> "http://$trimmed"
+        }
+        var currentUrl = normalized
+        val visited = mutableSetOf<String>()
+
+        try {
+            for (hop in 0 until 5) {
+                visited.add(currentUrl.trimEnd('/'))
+                val response = try {
+                    executeHttpSocketRequest(currentUrl)
+                } catch (_: Exception) {
+                    break
+                }
+                val statusCode = response.statusCode
+                val location = response.location
+
+                if ((statusCode in 301..303 || statusCode == 307 || statusCode == 308) && !location.isNullOrBlank()) {
+                    val nextUri = try {
+                        val baseUri = java.net.URI(currentUrl)
+                        baseUri.resolve(location.trim())
+                    } catch (_: Exception) {
+                        java.net.URI(location.trim())
+                    }
+                    val nextUrl = nextUri.toString()
+                    if (nextUrl.contains("0.0.0.0") || visited.contains(nextUrl.trimEnd('/'))) {
+                        break
+                    }
+                    currentUrl = nextUrl
+                    continue
+                }
+                break
+            }
+
+            val sanitized = sanitizeMediaServerUrl(currentUrl)
+            if (sanitized.isNotBlank() && (sanitized.startsWith("http://", ignoreCase = true) || sanitized.startsWith("https://", ignoreCase = true))) {
+                sanitized
+            } else {
+                trimmed
+            }
+        } catch (_: Exception) {
+            trimmed
         }
     }
 
@@ -656,12 +771,13 @@ class AuthRepository(private val context: Context) {
             var lastException: Exception? = null
             for (targetUrl in urlsToTry) {
                 try {
-                    val realAddress = fetch301Content(targetUrl).trim()
+                    val realAddress = fetch301WithRedirects(targetUrl).trim()
                     if (realAddress.isNotBlank()) {
-                        val fullAddress = if (!realAddress.startsWith("http://", ignoreCase = true) && !realAddress.startsWith("https://", ignoreCase = true)) {
-                            "http://$realAddress"
+                        val sanitized = sanitizeMediaServerUrl(realAddress)
+                        val fullAddress = if (!sanitized.startsWith("http://", ignoreCase = true) && !sanitized.startsWith("https://", ignoreCase = true)) {
+                            "http://$sanitized"
                         } else {
-                            realAddress
+                            sanitized
                         }
                         return@withContext Result.success(trimTrailingSlash(fullAddress.trim()))
                     }
@@ -680,7 +796,8 @@ class AuthRepository(private val context: Context) {
         return if (is301Url(trimmed)) {
             resolve301ServerUrl(trimmed)
         } else {
-            Result.success(trimmed)
+            val redirected = resolveDirectRedirect(trimmed)
+            Result.success(redirected)
         }
     }
 
@@ -692,7 +809,7 @@ class AuthRepository(private val context: Context) {
                     return Result.failure(Exception("无法获取 301 服务器地址: ${error.message}"))
                 }
             } else {
-                serverUrl
+                resolveDirectRedirect(serverUrl)
             }
 
             if (!resolvedUrl.startsWith("http://") && !resolvedUrl.startsWith("https://")) {
