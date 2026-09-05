@@ -358,6 +358,9 @@ fun SubtitleSettingsScreen(
     var topEdgePercent by remember {
         mutableStateOf(playerPreferences.getSubtitleTopEdgePositionPercent())
     }
+    var preserveStyles by remember {
+        mutableStateOf(playerPreferences.isPreserveSubtitleStylesEnabled())
+    }
 
     Scaffold(
         topBar = {
@@ -375,6 +378,19 @@ fun SubtitleSettingsScreen(
             item { SectionLabel(stringResource(R.string.subtitle_settings_section_style)) }
             item {
                 SettingsSection {
+                    SwitchSettingsItem(
+                        icon = Icons.Rounded.Tune,
+                        title = stringResource(R.string.subtitle_settings_preserve_styles),
+                        subtitle = stringResource(R.string.subtitle_settings_preserve_styles_summary),
+                        checked = preserveStyles,
+                        onCheckedChange = { checked ->
+                            preserveStyles = checked
+                            playerPreferences.setPreserveSubtitleStylesEnabled(checked)
+                        },
+                        accentColor = subtitleAccent
+                    )
+
+                    SettingsDivider()
                     DropdownSettingsItem(
                         icon = Icons.Rounded.Tune,
                         title = stringResource(R.string.subtitle_settings_text_size),

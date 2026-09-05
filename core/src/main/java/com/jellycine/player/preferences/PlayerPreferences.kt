@@ -54,6 +54,7 @@ class PlayerPreferences(context: Context) {
         private const val KEY_SUBTITLE_TEXT_OPACITY_PERCENT = "subtitle_text_opacity_percent"
         private const val KEY_SUBTITLE_BOTTOM_EDGE_PERCENT = "subtitle_bottom_edge_percent"
         private const val KEY_SUBTITLE_TOP_EDGE_PERCENT = "subtitle_top_edge_percent"
+        private const val KEY_PRESERVE_SUBTITLE_STYLES = "preserve_subtitle_styles"
         private const val KEY_STREAMING_QUALITY = "streaming_quality"
         private const val KEY_AUDIO_TRANSCODE_MODE = "audio_transcode_mode"
         private const val KEY_AUDIO_STREAM_INDEX_PREFIX = "audio_stream_index_"
@@ -114,6 +115,7 @@ class PlayerPreferences(context: Context) {
         const val DEFAULT_SUBTITLE_TEXT_OPACITY_PERCENT = 100
         const val DEFAULT_SUBTITLE_BOTTOM_EDGE_PERCENT = 10
         const val DEFAULT_SUBTITLE_TOP_EDGE_PERCENT = 5
+        const val DEFAULT_PRESERVE_SUBTITLE_STYLES = true
         const val DEFAULT_PLAYER_CACHE_SIZE_MB = 200
         const val MAX_PLAYER_CACHE_SIZE_MB = 500
         const val MIN_PLAYER_CACHE_SIZE_MB = 50
@@ -770,6 +772,16 @@ class PlayerPreferences(context: Context) {
     fun setSubtitleTopEdgePositionPercent(percent: Int) {
         prefs.edit()
             .putInt(KEY_SUBTITLE_TOP_EDGE_PERCENT, percent.coerceIn(0, MAX_SUBTITLE_EDGE_PERCENT))
+            .apply()
+    }
+
+    fun isPreserveSubtitleStylesEnabled(): Boolean {
+        return prefs.getBoolean(KEY_PRESERVE_SUBTITLE_STYLES, DEFAULT_PRESERVE_SUBTITLE_STYLES)
+    }
+
+    fun setPreserveSubtitleStylesEnabled(enabled: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_PRESERVE_SUBTITLE_STYLES, enabled)
             .apply()
     }
 

@@ -107,8 +107,10 @@ class MpvPlayerController(
         mpv.attachSurface(surface)
         mpv.setOptionString("force-window", "yes")
         mpv.setOptionString("vo", videoOutput)
+        val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
         mpv.setOptionString("sub-use-margins", "yes")
-        mpv.setOptionString("sub-ass-force-margins", "yes")
+        mpv.setOptionString("sub-ass-force-margins", if (preserveStyles) "no" else "yes")
+        mpv.setOptionString("sub-ass-override", if (preserveStyles) "no" else "strip")
         if (width > 0 && height > 0) {
             mpv.setPropertyString("android-surface-size", "${width}x$height")
         }
@@ -125,8 +127,10 @@ class MpvPlayerController(
     fun setZoomMode(enabled: Boolean) {
         if (released) return
         mpv.setOptionString("panscan", if (enabled) "1" else "0")
+        val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
         mpv.setOptionString("sub-use-margins", "yes")
-        mpv.setOptionString("sub-ass-force-margins", "yes")
+        mpv.setOptionString("sub-ass-force-margins", if (preserveStyles) "no" else "yes")
+        mpv.setOptionString("sub-ass-override", if (preserveStyles) "no" else "strip")
     }
 
     fun setVideoTransform(scale: Float, offsetX: Float, offsetY: Float) {
@@ -142,9 +146,10 @@ class MpvPlayerController(
 
     fun applySubtitlePreferences() {
         if (released) return
+        val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
         mpv.setOptionString("sub-use-margins", "yes")
-        mpv.setOptionString("sub-ass-force-margins", "yes")
-        mpv.setOptionString("sub-ass-override", "strip")
+        mpv.setOptionString("sub-ass-force-margins", if (preserveStyles) "no" else "yes")
+        mpv.setOptionString("sub-ass-override", if (preserveStyles) "no" else "strip")
         mpv.setOptionString("sub-scale", subtitleScale(playerPreferences.getSubtitleTextSize()))
         mpv.setOptionString(
             "sub-color",

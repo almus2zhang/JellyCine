@@ -220,9 +220,10 @@ private fun ExoPlayerView(
 
 @UnstableApi
 private fun PlayerView.applySubtitlePreferences(playerPreferences: PlayerPreferences) {
+    val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
     subtitleView?.apply {
         setApplyEmbeddedStyles(true)
-        setApplyEmbeddedFontSizes(false)
+        setApplyEmbeddedFontSizes(preserveStyles)
         setFractionalTextSize(subtitleTextSizeFraction(playerPreferences.getSubtitleTextSize()))
         setStyle(
             CaptionStyleCompat(

@@ -224,6 +224,8 @@
     <!-- Subtitle Settings -->
     <string name="subtitle_settings_title">字幕设置</string>
     <string name="subtitle_settings_section_style">字体样式</string>
+    <string name="subtitle_settings_preserve_styles">保留字幕自带样式与位置</string>
+    <string name="subtitle_settings_preserve_styles_summary">保留 ASS 等特效字幕自带的文字大小、排版位置与颜色；关闭后强制统一替换为下方自定义设置</string>
     <string name="subtitle_settings_section_position">显示位置</string>
     <string name="subtitle_settings_text_size">字体大小</string>
     <string name="subtitle_settings_text_color">字体颜色</string>
