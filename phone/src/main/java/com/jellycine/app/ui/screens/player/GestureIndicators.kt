@@ -35,7 +35,8 @@ fun GestureIndicators(
     volumeLevel: Float? = null,
     brightnessLevel: Float? = null,
     seekPosition: String? = null,
-    seekSide: SeekSide = SeekSide.CENTER
+    seekSide: SeekSide = SeekSide.CENTER,
+    zoomScale: Float? = null
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         // Volume indicator (right side)
@@ -91,6 +92,45 @@ fun GestureIndicators(
                 )
             }
         }
+
+        // Zoom indicator (center)
+        AnimatedVisibility(
+            visible = zoomScale != null,
+            enter = fadeIn() + scaleIn(),
+            exit = fadeOut() + scaleOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            zoomScale?.let { scaleValue ->
+                ZoomIndicator(scale = scaleValue)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ZoomIndicator(
+    scale: Float,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(24.dp))
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.ZoomIn,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(28.dp)
+        )
+        Text(
+            text = "${(scale * 100).toInt()}%",
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

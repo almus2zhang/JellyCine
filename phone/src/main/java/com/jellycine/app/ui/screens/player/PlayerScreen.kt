@@ -55,6 +55,7 @@ data class PlayerUiState(
     val brightnessLevel: Float? = null,
     val seekPosition: String? = null,
     val seekSide: SeekSide = SeekSide.CENTER,
+    val zoomIndicatorScale: Float? = null,
     val videoScale: Float = 1f,
     val videoOffsetX: Float = 0f,
     val videoOffsetY: Float = 0f
@@ -480,6 +481,18 @@ fun PlayerScreen(
             onTogglePlayPause = viewModel::togglePlayPause,
             onZoomChange = { isZooming ->
                 viewModel.handlePinchZoom(isZooming)
+            },
+            onTransform = { scaleMultiplier, deltaX, deltaY ->
+                viewModel.updateVideoTransform(scaleMultiplier, deltaX, deltaY)
+                uiState = uiState.copy(zoomIndicatorScale = viewModel.playerState.value.videoScale)
+            },
+            onTransformEnd = {
+                viewModel.onTransformEnd()
+                uiState = uiState.copy(zoomIndicatorScale = null)
+            },
+            onResetTransform = {
+                viewModel.resetVideoTransform()
+                uiState = uiState.copy(zoomIndicatorScale = null)
             },
             modifier = Modifier.fillMaxSize()
         )

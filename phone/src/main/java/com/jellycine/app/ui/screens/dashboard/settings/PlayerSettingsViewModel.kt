@@ -40,6 +40,7 @@ data class PlayerSettingsUiState(
     val useDeviceBrightnessInPlayer: Boolean = PlayerPreferences.DEFAULT_USE_DEVICE_BRIGHTNESS_IN_PLAYER,
     val progressSeekGestureEnabled: Boolean = true,
     val zoomGestureEnabled: Boolean = true,
+    val freeZoomAndPanEnabled: Boolean = true,
     val startMaximized: Boolean = false,
     val cacheNextEpisodeEnabled: Boolean = false,
     val playerCacheSizeMb: Int = PlayerPreferences.DEFAULT_PLAYER_CACHE_SIZE_MB,
@@ -84,6 +85,7 @@ class PlayerSettingsViewModel(private val context: Context) : ViewModel() {
             useDeviceBrightnessInPlayer = playerPreferences.isUseDeviceBrightnessInPlayerEnabled(),
             progressSeekGestureEnabled = playerPreferences.isProgressSeekGestureEnabled(),
             zoomGestureEnabled = playerPreferences.isZoomGestureEnabled(),
+            freeZoomAndPanEnabled = playerPreferences.isFreeZoomAndPanEnabled(),
             startMaximized = playerPreferences.isStartMaximizedEnabled()
         )
     }
@@ -113,6 +115,7 @@ class PlayerSettingsViewModel(private val context: Context) : ViewModel() {
                 useDeviceBrightnessInPlayer = playerPreferences.isUseDeviceBrightnessInPlayerEnabled(),
                 progressSeekGestureEnabled = playerPreferences.isProgressSeekGestureEnabled(),
                 zoomGestureEnabled = playerPreferences.isZoomGestureEnabled(),
+                freeZoomAndPanEnabled = playerPreferences.isFreeZoomAndPanEnabled(),
                 startMaximized = playerPreferences.isStartMaximizedEnabled(),
                 cacheNextEpisodeEnabled = playerPreferences.isCacheNextEpisodeEnabled(),
                 playerCacheSizeMb = playerPreferences.getPlayerCacheSizeMb(),
@@ -283,6 +286,11 @@ class PlayerSettingsViewModel(private val context: Context) : ViewModel() {
 
     fun setZoomGestureEnabled(enabled: Boolean) {
         playerPreferences.setZoomGestureEnabled(enabled)
+        updateGestureState()
+    }
+
+    fun setFreeZoomAndPanEnabled(enabled: Boolean) {
+        playerPreferences.setFreeZoomAndPanEnabled(enabled)
         updateGestureState()
     }
     

@@ -193,6 +193,9 @@
     <string name="player_settings_progress_seek_gesture_summary">双击屏幕左侧快退，双击右侧快进</string>
     <string name="player_settings_zoom_gesture">画面缩放手势</string>
     <string name="player_settings_zoom_gesture_summary">双指捏合在适应屏幕与画面裁剪拉伸之间切换</string>
+    <string name="player_settings_free_zoom_and_pan">无极缩放与双指移动</string>
+    <string name="player_settings_free_zoom_and_pan_summary">开启后支持双指自由缩放与平移画面，字幕位置保持不变</string>
+    <string name="player_reset_zoom">重置画面</string>
     <string name="player_settings_start_maximized">启动时默认全屏</string>
     <string name="player_settings_start_maximized_summary">开始播放视频时直接进入全屏模式</string>
     <string name="player_settings_seek_backward">快退步长</string>

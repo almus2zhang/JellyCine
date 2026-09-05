@@ -1385,6 +1385,44 @@ class PlayerViewModel @Inject constructor(
     }
 
     /**
+     * Update video scale and translation offsets for free zoom and pan
+     */
+    fun updateVideoTransform(scaleMultiplier: Float, deltaX: Float, deltaY: Float) {
+        val current = _playerState.value
+        val newScale = (current.videoScale * scaleMultiplier).coerceIn(0.5f, 5.0f)
+        val newOffsetX = current.videoOffsetX + deltaX
+        val newOffsetY = current.videoOffsetY + deltaY
+        _playerState.value = current.copy(
+            videoScale = newScale,
+            videoOffsetX = newOffsetX,
+            videoOffsetY = newOffsetY
+        )
+    }
+
+    /**
+     * Called when transform gesture ends. Snaps back to 1.0x if very close to center.
+     */
+    fun onTransformEnd() {
+        val current = _playerState.value
+        if (kotlin.math.abs(current.videoScale - 1f) < 0.05f &&
+            kotlin.math.hypot(current.videoOffsetX, current.videoOffsetY) < 40f
+        ) {
+            resetVideoTransform()
+        }
+    }
+
+    /**
+     * Reset video scale to 1.0x and translation offsets to (0, 0)
+     */
+    fun resetVideoTransform() {
+        _playerState.value = _playerState.value.copy(
+            videoScale = 1f,
+            videoOffsetX = 0f,
+            videoOffsetY = 0f
+        )
+    }
+
+    /**
      * Apply start maximized setting based on user preference
      * Uses ExoPlayer's native resize modes for proper aspect ratio handling
      */

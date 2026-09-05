@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VideoSettings
 import androidx.compose.material.icons.rounded.WbSunny
+import androidx.compose.material.icons.rounded.ZoomOutMap
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -455,6 +456,17 @@ fun PlayerSettingsScreen(
                         checked = uiState.zoomGestureEnabled,
                         onCheckedChange = viewModel::setZoomGestureEnabled,
                         enabled = uiState.playerGesturesEnabled,
+                        accentColor = gesturesColor
+                    )
+
+                    SettingsDivider()
+                    SwitchSettingsItem(
+                        icon = Icons.Rounded.ZoomOutMap,
+                        title = stringResource(R.string.player_settings_free_zoom_and_pan),
+                        subtitle = stringResource(R.string.player_settings_free_zoom_and_pan_summary),
+                        checked = uiState.freeZoomAndPanEnabled,
+                        onCheckedChange = viewModel::setFreeZoomAndPanEnabled,
+                        enabled = uiState.playerGesturesEnabled && uiState.zoomGestureEnabled,
                         accentColor = gesturesColor
                     )
 

@@ -12,6 +12,8 @@ import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,11 +27,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ZoomOutMap
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -598,8 +606,51 @@ internal fun BoxScope.PlayerOverlayHost(
         volumeLevel = uiState.volumeLevel,
         brightnessLevel = uiState.brightnessLevel,
         seekPosition = uiState.seekPosition,
-        seekSide = uiState.seekSide
+        seekSide = uiState.seekSide,
+        zoomScale = uiState.zoomIndicatorScale
     )
+
+    val isTransformed = playerState.videoScale != 1f ||
+        playerState.videoOffsetX != 0f ||
+        playerState.videoOffsetY != 0f
+
+    AnimatedVisibility(
+        visible = isTransformed,
+        enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
+        exit = fadeOut() + slideOutVertically(targetOffsetY = { -it }),
+        modifier = Modifier
+            .align(Alignment.TopEnd)
+            .padding(
+                top = if (uiState.controlsVisible) 68.dp else 20.dp,
+                end = 20.dp
+            )
+    ) {
+        Surface(
+            onClick = { viewModel.resetVideoTransform() },
+            shape = RoundedCornerShape(20.dp),
+            color = Color.Black.copy(alpha = 0.72f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ZoomOutMap,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "${(playerState.videoScale * 100).roundToInt()}% ${stringResource(R.string.player_reset_zoom)}",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
 
     if (playerState.isLoading) {
         Box(

@@ -3,7 +3,10 @@ package com.jellycine.app.ui.screens.player
 import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioManager
+import android.view.View
+import android.view.ViewGroup
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -45,36 +48,30 @@ fun VideoSurface(
     onToggleControls: () -> Unit,
     onTogglePlayPause: () -> Unit = {},
     onZoomChange: (Boolean) -> Unit = {},
+    onTransform: (scaleMultiplier: Float, deltaX: Float, deltaY: Float) -> Unit = { _, _, _ -> },
+    onTransformEnd: () -> Unit = {},
+    onResetTransform: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
 
     val animatedScale by animateFloatAsState(
         targetValue = scale,
-        animationSpec = tween(durationMillis = 200),
+        animationSpec = if (scale == 1f && offsetX == 0f && offsetY == 0f) tween(durationMillis = 250) else snap(),
         label = "video_scale"
     )
     val animatedOffsetX by animateFloatAsState(
         targetValue = offsetX,
-        animationSpec = tween(durationMillis = 200),
+        animationSpec = if (scale == 1f && offsetX == 0f && offsetY == 0f) tween(durationMillis = 250) else snap(),
         label = "video_offset_x"
     )
     val animatedOffsetY by animateFloatAsState(
         targetValue = offsetY,
-        animationSpec = tween(durationMillis = 200),
+        animationSpec = if (scale == 1f && offsetX == 0f && offsetY == 0f) tween(durationMillis = 250) else snap(),
         label = "video_offset_y"
     )
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
-    val surfaceModifier = Modifier
-        .fillMaxSize()
-        .clip(RoundedCornerShape(0.dp))
-        .graphicsLayer(
-            scaleX = animatedScale,
-            scaleY = animatedScale,
-            translationX = animatedOffsetX,
-            translationY = animatedOffsetY,
-            clip = false
-        )
+    val surfaceModifier = Modifier.fillMaxSize()
 
     Box(
         modifier = modifier.background(Color.Black)
@@ -83,6 +80,9 @@ fun VideoSurface(
             MpvVideoSurface(
                 player = mpvPlayer,
                 lifecycle = lifecycle,
+                scale = animatedScale,
+                offsetX = animatedOffsetX,
+                offsetY = animatedOffsetY,
                 resizeMode = resizeMode,
                 audioManager = audioManager,
                 isHdr = isHdr,
@@ -93,6 +93,9 @@ fun VideoSurface(
                 getCurrentVolumeLevel = getCurrentVolumeLevel,
                 getCurrentBrightnessLevel = getCurrentBrightnessLevel,
                 onZoomChange = onZoomChange,
+                onTransform = onTransform,
+                onTransformEnd = onTransformEnd,
+                onResetTransform = onResetTransform,
                 onTogglePlayPause = onTogglePlayPause,
                 modifier = surfaceModifier
             )
@@ -100,6 +103,9 @@ fun VideoSurface(
             ExoPlayerView(
                 player = player,
                 lifecycle = lifecycle,
+                scale = animatedScale,
+                offsetX = animatedOffsetX,
+                offsetY = animatedOffsetY,
                 resizeMode = resizeMode,
                 audioManager = audioManager,
                 onToggleControls = onToggleControls,
@@ -109,6 +115,9 @@ fun VideoSurface(
                 getCurrentVolumeLevel = getCurrentVolumeLevel,
                 getCurrentBrightnessLevel = getCurrentBrightnessLevel,
                 onZoomChange = onZoomChange,
+                onTransform = onTransform,
+                onTransformEnd = onTransformEnd,
+                onResetTransform = onResetTransform,
                 onTogglePlayPause = onTogglePlayPause,
                 modifier = surfaceModifier
             )
@@ -122,6 +131,9 @@ fun VideoSurface(
 private fun ExoPlayerView(
     player: ExoPlayer?,
     lifecycle: Lifecycle.Event,
+    scale: Float,
+    offsetX: Float,
+    offsetY: Float,
     resizeMode: Int,
     audioManager: AudioManager,
     onToggleControls: () -> Unit,
@@ -131,6 +143,9 @@ private fun ExoPlayerView(
     getCurrentVolumeLevel: () -> Float,
     getCurrentBrightnessLevel: () -> Float,
     onZoomChange: (Boolean) -> Unit,
+    onTransform: (scaleMultiplier: Float, deltaX: Float, deltaY: Float) -> Unit,
+    onTransformEnd: () -> Unit,
+    onResetTransform: () -> Unit,
     onTogglePlayPause: () -> Unit,
     modifier: Modifier
 ) {
@@ -146,6 +161,8 @@ private fun ExoPlayerView(
                 this.resizeMode = resizeMode
                 setBackgroundColor(android.graphics.Color.BLACK)
                 setPadding(0, 0, 0, 0)
+                clipChildren = false
+                clipToPadding = false
                 layoutParams = android.view.ViewGroup.LayoutParams(
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -164,7 +181,10 @@ private fun ExoPlayerView(
                     getCurrentBrightnessLevel = getCurrentBrightnessLevel,
                     onZoomChange = onZoomChange,
                     onTogglePlayPause = onTogglePlayPause,
-                    getPlayer = { this.player }
+                    getPlayer = { this.player },
+                    onTransform = onTransform,
+                    onTransformEnd = onTransformEnd,
+                    onResetTransform = onResetTransform
                 )
                 setOnTouchListener { _, event -> helper.handleTouchEvent(event) }
             }
@@ -173,6 +193,17 @@ private fun ExoPlayerView(
             playerView.player = player
             playerView.resizeMode = resizeMode
             playerView.applySubtitlePreferences(playerPreferences)
+
+            val contentFrame = playerView.findViewById<View>(androidx.media3.ui.R.id.exo_content_frame)
+                ?: (playerView.videoSurfaceView?.parent as? View)
+                ?: playerView.videoSurfaceView
+            contentFrame?.let { frame ->
+                (frame.parent as? ViewGroup)?.clipChildren = false
+                frame.scaleX = scale
+                frame.scaleY = scale
+                frame.translationX = offsetX
+                frame.translationY = offsetY
+            }
 
             when (lifecycle) {
                 Lifecycle.Event.ON_PAUSE -> {

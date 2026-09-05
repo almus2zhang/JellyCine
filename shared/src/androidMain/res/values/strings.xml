@@ -195,6 +195,9 @@
     <string name="player_settings_progress_seek_gesture_summary">Double tap the left side to seek backward and the right side to seek forward</string>
     <string name="player_settings_zoom_gesture">Zoom Gesture</string>
     <string name="player_settings_zoom_gesture_summary">Pinch on the player to switch between fit and zoom</string>
+    <string name="player_settings_free_zoom_and_pan">Free Zoom &amp; Pan</string>
+    <string name="player_settings_free_zoom_and_pan_summary">Pinch to freely zoom and drag two fingers to pan video. Subtitle position stays fixed.</string>
+    <string name="player_reset_zoom">Reset Zoom</string>
     <string name="player_settings_start_maximized">Start Maximized</string>
     <string name="player_settings_start_maximized_summary">Start video in fullscreen mode</string>
     <string name="player_settings_seek_backward">Seek Backward</string>

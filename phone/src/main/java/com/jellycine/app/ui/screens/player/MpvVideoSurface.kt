@@ -19,6 +19,9 @@ import com.jellycine.app.player.mpv.MpvPlayerController
 fun MpvVideoSurface(
     player: MpvPlayerController,
     lifecycle: Lifecycle.Event,
+    scale: Float,
+    offsetX: Float,
+    offsetY: Float,
     resizeMode: Int,
     audioManager: AudioManager,
     @Suppress("UNUSED_PARAMETER") isHdr: Boolean,
@@ -29,6 +32,9 @@ fun MpvVideoSurface(
     getCurrentVolumeLevel: () -> Float,
     getCurrentBrightnessLevel: () -> Float,
     onZoomChange: (Boolean) -> Unit,
+    onTransform: (scaleMultiplier: Float, deltaX: Float, deltaY: Float) -> Unit,
+    onTransformEnd: () -> Unit,
+    onResetTransform: () -> Unit,
     onTogglePlayPause: () -> Unit,
     modifier: Modifier
 ) {
@@ -50,7 +56,10 @@ fun MpvVideoSurface(
                     getCurrentVolumeLevel = getCurrentVolumeLevel,
                     getCurrentBrightnessLevel = getCurrentBrightnessLevel,
                     onZoomChange = onZoomChange,
-                    onTogglePlayPause = onTogglePlayPause
+                    onTogglePlayPause = onTogglePlayPause,
+                    onTransform = onTransform,
+                    onTransformEnd = onTransformEnd,
+                    onResetTransform = onResetTransform
                 )
                 setOnTouchListener { _, event -> gestureHelper.handleTouchEvent(event) }
                 holder.addCallback(object : SurfaceHolder.Callback {
@@ -81,6 +90,7 @@ fun MpvVideoSurface(
         update = {
             player.applySubtitlePreferences()
             player.setZoomMode(resizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM)
+            player.setVideoTransform(scale, offsetX, offsetY)
             if (lifecycle == Lifecycle.Event.ON_PAUSE) {
                 player.pause()
             }

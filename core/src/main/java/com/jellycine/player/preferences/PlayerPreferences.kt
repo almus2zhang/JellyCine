@@ -38,6 +38,7 @@ class PlayerPreferences(context: Context) {
         private const val KEY_USE_DEVICE_BRIGHTNESS_IN_PLAYER = "use_device_brightness_in_player"
         private const val KEY_PROGRESS_SEEK_GESTURE_ENABLED = "progress_seek_gesture_enabled"
         private const val KEY_ZOOM_GESTURE_ENABLED = "zoom_gesture_enabled"
+        private const val KEY_FREE_ZOOM_AND_PAN_ENABLED = "free_zoom_and_pan_enabled"
         private const val KEY_START_MAXIMIZED = "start_maximized"
         private const val KEY_CACHE_NEXT_EPISODE = "cache_next_episode"
         private const val KEY_PLAYER_CACHE_SIZE_MB = "player_cache_size_mb"
@@ -532,6 +533,16 @@ class PlayerPreferences(context: Context) {
     fun setZoomGestureEnabled(enabled: Boolean) {
         prefs.edit()
             .putBoolean(KEY_ZOOM_GESTURE_ENABLED, enabled)
+            .apply()
+    }
+
+    fun isFreeZoomAndPanEnabled(): Boolean {
+        return prefs.getBoolean(KEY_FREE_ZOOM_AND_PAN_ENABLED, true)
+    }
+
+    fun setFreeZoomAndPanEnabled(enabled: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_FREE_ZOOM_AND_PAN_ENABLED, enabled)
             .apply()
     }
     

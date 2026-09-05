@@ -97,11 +97,18 @@ class MpvPlayerController(
         this.listener = listener
     }
 
+    private var surfaceWidth: Int = 0
+    private var surfaceHeight: Int = 0
+
     fun attachSurface(surface: Surface, width: Int, height: Int) {
         if (released) return
+        this.surfaceWidth = width
+        this.surfaceHeight = height
         mpv.attachSurface(surface)
         mpv.setOptionString("force-window", "yes")
         mpv.setOptionString("vo", videoOutput)
+        mpv.setOptionString("sub-use-margins", "yes")
+        mpv.setOptionString("sub-ass-force-margins", "yes")
         if (width > 0 && height > 0) {
             mpv.setPropertyString("android-surface-size", "${width}x$height")
         }
@@ -109,25 +116,34 @@ class MpvPlayerController(
 
     fun resizeSurface(width: Int, height: Int) {
         if (!released && width > 0 && height > 0) {
+            this.surfaceWidth = width
+            this.surfaceHeight = height
             mpv.setPropertyString("android-surface-size", "${width}x$height")
         }
     }
 
     fun setZoomMode(enabled: Boolean) {
         if (released) return
-        if (enabled) {
-            mpv.setOptionString("panscan", "1")
-            mpv.setOptionString("sub-use-margins", "yes")
-            mpv.setOptionString("sub-ass-force-margins", "yes")
-        } else {
-            mpv.setOptionString("panscan", "0")
-            mpv.setOptionString("sub-use-margins", "no")
-            mpv.setOptionString("sub-ass-force-margins", "no")
-        }
+        mpv.setOptionString("panscan", if (enabled) "1" else "0")
+        mpv.setOptionString("sub-use-margins", "yes")
+        mpv.setOptionString("sub-ass-force-margins", "yes")
+    }
+
+    fun setVideoTransform(scale: Float, offsetX: Float, offsetY: Float) {
+        if (released) return
+        val zoom = if (scale > 0f) kotlin.math.ln(scale.toDouble()) / kotlin.math.ln(2.0) else 0.0
+        val panX = if (surfaceWidth > 0) (offsetX / surfaceWidth).toDouble() else 0.0
+        val panY = if (surfaceHeight > 0) (offsetY / surfaceHeight).toDouble() else 0.0
+
+        mpv.setPropertyDouble("video-zoom", zoom)
+        mpv.setPropertyDouble("video-pan-x", panX)
+        mpv.setPropertyDouble("video-pan-y", panY)
     }
 
     fun applySubtitlePreferences() {
         if (released) return
+        mpv.setOptionString("sub-use-margins", "yes")
+        mpv.setOptionString("sub-ass-force-margins", "yes")
         mpv.setOptionString("sub-ass-override", "strip")
         mpv.setOptionString("sub-scale", subtitleScale(playerPreferences.getSubtitleTextSize()))
         mpv.setOptionString(

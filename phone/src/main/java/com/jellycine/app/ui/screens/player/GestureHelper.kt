@@ -30,7 +30,10 @@ class GestureHelper(
     private val getCurrentBrightnessLevel: () -> Float,
     private val onZoomChange: (Boolean) -> Unit,
     private val onTogglePlayPause: () -> Unit = {},
-    private val getPlayer: () -> Player? = { null }
+    private val getPlayer: () -> Player? = { null },
+    private val onTransform: (scaleMultiplier: Float, deltaX: Float, deltaY: Float) -> Unit = { _, _, _ -> },
+    private val onTransformEnd: () -> Unit = {},
+    private val onResetTransform: () -> Unit = {}
 ) {
     private val playerPreferences = PlayerPreferences(context)
     // Gesture state tracking
@@ -45,6 +48,15 @@ class GestureHelper(
     private var isZoomEnabled = false
     private var screenWidth = 0
     private var screenHeight = 0
+
+    // Two-finger free transform state
+    private var prevSpan = 0f
+    private var prevFocusX = 0f
+    private var prevFocusY = 0f
+    private var isTransforming = false
+    private var twoFingerDownTime = 0L
+    private var twoFingerMoved = false
+    private var lastTwoFingerTapTime = 0L
 
     // Constants
 
@@ -231,6 +243,12 @@ class GestureHelper(
 
     private fun releaseAction(event: MotionEvent) {
         if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
+            if (isTransforming) {
+                isTransforming = false
+                prevSpan = 0f
+                onTransformEnd()
+            }
+
             if (swipeGestureVolumeOpen) {
                 swipeGestureVolumeOpen = false
                 swipeGestureValueTrackerVolume = -1f
@@ -265,6 +283,81 @@ class GestureHelper(
         return inExclusion
     }
 
+    private fun handleTwoFingerTransform(event: MotionEvent) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.pointerCount == 2) {
+                    val x0 = event.getX(0)
+                    val y0 = event.getY(0)
+                    val x1 = event.getX(1)
+                    val y1 = event.getY(1)
+                    prevSpan = kotlin.math.hypot(x0 - x1, y0 - y1)
+                    prevFocusX = (x0 + x1) / 2f
+                    prevFocusY = (y0 + y1) / 2f
+                    isTransforming = true
+                    twoFingerDownTime = SystemClock.elapsedRealtime()
+                    twoFingerMoved = false
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (event.pointerCount >= 2) {
+                    val x0 = event.getX(0)
+                    val y0 = event.getY(0)
+                    val x1 = event.getX(1)
+                    val y1 = event.getY(1)
+                    val currentSpan = kotlin.math.hypot(x0 - x1, y0 - y1)
+                    val currentFocusX = (x0 + x1) / 2f
+                    val currentFocusY = (y0 + y1) / 2f
+
+                    if (!isTransforming) {
+                        prevSpan = currentSpan
+                        prevFocusX = currentFocusX
+                        prevFocusY = currentFocusY
+                        isTransforming = true
+                        twoFingerDownTime = SystemClock.elapsedRealtime()
+                        twoFingerMoved = false
+                    } else if (prevSpan > 0f) {
+                        val scaleMultiplier = currentSpan / prevSpan
+                        val deltaX = currentFocusX - prevFocusX
+                        val deltaY = currentFocusY - prevFocusY
+
+                        if (abs(scaleMultiplier - 1f) > 0.005f || kotlin.math.hypot(deltaX, deltaY) > 2f) {
+                            twoFingerMoved = true
+                            onTransform(scaleMultiplier, deltaX, deltaY)
+                            prevSpan = currentSpan
+                            prevFocusX = currentFocusX
+                            prevFocusY = currentFocusY
+                        }
+                    }
+                }
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (isTransforming) {
+                    isTransforming = false
+                    prevSpan = 0f
+                    val now = SystemClock.elapsedRealtime()
+                    if (!twoFingerMoved && (now - twoFingerDownTime) < 350L) {
+                        if (now - lastTwoFingerTapTime < 450L) {
+                            onResetTransform()
+                            lastTwoFingerTapTime = 0L
+                        } else {
+                            lastTwoFingerTapTime = now
+                        }
+                    } else {
+                        onTransformEnd()
+                    }
+                }
+            }
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> {
+                if (isTransforming) {
+                    isTransforming = false
+                    prevSpan = 0f
+                    onTransformEnd()
+                }
+            }
+        }
+    }
+
     fun handleTouchEvent(event: MotionEvent): Boolean {
         currentNumberOfPointers = event.pointerCount
 
@@ -273,8 +366,24 @@ class GestureHelper(
             screenHeight = touchView.height
         }
 
+        if (event.pointerCount >= 2) {
+            if (swipeGestureVolumeOpen || swipeGestureBrightnessOpen || swipeGestureProgressOpen) {
+                swipeGestureVolumeOpen = false
+                swipeGestureBrightnessOpen = false
+                swipeGestureProgressOpen = false
+                swipeGestureValueTrackerVolume = -1f
+                swipeGestureValueTrackerBrightness = -1f
+                swipeGestureValueTrackerProgress = 0L
+            }
+        }
+
         when (event.pointerCount) {
             1 -> {
+                if (isTransforming) {
+                    isTransforming = false
+                    prevSpan = 0f
+                    onTransformEnd()
+                }
                 tapGestureDetector.onTouchEvent(event)
                 if (playerPreferences.arePlayerGesturesEnabled()) {
                     vbGestureDetector.onTouchEvent(event)
@@ -285,7 +394,11 @@ class GestureHelper(
                 if (playerPreferences.arePlayerGesturesEnabled() &&
                     playerPreferences.isZoomGestureEnabled()
                 ) {
-                    zoomGestureDetector.onTouchEvent(event)
+                    if (playerPreferences.isFreeZoomAndPanEnabled()) {
+                        handleTwoFingerTransform(event)
+                    } else {
+                        zoomGestureDetector.onTouchEvent(event)
+                    }
                 }
             }
         }
