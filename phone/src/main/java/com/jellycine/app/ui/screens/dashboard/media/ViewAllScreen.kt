@@ -1946,6 +1946,7 @@ private fun SortBottomSheet(
 
             val sortOptions = listOf(
                 SortOption("DateCreated", "Descending"),
+                SortOption("DateCreated", "Ascending"),
                 SortOption("SortName", "Ascending"),
                 SortOption("SortName", "Descending"),
                 SortOption("ProductionYear", "Descending"),
@@ -2106,6 +2107,7 @@ private fun ContentType.includesSeriesItems(): Boolean {
 private fun sortOptionLabelRes(sortBy: String, sortOrder: String): Int {
     return when (sortBy to sortOrder) {
         "DateCreated" to "Descending" -> R.string.view_all_sort_recently_added
+        "DateCreated" to "Ascending" -> R.string.view_all_sort_oldest_added
         "SortName" to "Ascending" -> R.string.view_all_sort_name_az
         "SortName" to "Descending" -> R.string.view_all_sort_name_za
         "ProductionYear" to "Descending" -> R.string.view_all_sort_year_newest

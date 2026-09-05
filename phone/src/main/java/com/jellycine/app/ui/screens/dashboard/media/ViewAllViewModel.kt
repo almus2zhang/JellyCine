@@ -126,7 +126,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = folderLimit,
                             startIndex = currentPage * folderLimit,
                             recursive = false,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated"
                         )
                     } else when (contentType) {
                         ContentType.SEERR_STUDIO -> seerrRepository.getStudios(

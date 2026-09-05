@@ -290,6 +290,7 @@
     <string name="view_all_clear_filters">Clear filters</string>
     <string name="view_all_no_genres">No genres available yet</string>
     <string name="view_all_sort_recently_added">Recently Added</string>
+    <string name="view_all_sort_oldest_added">Oldest Added</string>
     <string name="view_all_sort_name_az">Name (A-Z)</string>
     <string name="view_all_sort_name_za">Name (Z-A)</string>
     <string name="view_all_sort_year_newest">Year (Newest)</string>

@@ -102,31 +102,26 @@ fun sortFolderItems(
             "DateCreated" -> {
                 val dateA = a.dateCreated ?: a.premiereDate
                 val dateB = b.dateCreated ?: b.premiereDate
-                val dateCmp = when {
-                    dateA == null && dateB == null -> 0
-                    dateA == null -> -1
-                    dateB == null -> 1
-                    else -> dateA.compareTo(dateB)
-                }
-                if (dateCmp != 0) dateCmp else {
-                    NaturalOrderComparator.compare(getItemRawDisplayName(a), getItemRawDisplayName(b))
-                }
+                if (dateA == null && dateB == null) 0
+                else if (dateA == null) (if (isAscending) 1 else -1)
+                else if (dateB == null) (if (isAscending) -1 else 1)
+                else dateA.compareTo(dateB)
             }
             "ProductionYear" -> {
-                val yearA = a.productionYear ?: 0
-                val yearB = b.productionYear ?: 0
-                val yearCmp = yearA.compareTo(yearB)
-                if (yearCmp != 0) yearCmp else {
-                    NaturalOrderComparator.compare(getItemRawDisplayName(a), getItemRawDisplayName(b))
-                }
+                val yearA = a.productionYear?.takeIf { it > 0 }
+                val yearB = b.productionYear?.takeIf { it > 0 }
+                if (yearA == null && yearB == null) 0
+                else if (yearA == null) (if (isAscending) 1 else -1)
+                else if (yearB == null) (if (isAscending) -1 else 1)
+                else yearA.compareTo(yearB)
             }
             "CommunityRating" -> {
-                val ratingA = a.communityRating ?: 0f
-                val ratingB = b.communityRating ?: 0f
-                val ratingCmp = ratingA.compareTo(ratingB)
-                if (ratingCmp != 0) ratingCmp else {
-                    NaturalOrderComparator.compare(getItemRawDisplayName(a), getItemRawDisplayName(b))
-                }
+                val ratingA = a.communityRating?.takeIf { it > 0f }
+                val ratingB = b.communityRating?.takeIf { it > 0f }
+                if (ratingA == null && ratingB == null) 0
+                else if (ratingA == null) (if (isAscending) 1 else -1)
+                else if (ratingB == null) (if (isAscending) -1 else 1)
+                else ratingA.compareTo(ratingB)
             }
             else -> {
                 val nameA = getItemRawDisplayName(a)
@@ -135,6 +130,11 @@ fun sortFolderItems(
             }
         }
 
-        if (isAscending) cmp else -cmp
+        val finalCmp = if (isAscending) cmp else -cmp
+        if (finalCmp != 0) {
+            finalCmp
+        } else {
+            NaturalOrderComparator.compare(getItemRawDisplayName(a), getItemRawDisplayName(b))
+        }
     }
 }
