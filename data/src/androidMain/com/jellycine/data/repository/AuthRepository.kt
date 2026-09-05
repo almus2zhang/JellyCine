@@ -541,49 +541,135 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    private fun fetch301Content(urlString: String): String {
+        val uri = java.net.URI(urlString)
+        val scheme = uri.scheme?.lowercase(java.util.Locale.US) ?: "http"
+        val host = uri.host ?: throw java.net.MalformedURLException("Invalid host: $urlString")
+        var port = uri.port
+        if (port == -1) {
+            port = if (scheme == "https") 443 else 80
+        }
+        var path = uri.rawPath
+        if (path.isNullOrEmpty()) path = "/"
+        if (uri.rawQuery != null) path += "?" + uri.rawQuery
+
+        val socket: java.net.Socket
+        if (scheme == "https") {
+            val trustAll = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
+                override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = emptyArray()
+                override fun checkClientTrusted(certs: Array<java.security.cert.X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(certs: Array<java.security.cert.X509Certificate>, authType: String) {}
+            })
+            val sc = javax.net.ssl.SSLContext.getInstance("TLS")
+            sc.init(null, trustAll, java.security.SecureRandom())
+
+            // To bypass SNI filtering / reject on non-standard servers (e.g. Lucky/NAS), resolve IP and strip hostname
+            val ip = java.net.InetAddress.getByName(host)
+            val ipOnly = java.net.InetAddress.getByAddress(ip.address)
+
+            val raw = java.net.Socket()
+            raw.connect(java.net.InetSocketAddress(ipOnly, port), 10000)
+            raw.soTimeout = 10000
+
+            val ssl = sc.socketFactory.createSocket(raw, null, port, true) as javax.net.ssl.SSLSocket
+            try {
+                val p = ssl.sslParameters
+                p.serverNames = null
+                ssl.sslParameters = p
+            } catch (_: Exception) {}
+            ssl.startHandshake()
+            socket = ssl
+        } else {
+            socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress(host, port), 10000)
+            socket.soTimeout = 10000
+        }
+
+        socket.use { s ->
+            val out = s.getOutputStream()
+            val hostHeader = if (port == 80 || port == 443) host else "$host:$port"
+            val req = "GET $path HTTP/1.1\r\n" +
+                "Host: $hostHeader\r\n" +
+                "User-Agent: JellyCine/1.3.3\r\n" +
+                "Accept: */*\r\n" +
+                "Connection: close\r\n\r\n"
+            out.write(req.toByteArray(Charsets.UTF_8))
+            out.flush()
+
+            val reader = java.io.BufferedReader(java.io.InputStreamReader(s.getInputStream(), Charsets.UTF_8))
+            val statusLine = reader.readLine() ?: throw java.io.IOException("301 服务器无响应")
+            var statusCode = 200
+            val parts = statusLine.split(" ")
+            if (parts.size >= 2) {
+                statusCode = parts[1].toIntOrNull() ?: 200
+            }
+
+            var location: String? = null
+            while (true) {
+                val headerLine = reader.readLine() ?: break
+                if (headerLine.isEmpty()) break
+                if (headerLine.startsWith("Location:", ignoreCase = true)) {
+                    location = headerLine.substring(9).trim()
+                }
+            }
+
+            if ((statusCode == 301 || statusCode == 302 || statusCode == 307 || statusCode == 308) &&
+                !location.isNullOrBlank() && !location.contains("0.0.0.0")
+            ) {
+                return location
+            }
+
+            val body = java.lang.StringBuilder()
+            while (true) {
+                val line = reader.readLine() ?: break
+                body.append(line).append("\n")
+            }
+
+            val bodyStr = body.toString().trim()
+            for (line in bodyStr.lines()) {
+                val candidate = line.trim()
+                if (candidate.isNotBlank() && (candidate.startsWith("http://", ignoreCase = true) || candidate.startsWith("https://", ignoreCase = true) || candidate.contains(":"))) {
+                    return candidate
+                }
+            }
+            if (bodyStr.isNotBlank()) {
+                return bodyStr
+            }
+            throw java.io.IOException("301 响应内容为空 (HTTP $statusCode)")
+        }
+    }
+
     suspend fun resolve301ServerUrl(url: String): Result<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
         try {
             val targetUrlRaw = extract301TargetUrl(url)
             if (targetUrlRaw.isBlank()) {
                 return@withContext Result.failure(Exception(string(R.string.auth_error_invalid_url_scheme)))
             }
-            var targetUrl = targetUrlRaw
-            if (!targetUrl.startsWith("http://", ignoreCase = true) && !targetUrl.startsWith("https://", ignoreCase = true)) {
-                targetUrl = "https://$targetUrl"
+
+            val urlsToTry = when {
+                targetUrlRaw.startsWith("http://", ignoreCase = true) || targetUrlRaw.startsWith("https://", ignoreCase = true) ->
+                    listOf(targetUrlRaw)
+                else ->
+                    listOf("https://$targetUrlRaw", "http://$targetUrlRaw")
             }
 
-            val client = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                .followRedirects(true)
-                .followSslRedirects(true)
-                .build()
-
-            val request = okhttp3.Request.Builder()
-                .url(targetUrl)
-                .get()
-                .header("User-Agent", "JellyCine/1.3.3")
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return@withContext Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
+            var lastException: Exception? = null
+            for (targetUrl in urlsToTry) {
+                try {
+                    val realAddress = fetch301Content(targetUrl).trim()
+                    if (realAddress.isNotBlank()) {
+                        val fullAddress = if (!realAddress.startsWith("http://", ignoreCase = true) && !realAddress.startsWith("https://", ignoreCase = true)) {
+                            "http://$realAddress"
+                        } else {
+                            realAddress
+                        }
+                        return@withContext Result.success(trimTrailingSlash(fullAddress.trim()))
+                    }
+                } catch (e: Exception) {
+                    lastException = e
                 }
-                val bodyString = response.body?.string()?.trim()
-                if (bodyString.isNullOrBlank()) {
-                    return@withContext Result.failure(Exception("301 返回内容为空"))
-                }
-                val realAddress = bodyString.lines().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
-                if (realAddress.isBlank()) {
-                    return@withContext Result.failure(Exception("未在 301 响应中找到有效地址"))
-                }
-                val fullAddress = if (!realAddress.startsWith("http://", ignoreCase = true) && !realAddress.startsWith("https://", ignoreCase = true)) {
-                    "http://$realAddress"
-                } else {
-                    realAddress
-                }
-                Result.success(trimTrailingSlash(fullAddress.trim()))
             }
+            Result.failure(lastException ?: Exception("无法获取 301 服务器地址"))
         } catch (e: Exception) {
             Result.failure(e)
         }
