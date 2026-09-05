@@ -32,6 +32,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -1082,6 +1084,145 @@ private fun getItemDisplayName(item: BaseItemDto): String {
     }
 }
 
+private object FolderThumbnailCache {
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    fun get(folderId: String): String? = cache[folderId]
+    fun put(folderId: String, url: String) { cache[folderId] = url }
+}
+
+internal class FolderThumbnailState(
+    val imageUrl: String?,
+    val isImageError: Boolean,
+    val onError: () -> Unit
+)
+
+@Composable
+internal fun rememberFolderThumbnailState(
+    item: BaseItemDto,
+    mediaRepository: MediaRepository,
+    width: Int,
+    height: Int? = null,
+    quality: Int = 90
+): FolderThumbnailState {
+    val itemId = item.id
+    val directImageUrl = item.imageUrl?.takeIf { it.isNotBlank() }
+    val hasPrimaryTag = item.imageTags?.containsKey("Primary") == true
+    val hasNoPrimaryTag = item.imageTags != null && !hasPrimaryTag
+
+    var imageUrl by remember(itemId, directImageUrl) { mutableStateOf(directImageUrl) }
+    var isImageError by remember(itemId, directImageUrl) { mutableStateOf(false) }
+    var fallbackTriggered by remember(itemId) { mutableStateOf(hasNoPrimaryTag) }
+
+    LaunchedEffect(itemId, directImageUrl) {
+        if (directImageUrl != null) {
+            imageUrl = directImageUrl
+            return@LaunchedEffect
+        }
+        if (itemId == null) return@LaunchedEffect
+
+        val cached = FolderThumbnailCache.get(itemId)
+        if (cached != null) {
+            imageUrl = cached
+            return@LaunchedEffect
+        }
+
+        if (hasPrimaryTag || item.imageTags == null) {
+            try {
+                val url = mediaRepository.getImageUrl(
+                    itemId = itemId,
+                    imageTag = item.imageTags?.get("Primary"),
+                    width = width,
+                    height = height,
+                    quality = quality,
+                    enableImageEnhancers = false
+                ).first()
+                imageUrl = url
+            } catch (_: Exception) {
+                fallbackTriggered = true
+            }
+        }
+    }
+
+    LaunchedEffect(itemId, fallbackTriggered) {
+        if (!fallbackTriggered || itemId == null) return@LaunchedEffect
+        if (directImageUrl != null) return@LaunchedEffect
+
+        val cached = FolderThumbnailCache.get(itemId)
+        if (cached != null && cached != imageUrl) {
+            imageUrl = cached
+            isImageError = false
+            return@LaunchedEffect
+        }
+
+        withContext(Dispatchers.IO) {
+            val childItem = runCatching {
+                mediaRepository.getUserItems(
+                    parentId = itemId,
+                    includeItemTypes = "Movie,Episode,Video,Photo",
+                    recursive = true,
+                    limit = 1,
+                    sortBy = "SortName",
+                    fields = "ImageTags,PrimaryImageAspectRatio"
+                ).getOrNull()?.items?.firstOrNull()
+            }.getOrNull() ?: runCatching {
+                mediaRepository.getUserItems(
+                    parentId = itemId,
+                    recursive = true,
+                    limit = 1,
+                    sortBy = "SortName",
+                    fields = "ImageTags,PrimaryImageAspectRatio"
+                ).getOrNull()?.items?.firstOrNull()
+            }.getOrNull()
+
+            val childId = childItem?.id
+            if (childId != null) {
+                val childUrl = runCatching {
+                    mediaRepository.getImageUrl(
+                        itemId = childId,
+                        imageTag = childItem.imageTags?.get("Primary"),
+                        width = width,
+                        height = height,
+                        quality = quality,
+                        enableImageEnhancers = false
+                    ).first()
+                }.getOrNull()
+
+                if (!childUrl.isNullOrBlank()) {
+                    FolderThumbnailCache.put(itemId, childUrl)
+                    withContext(Dispatchers.Main) {
+                        imageUrl = childUrl
+                        isImageError = false
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        isImageError = true
+                    }
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    isImageError = true
+                }
+            }
+        }
+    }
+
+    val onError = remember(itemId, fallbackTriggered) {
+        {
+            if (!fallbackTriggered) {
+                fallbackTriggered = true
+            } else {
+                isImageError = true
+            }
+        }
+    }
+
+    return FolderThumbnailState(
+        imageUrl = imageUrl,
+        isImageError = isImageError,
+        onError = onError
+    )
+}
+
 @Composable
 internal fun FolderListItemRow(
     item: BaseItemDto,
@@ -1090,32 +1231,13 @@ internal fun FolderListItemRow(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val directImageUrl = item.imageUrl?.takeIf { it.isNotBlank() }
-    var imageUrl by remember(item.id, directImageUrl) { mutableStateOf(directImageUrl) }
-    var isImageError by remember(item.id, directImageUrl) { mutableStateOf(false) }
-
-    LaunchedEffect(item.id, directImageUrl) {
-        if (directImageUrl != null) {
-            imageUrl = directImageUrl
-            return@LaunchedEffect
-        }
-        val itemId = item.id
-        if (itemId != null) {
-            try {
-                val url = mediaRepository.getImageUrl(
-                    itemId = itemId,
-                    width = 200,
-                    height = 200,
-                    quality = 85,
-                    enableImageEnhancers = true
-                ).first()
-                imageUrl = url
-            } catch (_: Exception) {
-                imageUrl = null
-            }
-        }
-    }
-
+    val thumbnailState = rememberFolderThumbnailState(
+        item = item,
+        mediaRepository = mediaRepository,
+        width = 200,
+        height = 200,
+        quality = 85
+    )
     val itemCount = item.childCount ?: item.recursiveItemCount
     val displayName = getItemDisplayName(item).ifBlank { item.name.orEmpty() }
 
@@ -1140,17 +1262,17 @@ internal fun FolderListItemRow(
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.size(width = if (isTablet) 68.dp else 56.dp, height = if (isTablet) 48.dp else 42.dp)
             ) {
-                if (!imageUrl.isNullOrBlank() && !isImageError) {
+                if (!thumbnailState.imageUrl.isNullOrBlank() && !thumbnailState.isImageError) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data(imageUrl)
+                            .data(thumbnailState.imageUrl)
                             .crossfade(true)
                             .build(),
                         contentDescription = displayName,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                         onError = {
-                            isImageError = true
+                            thumbnailState.onError()
                         }
                     )
                 } else {
@@ -1520,31 +1642,13 @@ internal fun FolderCard(
     onClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val directImageUrl = item.imageUrl?.takeIf { it.isNotBlank() }
-    var imageUrl by remember(item.id, directImageUrl) { mutableStateOf(directImageUrl) }
-    var isImageError by remember(item.id, directImageUrl) { mutableStateOf(false) }
-
-    LaunchedEffect(item.id, directImageUrl) {
-        if (directImageUrl != null) {
-            imageUrl = directImageUrl
-            return@LaunchedEffect
-        }
-        val itemId = item.id
-        if (itemId != null) {
-            try {
-                val url = mediaRepository.getImageUrl(
-                    itemId = itemId,
-                    width = 300,
-                    height = 450,
-                    quality = 90,
-                    enableImageEnhancers = true
-                ).first()
-                imageUrl = url
-            } catch (e: Exception) {
-                imageUrl = null
-            }
-        }
-    }
+    val thumbnailState = rememberFolderThumbnailState(
+        item = item,
+        mediaRepository = mediaRepository,
+        width = 300,
+        height = 450,
+        quality = 90
+    )
 
     val itemCount = item.childCount ?: item.recursiveItemCount
     val displayName = getItemDisplayName(item).ifBlank { stringResource(R.string.search_result_unknown_title) }
@@ -1567,17 +1671,17 @@ internal fun FolderCard(
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
-                if (!imageUrl.isNullOrBlank() && !isImageError) {
+                if (!thumbnailState.imageUrl.isNullOrBlank() && !thumbnailState.isImageError) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data(imageUrl)
+                            .data(thumbnailState.imageUrl)
                             .crossfade(true)
                             .build(),
                         contentDescription = displayName,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
                         onError = {
-                            isImageError = true
+                            thumbnailState.onError()
                         }
                     )
                     Box(
