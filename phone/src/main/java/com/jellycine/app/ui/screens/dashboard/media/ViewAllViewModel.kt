@@ -126,7 +126,7 @@ class ViewAllViewModel @Inject constructor(
                             limit = folderLimit,
                             startIndex = currentPage * folderLimit,
                             recursive = false,
-                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated"
+                            fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks,DateCreated,DateLastMediaAdded,PremiereDate"
                         )
                     } else when (contentType) {
                         ContentType.SEERR_STUDIO -> seerrRepository.getStudios(
@@ -358,12 +358,23 @@ class ViewAllViewModel @Inject constructor(
         folderName: String,
         contentType: ContentType,
         rootParentId: String?,
-        genreId: String? = null
+        genreId: String? = null,
+        currentScrollIndex: Int = 0,
+        currentScrollOffset: Int = 0
     ) {
         val currentStack = _uiState.value.folderStack
+        val updatedStack = if (currentStack.isNotEmpty()) {
+            val lastCrumb = currentStack.last()
+            currentStack.dropLast(1) + lastCrumb.copy(
+                scrollIndex = currentScrollIndex,
+                scrollOffset = currentScrollOffset
+            )
+        } else {
+            currentStack
+        }
         _uiState.value = _uiState.value.copy(
             browseMode = BrowseMode.FOLDERS,
-            folderStack = currentStack + FolderCrumb(id = folderId, name = folderName)
+            folderStack = updatedStack + FolderCrumb(id = folderId, name = folderName, scrollIndex = 0, scrollOffset = 0)
         )
         loadItems(contentType, rootParentId, refresh = true, genreId = genreId)
     }
@@ -426,7 +437,9 @@ enum class FolderLayoutMode {
 
 data class FolderCrumb(
     val id: String,
-    val name: String
+    val name: String,
+    val scrollIndex: Int = 0,
+    val scrollOffset: Int = 0
 )
 
 data class ViewAllUiState(

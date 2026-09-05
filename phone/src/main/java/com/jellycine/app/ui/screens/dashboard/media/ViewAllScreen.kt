@@ -251,6 +251,36 @@ fun ViewAllScreen(
         }
     }
 
+    val currentFolderCrumb = if (uiState.browseMode == BrowseMode.FOLDERS) {
+        uiState.folderStack.lastOrNull()
+    } else {
+        null
+    }
+    val currentFolderKey = if (uiState.browseMode == BrowseMode.FOLDERS && currentFolderCrumb != null) {
+        "${currentFolderCrumb.id}_${uiState.folderStack.size}"
+    } else {
+        null
+    }
+    var lastRestoredFolderKey by rememberSaveable(contentType, parentId, genreId) {
+        mutableStateOf<String?>(null)
+    }
+
+    LaunchedEffect(currentFolderKey, uiState.isLoading, displayItems.size) {
+        if (uiState.browseMode == BrowseMode.FOLDERS && currentFolderKey != null && !uiState.isLoading && displayItems.isNotEmpty()) {
+            if (lastRestoredFolderKey != currentFolderKey) {
+                lastRestoredFolderKey = currentFolderKey
+                val targetIndex = currentFolderCrumb?.scrollIndex ?: 0
+                val targetOffset = currentFolderCrumb?.scrollOffset ?: 0
+                if (targetIndex > 0 || targetOffset > 0) {
+                    val safeIndex = targetIndex.coerceIn(0, (displayItems.size - 1).coerceAtLeast(0))
+                    gridState.scrollToItem(safeIndex, targetOffset)
+                } else {
+                    gridState.scrollToItem(0, 0)
+                }
+            }
+        }
+    }
+
     LaunchedEffect(
         gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index,
         items.size
@@ -754,7 +784,9 @@ fun ViewAllScreen(
                                                  folderName = folderDisplayName,
                                                  contentType = contentType,
                                                  rootParentId = parentId,
-                                                 genreId = genreId
+                                                 genreId = genreId,
+                                                 currentScrollIndex = gridState.firstVisibleItemIndex,
+                                                 currentScrollOffset = gridState.firstVisibleItemScrollOffset
                                              )
                                          }
                                          if (isFolderListMode) {

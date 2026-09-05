@@ -77,6 +77,25 @@ fun isFolderItem(item: BaseItemDto): Boolean {
         item.type.equals("UserView", ignoreCase = true)
 }
 
+fun getItemEffectiveDate(item: BaseItemDto): String? {
+    return if (isFolderItem(item)) {
+        item.dateLastMediaAdded ?: item.dateCreated ?: item.premiereDate
+    } else {
+        item.dateCreated ?: item.dateLastMediaAdded ?: item.premiereDate
+    }
+}
+
+fun parseDateToMillis(dateStr: String?): Long? {
+    if (dateStr.isNullOrBlank()) return null
+    return runCatching {
+        java.time.Instant.parse(dateStr).toEpochMilli()
+    }.recoverCatching {
+        java.time.LocalDate.parse(dateStr).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+    }.recoverCatching {
+        dateStr.toLongOrNull()
+    }.getOrNull()
+}
+
 fun sortFolderItems(
     items: List<BaseItemDto>,
     sortBy: String,
@@ -99,13 +118,15 @@ fun sortFolderItems(
                 val nameB = getItemRawDisplayName(b)
                 NaturalOrderComparator.compare(nameA, nameB)
             }
-            "DateCreated" -> {
-                val dateA = a.dateCreated ?: a.premiereDate
-                val dateB = b.dateCreated ?: b.premiereDate
-                if (dateA == null && dateB == null) 0
-                else if (dateA == null) (if (isAscending) 1 else -1)
-                else if (dateB == null) (if (isAscending) -1 else 1)
-                else dateA.compareTo(dateB)
+            "DateCreated", "DateLastMediaAdded", "PremiereDate" -> {
+                val timeA = parseDateToMillis(getItemEffectiveDate(a))
+                val timeB = parseDateToMillis(getItemEffectiveDate(b))
+                when {
+                    timeA != null && timeB != null -> timeA.compareTo(timeB)
+                    timeA != null -> if (isAscending) -1 else 1
+                    timeB != null -> if (isAscending) 1 else -1
+                    else -> 0
+                }
             }
             "ProductionYear" -> {
                 val yearA = a.productionYear?.takeIf { it > 0 }
