@@ -172,7 +172,7 @@ object PlayerUtils {
         val maxPlaybackBufferMs = when {
             batteryOptimizationEnabled -> BATTERY_MAX_PLAYBACK_BUFFER_MS
             asyncMediaCodecEnabled && lowRamDevice -> ASYNC_LOW_RAM_MAX_PLAYBACK_BUFFER_MS
-            else -> MAX_PLAYBACK_BUFFER_MS
+            else -> maxOf(requestedCacheTimeMs, MAX_PLAYBACK_BUFFER_MS)
         }
         val maxBufferMs = bufferOverride?.maxBufferMs
             ?: minOf(requestedCacheTimeMs, maxPlaybackBufferMs)

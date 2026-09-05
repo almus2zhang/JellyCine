@@ -296,13 +296,19 @@ fun PlayerSettingsScreen(
                         stepSize = PlayerPreferences.PLAYER_CACHE_SIZE_STEP_MB,
                         onValueChanged = viewModel::setPlayerCacheSizeMb,
                         valueLabel = { sizeMb ->
-                            stringResource(R.string.player_settings_player_cache_size_value, sizeMb)
+                            if (sizeMb >= 1024 && sizeMb % 1024 == 0) {
+                                "${sizeMb / 1024} GB (${sizeMb} MB)"
+                            } else {
+                                stringResource(R.string.player_settings_player_cache_size_value, sizeMb)
+                            }
                         },
                         defaultLabel = { sizeMb ->
-                            stringResource(
-                                R.string.player_settings_default_value,
+                            val label = if (sizeMb >= 1024 && sizeMb % 1024 == 0) {
+                                "${sizeMb / 1024} GB (${sizeMb} MB)"
+                            } else {
                                 stringResource(R.string.player_settings_player_cache_size_value, sizeMb)
-                            )
+                            }
+                            stringResource(R.string.player_settings_default_value, label)
                         },
                         accentColor = cacheColor
                     )

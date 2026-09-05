@@ -117,7 +117,7 @@ class PlayerPreferences(context: Context) {
         const val DEFAULT_SUBTITLE_TOP_EDGE_PERCENT = 5
         const val DEFAULT_PRESERVE_SUBTITLE_STYLES = true
         const val DEFAULT_PLAYER_CACHE_SIZE_MB = 200
-        const val MAX_PLAYER_CACHE_SIZE_MB = 500
+        const val MAX_PLAYER_CACHE_SIZE_MB = 2048
         const val MIN_PLAYER_CACHE_SIZE_MB = 50
         const val PLAYER_CACHE_SIZE_STEP_MB = 50
         const val DEFAULT_PLAYER_CACHE_TIME_SECONDS = 120
