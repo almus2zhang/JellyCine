@@ -110,6 +110,9 @@ private fun subtitleConfiguration(
         val codec = when (subtitleStream.codec?.lowercase()) {
             "subrip", "srt" -> "srt"
             "webvtt", "vtt" -> "vtt"
+            "pgs", "pgssub", "sup", "hdmv_pgs_subtitle" -> "sup"
+            "ass", "ssa" -> "ass"
+            "vobsub", "dvdsub", "dvd_subtitle" -> "vobsub"
             else -> if (isEmby) "vtt" else "srt"
         }
         val index = subtitleStream.index ?: 0
@@ -231,6 +234,7 @@ private fun subtitleMimeType(
             "vtt", "webvtt" -> MimeTypes.TEXT_VTT
             "ttml" -> MimeTypes.APPLICATION_TTML
             "ass", "ssa" -> MimeTypes.TEXT_SSA
+            "pgs", "pgssub", "sup", "hdmv_pgs_subtitle" -> MimeTypes.APPLICATION_PGS
             else -> null
         }
     }
@@ -239,6 +243,7 @@ private fun subtitleMimeType(
         "srt", "subrip" -> MimeTypes.APPLICATION_SUBRIP
         "ttml" -> MimeTypes.APPLICATION_TTML
         "ass", "ssa" -> MimeTypes.TEXT_SSA
+        "pgs", "pgssub", "sup" -> MimeTypes.APPLICATION_PGS
         else -> null
     }
 }

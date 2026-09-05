@@ -101,9 +101,12 @@ internal object PlaybackDeviceProfileFactory {
         )
         val imageFormats = listOf(
             "dvdsub",
+            "dvd_subtitle",
             "idx",
             "pgs",
             "pgssub",
+            "sup",
+            "hdmv_pgs_subtitle",
             "teletext",
             "vobsub"
         )
@@ -115,7 +118,7 @@ internal object PlaybackDeviceProfileFactory {
             }
             imageFormats.forEach { format ->
                 add(SubtitleProfile(format = format, method = "Embed"))
-                add(SubtitleProfile(format = format, method = "Encode"))
+                add(SubtitleProfile(format = format, method = "External"))
             }
         }
     }

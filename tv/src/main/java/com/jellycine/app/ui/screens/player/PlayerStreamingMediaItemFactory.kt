@@ -110,6 +110,7 @@ private fun subtitleMimeType(
             "vtt", "webvtt" -> MimeTypes.TEXT_VTT
             "ttml" -> MimeTypes.APPLICATION_TTML
             "ass", "ssa" -> MimeTypes.TEXT_SSA
+            "pgs", "pgssub", "sup", "hdmv_pgs_subtitle" -> MimeTypes.APPLICATION_PGS
             else -> null
         }
     }
@@ -124,6 +125,7 @@ private fun subtitleMimeType(
         "vtt", "webvtt" -> MimeTypes.TEXT_VTT
         "ttml" -> MimeTypes.APPLICATION_TTML
         "ass", "ssa" -> MimeTypes.TEXT_SSA
+        "pgs", "pgssub", "sup" -> MimeTypes.APPLICATION_PGS
         else -> null
     }
 }

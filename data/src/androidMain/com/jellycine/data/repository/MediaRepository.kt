@@ -1596,7 +1596,8 @@ class MediaRepository(private val context: Context) {
             val preferGetPlaybackInfo = (
                 serverType == ServerType.EMBY || serverType == ServerType.JELLYFIN
             ) &&
-                !forceTranscode && audioTranscodeMode == AudioTranscodeMode.AUTO
+                !forceTranscode && audioTranscodeMode == AudioTranscodeMode.AUTO &&
+                normalizedSubtitleStreamIndex == null
             val enableDirectPlay = if (forceTranscode) false else true
             val enableDirectStream = if (forceTranscode) false else true
             val enableTranscoding = true
@@ -1617,11 +1618,17 @@ class MediaRepository(private val context: Context) {
                 )
 
                 if (getResponse.isSuccessful && getResponse.body() != null) {
-                    val responseBody = PlaybackUrlBuilder.playbackInfoUrls(
-                        serverUrl = serverUrl,
-                        playbackInfo = getResponse.body()!!
-                    )
-                    return Result.success(responseBody)
+                    val body = getResponse.body()!!
+                    val canDirectPlay = body.mediaSources?.any {
+                        it.supportsDirectPlay == true || it.supportsDirectStream == true
+                    } ?: true
+                    if (canDirectPlay) {
+                        val responseBody = PlaybackUrlBuilder.playbackInfoUrls(
+                            serverUrl = serverUrl,
+                            playbackInfo = body
+                        )
+                        return Result.success(responseBody)
+                    }
                 }
             }
 
