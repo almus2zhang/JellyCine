@@ -194,7 +194,13 @@ fun ViewAllScreen(
             .distinct()
             .sorted()
     }
-    val displayItems = remember(items, uiState.selectedGenres) {
+    val displayItems = remember(
+        items,
+        uiState.selectedGenres,
+        uiState.browseMode,
+        uiState.sortBy,
+        uiState.sortOrder
+    ) {
         val filteredItems = if (uiState.selectedGenres.size > 1) {
             items.filter { item ->
                 val itemGenres = item.genres.orEmpty().toSet()
@@ -202,8 +208,13 @@ fun ViewAllScreen(
             }
         } else {
             items
+        }.distinctBy(::viewAllItemKey)
+
+        if (uiState.browseMode == BrowseMode.FOLDERS) {
+            sortFolderItems(filteredItems, uiState.sortBy, uiState.sortOrder)
+        } else {
+            filteredItems
         }
-        filteredItems.distinctBy(::viewAllItemKey)
     }
     val headerTotalCount = uiState.totalItems
     val headerCountText = if (headerTotalCount > 0) {
@@ -989,10 +1000,7 @@ private fun formatFileSize(bytes: Long?): String? {
 }
 
 private fun getItemDisplayName(item: BaseItemDto): String {
-    val fromPath = item.path?.trim()?.trimEnd('/', '\\')?.let { p ->
-        p.substringAfterLast('/').substringAfterLast('\\').ifBlank { null }
-    }
-    val rawName = fromPath ?: item.name ?: item.originalTitle ?: ""
+    val rawName = getItemRawDisplayName(item)
     return if (rawName.length > 200) {
         rawName.take(200) + "…"
     } else {

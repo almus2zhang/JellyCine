@@ -115,19 +115,16 @@ class ViewAllViewModel @Inject constructor(
                     val selectedGenreIds = genreId?.takeIf { it.isNotBlank() }
                     val isWatchedRequest = parentId == WATCHED_VIEW_ALL_PARENT_ID
                     val isFavoritesRequest = parentId == FAVORITES_VIEW_ALL_PARENT_ID
+                    val folderLimit = 500
                     val result = if (isFolderMode && !effectiveParentId.isNullOrBlank()) {
-                        val folderSortBy = if (_uiState.value.sortBy.startsWith("IsFolder")) {
-                            _uiState.value.sortBy
-                        } else {
-                            "IsFolder," + _uiState.value.sortBy
-                        }
+                        val folderSortBy = _uiState.value.sortBy.removePrefix("IsFolder,").trim()
                         mediaRepository.getUserItems(
                             parentId = effectiveParentId,
                             includeItemTypes = "Folder,Movie,Series,Episode,Video,BoxSet",
                             sortBy = folderSortBy,
                             sortOrder = _uiState.value.sortOrder,
-                            limit = pageSize,
-                            startIndex = currentPage * pageSize,
+                            limit = folderLimit,
+                            startIndex = currentPage * folderLimit,
                             recursive = false,
                             fields = "ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,Genres,CommunityRating,CriticRating,ProductionYear,Overview,UserData,MediaSources,Path,RunTimeTicks"
                         )
@@ -245,15 +242,21 @@ class ViewAllViewModel @Inject constructor(
                                 }
                             }
                             totalItems = queryResult.totalRecordCount ?: 0
+                            val currentLimit = if (isFolderMode) folderLimit else pageSize
                             hasMorePages = !isWatchedRequest &&
                                 contentType != ContentType.AWARD &&
-                                (currentPage + 1) * pageSize < totalItems
+                                (currentPage + 1) * currentLimit < totalItems
 
                             withContext(Dispatchers.Main) {
-                                if (refresh) {
-                                    _items.value = newItems
+                                val combinedItems = if (refresh) {
+                                    newItems
                                 } else {
-                                    _items.value = _items.value + newItems
+                                    _items.value + newItems
+                                }
+                                _items.value = if (isFolderMode) {
+                                    sortFolderItems(combinedItems, _uiState.value.sortBy, _uiState.value.sortOrder)
+                                } else {
+                                    combinedItems
                                 }
                                 currentPage++
                                 _uiState.value = _uiState.value.copy(
