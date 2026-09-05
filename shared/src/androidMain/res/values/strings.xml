@@ -300,6 +300,12 @@
     <string name="view_all_mode_folders">Folders</string>
     <string name="view_all_folder_item_count">%1$d items</string>
     <string name="view_all_folder_empty">Empty folder</string>
+    <string name="view_all_layout_grid">Grid</string>
+    <string name="view_all_layout_list">List</string>
+    <string name="view_all_direct_play">Direct Play</string>
+    <string name="view_all_open_detail">Details</string>
+    <string name="view_all_played">Watched</string>
+    <string name="view_all_progress_played">Played %1$d%%</string>
 
     <!-- Favorites -->
     <string name="favorites_load_failed">Unable to load favorites</string>

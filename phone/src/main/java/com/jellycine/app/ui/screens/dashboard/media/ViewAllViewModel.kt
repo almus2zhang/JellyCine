@@ -31,8 +31,18 @@ class ViewAllViewModel @Inject constructor(
     private val seerrRepository = SeerrRepository(context)
     private val awardsRepository = AwardsRepositoryProvider.getInstance(context)
     private val authRepository = com.jellycine.data.repository.AuthRepositoryProvider.getInstance(context)
+    private val preferences = com.jellycine.shared.preferences.Preferences(context)
 
-    private val _uiState = MutableStateFlow(ViewAllUiState())
+    private val _uiState = MutableStateFlow(
+        ViewAllUiState(
+            folderLayoutMode = if (preferences.getFolderViewLayoutMode() == com.jellycine.shared.preferences.Preferences.FOLDER_LAYOUT_MODE_LIST) {
+                FolderLayoutMode.LIST
+            } else {
+                FolderLayoutMode.GRID
+            },
+            directPlayVideos = preferences.isFolderViewDirectPlayEnabled()
+        )
+    )
     val uiState: StateFlow<ViewAllUiState> = _uiState.asStateFlow()
 
     private val _items = MutableStateFlow<List<BaseItemDto>>(emptyList())
@@ -349,9 +359,27 @@ class ViewAllViewModel @Inject constructor(
     ) {
         val currentStack = _uiState.value.folderStack
         _uiState.value = _uiState.value.copy(
+            browseMode = BrowseMode.FOLDERS,
             folderStack = currentStack + FolderCrumb(id = folderId, name = folderName)
         )
         loadItems(contentType, rootParentId, refresh = true, genreId = genreId)
+    }
+
+    fun setFolderLayoutMode(mode: FolderLayoutMode) {
+        if (_uiState.value.folderLayoutMode == mode) return
+        preferences.setFolderViewLayoutMode(
+            if (mode == FolderLayoutMode.LIST) {
+                com.jellycine.shared.preferences.Preferences.FOLDER_LAYOUT_MODE_LIST
+            } else {
+                com.jellycine.shared.preferences.Preferences.FOLDER_LAYOUT_MODE_GRID
+            }
+        )
+        _uiState.value = _uiState.value.copy(folderLayoutMode = mode)
+    }
+
+    fun setDirectPlayVideos(enabled: Boolean) {
+        preferences.setFolderViewDirectPlayEnabled(enabled)
+        _uiState.value = _uiState.value.copy(directPlayVideos = enabled)
     }
 
     fun navigateBackFolder(
@@ -388,6 +416,11 @@ enum class BrowseMode {
     FOLDERS
 }
 
+enum class FolderLayoutMode {
+    GRID,
+    LIST
+}
+
 data class FolderCrumb(
     val id: String,
     val name: String
@@ -402,7 +435,9 @@ data class ViewAllUiState(
     val totalItems: Int = 0,
     val hasMorePages: Boolean = true,
     val browseMode: BrowseMode = BrowseMode.ITEMS,
-    val folderStack: List<FolderCrumb> = emptyList()
+    val folderStack: List<FolderCrumb> = emptyList(),
+    val folderLayoutMode: FolderLayoutMode = FolderLayoutMode.GRID,
+    val directPlayVideos: Boolean = true
 )
 
 enum class ContentType {

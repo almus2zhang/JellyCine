@@ -12,12 +12,17 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -82,6 +87,7 @@ fun ViewAllScreen(
     genreId: String? = null,
     onBackPressed: () -> Unit,
     onItemClick: (BaseItemDto) -> Unit,
+    onPlayItem: (BaseItemDto) -> Unit = {},
     viewModel: ViewAllViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -100,6 +106,7 @@ fun ViewAllScreen(
     val isWatchedEpisodeViewAll = (isWatchedViewAll || isFavoritesViewAll) && contentType == ContentType.EPISODES
     val usesCompactHeader = isSeerrCatalog || isLibraryCatalog || isGenreCatalog || isAward
 
+    val isFolderListMode = uiState.browseMode == BrowseMode.FOLDERS && uiState.folderLayoutMode == FolderLayoutMode.LIST
     val gridCells = remember(screenWidthDp) {
         if (screenWidthDp >= 1200.dp) {
             GridCells.Adaptive(minSize = 160.dp)
@@ -109,15 +116,17 @@ fun ViewAllScreen(
             GridCells.Fixed(3)
         }
     }
-    val viewAllGridCells = if (isWatchedEpisodeViewAll) {
+    val viewAllGridCells = if (isFolderListMode) {
+        GridCells.Fixed(1)
+    } else if (isWatchedEpisodeViewAll) {
         if (isTablet) GridCells.Adaptive(minSize = 200.dp) else GridCells.Fixed(2)
     } else {
         gridCells
     }
 
     val horizontalPadding = if (isTablet) 24.dp else 16.dp
-    val verticalSpacing = if (isTablet) 20.dp else 16.dp
-    val horizontalSpacing = if (isTablet) 16.dp else 12.dp
+    val verticalSpacing = if (isFolderListMode) 8.dp else if (isTablet) 20.dp else 16.dp
+    val horizontalSpacing = if (isFolderListMode) 0.dp else if (isTablet) 16.dp else 12.dp
 
     val mediaRepository = remember { MediaRepositoryProvider.getInstance(context) }
     val seerrLogoUrl = remember(contentType, parentId) {
@@ -413,40 +422,119 @@ fun ViewAllScreen(
                     }
                 }
 
-                if (uiState.browseMode == BrowseMode.FOLDERS && uiState.folderStack.isNotEmpty()) {
-                    val breadcrumbScrollState = rememberScrollState()
-                    LaunchedEffect(uiState.folderStack.size) {
-                        breadcrumbScrollState.animateScrollTo(breadcrumbScrollState.maxValue)
-                    }
+                if (uiState.browseMode == BrowseMode.FOLDERS) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = horizontalPadding, vertical = 6.dp)
-                            .horizontalScroll(breadcrumbScrollState),
+                            .padding(horizontal = horizontalPadding, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        uiState.folderStack.forEachIndexed { index, crumb ->
-                            val isLast = index == uiState.folderStack.size - 1
-                            Text(
-                                text = crumb.name,
-                                color = if (isLast) Color(0xFF0080FF) else Color.White.copy(alpha = 0.7f),
-                                fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
-                                fontSize = 13.sp,
-                                maxLines = 1,
+                        if (uiState.folderStack.isNotEmpty()) {
+                            val breadcrumbScrollState = rememberScrollState()
+                            LaunchedEffect(uiState.folderStack.size) {
+                                breadcrumbScrollState.animateScrollTo(breadcrumbScrollState.maxValue)
+                            }
+                            Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable(enabled = !isLast) {
-                                        viewModel.navigateToFolderIndex(index, contentType, parentId, genreId)
+                                    .weight(1f)
+                                    .horizontalScroll(breadcrumbScrollState)
+                                    .padding(end = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                uiState.folderStack.forEachIndexed { index, crumb ->
+                                    val isLast = index == uiState.folderStack.size - 1
+                                    Text(
+                                        text = crumb.name,
+                                        color = if (isLast) Color(0xFF0080FF) else Color.White.copy(alpha = 0.7f),
+                                        fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .clickable(enabled = !isLast) {
+                                                viewModel.navigateToFolderIndex(index, contentType, parentId, genreId)
+                                            }
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                    if (!isLast) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(alpha = 0.4f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
                                     }
-                                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                            )
-                            if (!isLast) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.4f),
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                }
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                color = if (uiState.directPlayVideos) Color(0xFF0080FF).copy(alpha = 0.22f) else Color.White.copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (uiState.directPlayVideos) Color(0xFF0080FF).copy(alpha = 0.6f) else Color.White.copy(alpha = 0.15f)
+                                ),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { viewModel.setDirectPlayVideos(!uiState.directPlayVideos) }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = stringResource(R.string.view_all_direct_play),
+                                        tint = if (uiState.directPlayVideos) Color(0xFF0080FF) else Color.White.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            if (uiState.directPlayVideos) R.string.view_all_direct_play else R.string.view_all_open_detail
+                                        ),
+                                        color = if (uiState.directPlayVideos) Color.White else Color.White.copy(alpha = 0.7f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                color = Color.White.copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        val nextMode = if (uiState.folderLayoutMode == FolderLayoutMode.LIST) {
+                                            FolderLayoutMode.GRID
+                                        } else {
+                                            FolderLayoutMode.LIST
+                                        }
+                                        viewModel.setFolderLayoutMode(nextMode)
+                                    }
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (uiState.folderLayoutMode == FolderLayoutMode.LIST) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
+                                        contentDescription = stringResource(
+                                            if (uiState.folderLayoutMode == FolderLayoutMode.LIST) R.string.view_all_layout_grid else R.string.view_all_layout_list
+                                        ),
+                                        tint = Color.White.copy(alpha = 0.85f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -632,48 +720,77 @@ fun ViewAllScreen(
                                     )
                                 }
 
-                                items(
-                                    items = displayItems,
-                                    key = ::viewAllItemKey
-                                ) { item ->
-                                    val isItemFolder = item.isFolder == true || item.type == "Folder" || item.type == "CollectionFolder"
-                                    if (isWatchedEpisodeViewAll) {
-                                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                            LibraryItemCard(
-                                                item = item,
-                                                mediaRepository = mediaRepository,
-                                                disableImageEnhancers = true,
-                                                watchedFeedStyle = true,
-                                                onClick = { onItemClick(item) }
-                                            )
-                                        }
-                                    } else if (isItemFolder) {
-                                        FolderCard(
-                                            item = item,
-                                            isTablet = isTablet,
-                                            mediaRepository = mediaRepository,
-                                            onClick = {
-                                                val folderDisplayName = getItemDisplayName(item).ifBlank { item.name.orEmpty() }
-                                                viewModel.openFolder(
-                                                    folderId = item.id.orEmpty(),
-                                                    folderName = folderDisplayName,
-                                                    contentType = contentType,
-                                                    rootParentId = parentId,
-                                                    genreId = genreId
-                                                )
-                                            }
-                                        )
-                                    } else {
-                                        PosterCard(
-                                            item = item,
-                                            isTablet = isTablet,
-                                            mediaRepository = mediaRepository,
-                                            watchedViewAll = isWatchedViewAll,
-                                            isFolderMode = uiState.browseMode == BrowseMode.FOLDERS,
-                                            onClick = { onItemClick(item) }
-                                        )
-                                    }
-                                }
+                                 items(
+                                     items = displayItems,
+                                     key = ::viewAllItemKey
+                                 ) { item ->
+                                     val isFolder = uiState.browseMode == BrowseMode.FOLDERS && (item.isFolder == true || item.type == "Folder" || item.type == "CollectionFolder")
+                                     if (isWatchedEpisodeViewAll) {
+                                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                             LibraryItemCard(
+                                                 item = item,
+                                                 mediaRepository = mediaRepository,
+                                                 disableImageEnhancers = true,
+                                                 watchedFeedStyle = true,
+                                                 onClick = { onItemClick(item) }
+                                             )
+                                         }
+                                     } else if (isFolder) {
+                                         val onFolderClick = {
+                                             val folderDisplayName = getItemDisplayName(item).ifBlank { item.name.orEmpty() }
+                                             viewModel.openFolder(
+                                                 folderId = item.id.orEmpty(),
+                                                 folderName = folderDisplayName,
+                                                 contentType = contentType,
+                                                 rootParentId = parentId,
+                                                 genreId = genreId
+                                             )
+                                         }
+                                         if (isFolderListMode) {
+                                             FolderListItemRow(
+                                                 item = item,
+                                                 isTablet = isTablet,
+                                                 mediaRepository = mediaRepository,
+                                                 onClick = onFolderClick
+                                             )
+                                         } else {
+                                             FolderCard(
+                                                 item = item,
+                                                 isTablet = isTablet,
+                                                 mediaRepository = mediaRepository,
+                                                 onClick = onFolderClick
+                                             )
+                                         }
+                                     } else {
+                                         val isVideo = item.mediaType == "Video" || item.type in listOf("Movie", "Episode", "Video") || !item.mediaSources.isNullOrEmpty() || (item.runTimeTicks ?: 0L) > 0L
+                                         val handleItemClick = {
+                                             if (uiState.browseMode == BrowseMode.FOLDERS && isVideo && uiState.directPlayVideos) {
+                                                 onPlayItem(item)
+                                             } else {
+                                                 onItemClick(item)
+                                             }
+                                         }
+                                         if (isFolderListMode) {
+                                             MediaListItemRow(
+                                                 item = item,
+                                                 isTablet = isTablet,
+                                                 mediaRepository = mediaRepository,
+                                                 isVideo = isVideo,
+                                                 onClick = handleItemClick,
+                                                 onPlayClick = { onPlayItem(item) }
+                                             )
+                                         } else {
+                                             PosterCard(
+                                                 item = item,
+                                                 isTablet = isTablet,
+                                                 mediaRepository = mediaRepository,
+                                                 watchedViewAll = isWatchedViewAll,
+                                                 isFolderMode = uiState.browseMode == BrowseMode.FOLDERS,
+                                                 onClick = handleItemClick
+                                             )
+                                         }
+                                     }
+                                 }
 
                                 if (uiState.hasMorePages) {
                                     item(span = { GridItemSpan(maxLineSpan) }) {
@@ -816,13 +933,18 @@ fun ViewAllScreen(
                 availableGenres = availableGenres,
                 selectedGenres = uiState.selectedGenres,
                 showGenres = uiState.browseMode != BrowseMode.FOLDERS,
+                isFolderMode = uiState.browseMode == BrowseMode.FOLDERS,
+                directPlayVideos = uiState.directPlayVideos,
+                onDirectPlayToggled = { viewModel.setDirectPlayVideos(it) },
                 onSortSelected = { sortBy, sortOrder ->
                     viewModel.setSort(sortBy, sortOrder, contentType, parentId, genreId)
                 },
                 onGenreToggle = { genre ->
                     viewModel.toggleGenreFilter(genre, contentType, parentId, genreId)
                 },
-                onClearFilters = { viewModel.clearFilters(contentType, parentId, genreId) },
+                onClearFilters = {
+                    viewModel.clearFilters(contentType, parentId, genreId)
+                },
                 onDismiss = { showSortSheet = false }
             )
         }
@@ -875,6 +997,323 @@ private fun getItemDisplayName(item: BaseItemDto): String {
         rawName.take(200) + "…"
     } else {
         rawName
+    }
+}
+
+@Composable
+internal fun FolderListItemRow(
+    item: BaseItemDto,
+    isTablet: Boolean,
+    mediaRepository: MediaRepository,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val directImageUrl = item.imageUrl?.takeIf { it.isNotBlank() }
+    var imageUrl by remember(item.id, directImageUrl) { mutableStateOf(directImageUrl) }
+
+    LaunchedEffect(item.id, directImageUrl) {
+        if (directImageUrl != null) {
+            imageUrl = directImageUrl
+            return@LaunchedEffect
+        }
+        val itemId = item.id
+        if (itemId != null) {
+            try {
+                val url = mediaRepository.getImageUrl(
+                    itemId = itemId,
+                    width = 200,
+                    height = 200,
+                    quality = 85,
+                    enableImageEnhancers = true
+                ).first()
+                imageUrl = url
+            } catch (_: Exception) {
+                imageUrl = null
+            }
+        }
+    }
+
+    val itemCount = item.childCount ?: item.recursiveItemCount
+    val displayName = getItemDisplayName(item).ifBlank { item.name.orEmpty() }
+
+    Surface(
+        color = Color(0xFF151922),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                color = Color(0xFF0080FF).copy(alpha = 0.15f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.size(if (isTablet) 56.dp else 48.dp)
+            ) {
+                if (!imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(imageUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = displayName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            imageVector = Icons.Default.Folder,
+                            contentDescription = null,
+                            tint = Color(0xFF0080FF),
+                            modifier = Modifier.size(if (isTablet) 30.dp else 26.dp)
+                        )
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = displayName,
+                    color = Color.White,
+                    fontSize = if (isTablet) 15.sp else 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (itemCount != null && itemCount > 0) {
+                    Text(
+                        text = stringResource(R.string.view_all_folder_item_count, itemCount),
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.35f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+internal fun MediaListItemRow(
+    item: BaseItemDto,
+    isTablet: Boolean,
+    mediaRepository: MediaRepository,
+    isVideo: Boolean,
+    onClick: () -> Unit,
+    onPlayClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val directImageUrl = item.imageUrl?.takeIf { it.isNotBlank() }
+    var imageUrl by remember(item.id, directImageUrl) { mutableStateOf(directImageUrl) }
+
+    LaunchedEffect(item.id, directImageUrl) {
+        if (directImageUrl != null) {
+            imageUrl = directImageUrl
+            return@LaunchedEffect
+        }
+        val itemId = item.id
+        if (itemId != null) {
+            try {
+                val url = mediaRepository.getImageUrl(
+                    itemId = itemId,
+                    width = 240,
+                    height = 160,
+                    quality = 85,
+                    enableImageEnhancers = false
+                ).first()
+                imageUrl = url
+            } catch (_: Exception) {
+                imageUrl = null
+            }
+        }
+    }
+
+    val displayName = getItemDisplayName(item).ifBlank {
+        item.name ?: stringResource(R.string.search_result_unknown_title)
+    }
+
+    val runtimeText = remember(item.runTimeTicks) {
+        formatRuntime(item.runTimeTicks)
+    }
+    val fileSizeText = remember(item.mediaSources) {
+        formatFileSize(item.mediaSources?.firstOrNull()?.size)
+    }
+
+    val isPlayed = item.userData?.played == true
+    val runtimeTicks = item.runTimeTicks ?: 0L
+    val positionTicks = item.userData?.playbackPositionTicks ?: 0L
+    val progressFraction = remember(runtimeTicks, positionTicks, item.userData?.playedPercentage) {
+        item.userData?.playedPercentage?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) }
+            ?: if (runtimeTicks > 0L && positionTicks > 0L) {
+                (positionTicks.toFloat() / runtimeTicks.toFloat()).coerceIn(0f, 1f)
+            } else 0f
+    }
+    val hasProgress = !isPlayed && progressFraction > 0f
+
+    Surface(
+        color = Color(0xFF151922),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = if (isTablet) 72.dp else 60.dp, height = if (isTablet) 54.dp else 45.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF222838))
+            ) {
+                if (!imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(imageUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = displayName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            imageVector = Icons.Default.Movie,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.4f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                if (isPlayed) {
+                    Surface(
+                        color = Color(0xDD00C853),
+                        shape = RoundedCornerShape(bottomStart = 6.dp),
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = stringResource(R.string.view_all_played),
+                            tint = Color.White,
+                            modifier = Modifier
+                                .padding(2.dp)
+                                .size(11.dp)
+                        )
+                    }
+                }
+
+                if (hasProgress) {
+                    LinearProgressIndicator(
+                        progress = { progressFraction },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .align(Alignment.BottomCenter),
+                        color = Color(0xFF0080FF),
+                        trackColor = Color.Black.copy(alpha = 0.5f)
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = displayName,
+                    color = Color.White,
+                    fontSize = if (isTablet) 15.sp else 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val metaList = listOfNotNull(runtimeText, fileSizeText)
+                    if (metaList.isNotEmpty()) {
+                        Text(
+                            text = metaList.joinToString(" · "),
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    if (isPlayed) {
+                        Surface(
+                            color = Color(0xFF00C853).copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.view_all_played),
+                                color = Color(0xFF00E676),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    } else if (hasProgress) {
+                        val pct = (progressFraction * 100).toInt()
+                        Surface(
+                            color = Color(0xFF0080FF).copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.view_all_progress_played, pct),
+                                color = Color(0xFF40A0FF),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (isVideo) {
+                FilledIconButton(
+                    onClick = onPlayClick,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = Color(0xFF0080FF).copy(alpha = 0.2f),
+                        contentColor = Color(0xFF0080FF)
+                    ),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = stringResource(R.string.view_all_direct_play),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1115,8 +1554,23 @@ internal fun PosterCard(
     val fileSizeText = remember(item.mediaSources) {
         formatFileSize(item.mediaSources?.firstOrNull()?.size)
     }
-    val videoBadgeText = remember(runtimeText, fileSizeText) {
-        listOfNotNull(runtimeText, fileSizeText).joinToString(" · ")
+    val runtimeTicks = item.runTimeTicks ?: 0L
+    val positionTicks = item.userData?.playbackPositionTicks ?: 0L
+    val progressFraction = remember(runtimeTicks, positionTicks, item.userData?.playedPercentage) {
+        item.userData?.playedPercentage?.let { (it / 100.0).toFloat().coerceIn(0f, 1f) }
+            ?: if (runtimeTicks > 0L && positionTicks > 0L) {
+                (positionTicks.toFloat() / runtimeTicks.toFloat()).coerceIn(0f, 1f)
+            } else 0f
+    }
+    val videoProgressText = remember(item.userData?.played, progressFraction) {
+        if (item.userData?.played != true && progressFraction > 0f) {
+            "${(progressFraction * 100).toInt()}%"
+        } else {
+            null
+        }
+    }
+    val videoBadgeText = remember(runtimeText, fileSizeText, videoProgressText) {
+        listOfNotNull(videoProgressText, runtimeText, fileSizeText).joinToString(" · ")
     }
 
     Column(
@@ -1225,13 +1679,30 @@ internal fun PosterCard(
                     )
                 }
 
+                if (item.userData?.played != true && progressFraction > 0f) {
+                    LinearProgressIndicator(
+                        progress = { progressFraction },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(3.5.dp)
+                            .align(Alignment.BottomCenter),
+                        color = Color(0xFF0080FF),
+                        trackColor = Color.Black.copy(alpha = 0.5f)
+                    )
+                }
+
                 if (videoBadgeText.isNotBlank()) {
                     Surface(
                         color = Color.Black.copy(alpha = 0.72f),
                         shape = RoundedCornerShape(4.dp),
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(6.dp)
+                            .padding(
+                                start = 6.dp,
+                                end = 6.dp,
+                                top = 6.dp,
+                                bottom = if (item.userData?.played != true && progressFraction > 0f) 8.dp else 6.dp
+                            )
                     ) {
                         Text(
                             text = videoBadgeText,
@@ -1398,6 +1869,9 @@ private fun SortBottomSheet(
     availableGenres: List<String>,
     selectedGenres: Set<String>,
     showGenres: Boolean = true,
+    isFolderMode: Boolean = false,
+    directPlayVideos: Boolean = true,
+    onDirectPlayToggled: (Boolean) -> Unit = {},
     onSortSelected: (String, String) -> Unit,
     onGenreToggle: (String) -> Unit,
     onClearFilters: () -> Unit,
@@ -1482,6 +1956,52 @@ private fun SortBottomSheet(
                         isSelected = currentSortBy == option.sortBy && currentSortOrder == option.sortOrder,
                         onClick = { onSortSelected(option.sortBy, option.sortOrder) }
                     )
+                }
+            }
+
+            if (isFolderMode) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Surface(
+                    color = Color(0xFF1B1E28),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { onDirectPlayToggled(!directPlayVideos) }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.view_all_direct_play),
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "开启后点击视频文件直接开始播放，关闭则打开详情页面",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
+                        }
+                        Switch(
+                            checked = directPlayVideos,
+                            onCheckedChange = onDirectPlayToggled,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF0080FF)
+                            )
+                        )
+                    }
                 }
             }
 

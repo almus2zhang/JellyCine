@@ -285,6 +285,12 @@
     <string name="view_all_mode_folders">文件夹</string>
     <string name="view_all_folder_item_count">%1$d 个项目</string>
     <string name="view_all_folder_empty">空文件夹</string>
+    <string name="view_all_layout_grid">网格</string>
+    <string name="view_all_layout_list">列表</string>
+    <string name="view_all_direct_play">直接播放</string>
+    <string name="view_all_open_detail">详情</string>
+    <string name="view_all_played">已播放</string>
+    <string name="view_all_progress_played">已播 %1$d%%</string>
     <!-- Favorites -->
     <string name="favorites_load_failed">无法加载收藏夹</string>
     <string name="favorites_unknown_error">未知错误</string>

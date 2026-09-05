@@ -25,6 +25,11 @@ class Preferences(context: Context) {
         private const val KEY_SEERR_NETWORKS_ENABLED = "seerr_networks_enabled"
         private const val KEY_FEATURE_CAROUSEL_AUTOPLAY_TRAILERS = "feature_carousel_autoplay_trailers"
         private const val KEY_DISCORD_RPC_ENABLED = "discord_rpc_enabled"
+        private const val KEY_FOLDER_VIEW_LAYOUT_MODE = "folder_view_layout_mode"
+        private const val KEY_FOLDER_VIEW_DIRECT_PLAY = "folder_view_direct_play"
+
+        const val FOLDER_LAYOUT_MODE_GRID = "grid"
+        const val FOLDER_LAYOUT_MODE_LIST = "list"
 
         const val FEATURE_CAROUSEL_HEIGHT_LARGE = "large"
         const val FEATURE_CAROUSEL_HEIGHT_MEDIUM = "medium"
@@ -273,6 +278,22 @@ class Preferences(context: Context) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }.distinctUntilChanged()
+
+    fun getFolderViewLayoutMode(): String {
+        return prefs.getString(KEY_FOLDER_VIEW_LAYOUT_MODE, FOLDER_LAYOUT_MODE_GRID) ?: FOLDER_LAYOUT_MODE_GRID
+    }
+
+    fun setFolderViewLayoutMode(mode: String) {
+        prefs.edit().putString(KEY_FOLDER_VIEW_LAYOUT_MODE, mode).apply()
+    }
+
+    fun isFolderViewDirectPlayEnabled(): Boolean {
+        return prefs.getBoolean(KEY_FOLDER_VIEW_DIRECT_PLAY, true)
+    }
+
+    fun setFolderViewDirectPlayEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_FOLDER_VIEW_DIRECT_PLAY, enabled).apply()
+    }
 
     private fun normalizeFeatureCarouselHeight(height: String?): String {
         return when (height) {

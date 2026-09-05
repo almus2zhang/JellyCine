@@ -449,6 +449,11 @@ fun AppNavigation() {
                             val mergeVersions = parentId == com.jellycine.app.ui.screens.dashboard.media.WATCHED_VIEW_ALL_PARENT_ID
                             navController.navigate("detail/$itemId${if (mergeVersions) "?mergeVersions=true" else ""}")
                         }
+                    },
+                    onPlayItem = { item ->
+                        item.id?.let { itemId ->
+                            navController.navigate("player/$itemId")
+                        }
                     }
                 )
             }
