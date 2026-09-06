@@ -30,6 +30,24 @@
 
 ## Features
 
+### 动态服务器地址解析与重定向 (302: / 301:) / Dynamic Server Resolution
+
+JellyCine 支持智能的服务器地址解析与动态重定向跟踪机制：
+
+- **直接输入地址（自动跟随重定向）**：
+  直接输入普通服务器网址（例如 `http://myjellyfin.example.com`）时，客户端会自动追踪跟随 HTTP 301/302 重定向跳转，直至解析到最终的真实服务器端点并建立连接。
+
+- **使用 `302:` / `301:` 前缀（动态源地址自动追踪）**：
+  - **输入格式**：在服务器地址前添加 `302:` 或 `301:` 前缀（例如 `302:http://ddns.example.com:8080/jump`，支持半角冒号 `:` 与中文全角冒号 `：`）。
+  - **适用场景**：家庭公网动态 IP、DDNS、自建跳转网关、反向代理或外部映射端口经常变动的场景。
+  - **工作机制**：客户端会将该源地址记录为动态重定向源。每次冷启动应用、在多服务器列表中切换、或重新连接时，客户端都会自动向源地址重新发起探测，实时追踪最新的 301/302 跳转目标，自动更新实际服务器端点并完成无感静默登录，无需在 IP 或端口变动后手动修改配置。
+
+> **English Overview**:
+> - **Direct Address Input**: Directly entering a server URL automatically follows HTTP 301/302 redirects to locate and connect to the final destination endpoint.
+> - **Dynamic Source Tracking (`302:` / `301:`)**: Prepending `302:` (or `301:`, e.g. `302:http://ddns.example.com/jump`, supporting both half-width and full-width colons) registers the URL as a dynamic redirection source. Upon app startup, server switching, or reconnection, JellyCine re-queries the source URL, traces latest HTTP 301/302 redirects to find the updated server endpoint, and performs seamless silent re-login.
+
+---
+
 ### Playback
 
 - **Custom MPV player** set as default engine — built from a custom fork with HDR10/HDR10+/Dolby Vision support and format badges
@@ -88,20 +106,7 @@
 ### Multi-Server & Connections
 
 - Jellyfin and Emby support with automatic endpoint resolution
-- **Smart Redirect & Dynamic Server Address Resolution (`302:` / `301:`)**:
-  - **Direct Address Input**: Directly entering a server URL automatically follows HTTP 301/302 redirects to locate and connect to the final destination endpoint.
-  - **Dynamic Source Tracking (`302:` / `301:`)**: Prepending `302:` (or `301:`, supporting both half-width and full-width colons `302:`/`302：`/`301:`/`301：`, e.g. `302:http://ddns.example.com/jump`) registers the URL as a dynamic redirection source. Upon app startup, server switching, or network reconnection, JellyCine re-queries the source URL, traces latest HTTP 301/302 redirects to find the updated server endpoint, and performs seamless silent re-login. Perfect for dynamic residential IPs, DDNS, and custom redirect services.
-
-<details>
-<summary><b>服务器地址自动重定向与动态 302/301 解析说明 (点击展开)</b></summary>
-
-- **直接输入地址**：直接输入服务器网址（例如 `http://myjellyfin.example.com`）时，客户端会自动追踪跟随 HTTP 301/302 重定向跳转，直至解析到最终的真实服务器端点并建立连接。
-- **使用 `302:` / `301:` 前缀（动态源地址追踪）**：
-  - 在服务器地址前添加 `302:` 或 `301:` 前缀（例如 `302:http://ddns.example.com:8080/jump`，支持全角及半角冒号）。
-  - **适用场景**：家庭公网动态 IP、DDNS、自建跳转网关、反向代理或服务端口常变动场景。
-  - **工作机制**：客户端会将该地址保存为动态源。每次冷启动应用、在多服务器列表中切换、或重新连接时，客户端都会重新发起探测追踪最新的重定向地址，自动刷新服务地址并静默登录，无需在 IP/端口变动后手动重新输入配置。
-</details>
-
+- **Dynamic 302/301 Redirect Support**: Supports direct redirect resolution and dynamic source tracking via `302:` / `301:` prefix (detailed above)
 - Merge-version support with local version selection (no server-side changes required)
 - **Discord Rich Presence** via official Social SDK with connection management
 - **Admin Panel** with live server info, now-playing sessions, and activity log
