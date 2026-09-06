@@ -200,6 +200,10 @@
     <string name="player_reset_zoom">Reset Zoom</string>
     <string name="player_pip">Picture-in-Picture</string>
     <string name="player_pip_unsupported">Picture-in-Picture is not supported on this device</string>
+    <string name="player_pip_play">Play</string>
+    <string name="player_pip_pause">Pause</string>
+    <string name="player_pip_rewind">Rewind</string>
+    <string name="player_pip_forward">Fast Forward</string>
     <string name="player_buffer_speed">Buffer Speed</string>
     <string name="player_settings_start_maximized">Start Maximized</string>
     <string name="player_settings_start_maximized_summary">Start video in fullscreen mode</string>

@@ -79,6 +79,21 @@ class MpvPlayerController(
     val duration: Long
         get() = durationMs
 
+    val videoAspectRatio: Float?
+        get() {
+            if (released) return null
+            val dwidth = mpv.getPropertyDouble("dwidth") ?: 0.0
+            val dheight = mpv.getPropertyDouble("dheight") ?: 0.0
+            if (dwidth > 0.0 && dheight > 0.0) {
+                return (dwidth / dheight).toFloat()
+            }
+            val aspect = mpv.getPropertyDouble("video-params/aspect") ?: 0.0
+            if (aspect > 0.0) {
+                return aspect.toFloat()
+            }
+            return null
+        }
+
     init {
         configureMpv()
         mpv.init()

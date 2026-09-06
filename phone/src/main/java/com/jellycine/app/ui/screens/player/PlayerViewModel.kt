@@ -797,14 +797,30 @@ class PlayerViewModel @Inject constructor(
         }
         val exo = exoPlayer
         if (exo != null) {
-            val ctx = playerContext
-            if (ctx != null) {
-                val bandwidthMeter = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.getSingletonInstance(ctx.applicationContext)
-                val estimate = bandwidthMeter.bitrateEstimate
-                if (estimate > 0L) return (estimate / 8L)
-            }
+            return com.jellycine.player.core.PlayerUtils.getDownloadSpeedBps()
         }
         return 0L
+    }
+
+    fun getVideoAspectRatio(): Float? {
+        if (isMpvPlayback()) {
+            val aspect = mpvPlayer?.videoAspectRatio
+            if (aspect != null && aspect > 0f) return aspect
+        } else {
+            val videoSize = exoPlayer?.videoSize
+            if (videoSize != null && videoSize.width > 0 && videoSize.height > 0) {
+                val pixelRatio = videoSize.pixelWidthHeightRatio.takeIf { it > 0f } ?: 1f
+                return (videoSize.width.toFloat() * pixelRatio) / videoSize.height.toFloat()
+            }
+        }
+        val mediaStreams = currentItemDetails?.mediaStreams
+        val videoStream = mediaStreams?.firstOrNull { it.type.equals("Video", ignoreCase = true) }
+        val w = videoStream?.width
+        val h = videoStream?.height
+        if (w != null && h != null && w > 0 && h > 0) {
+            return w.toFloat() / h.toFloat()
+        }
+        return null
     }
 
     fun isPlayingNow(): Boolean = exoPlayer?.isPlaying == true || mpvPlayer?.isPlaying == true

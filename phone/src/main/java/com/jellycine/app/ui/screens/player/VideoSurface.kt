@@ -205,12 +205,24 @@ private fun ExoPlayerView(
                 frame.translationY = offsetY
             }
 
+            val activity = playerView.context as? android.app.Activity
+            val isInPip = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                activity?.isInPictureInPictureMode == true
+            } else false
+
             when (lifecycle) {
                 Lifecycle.Event.ON_PAUSE -> {
-                    playerView.onPause()
-                    playerView.player?.pause()
+                    if (!isInPip) {
+                        playerView.onPause()
+                        playerView.player?.pause()
+                    }
                 }
                 Lifecycle.Event.ON_RESUME -> playerView.onResume()
+                Lifecycle.Event.ON_STOP -> {
+                    if (!isInPip) {
+                        playerView.player?.pause()
+                    }
+                }
                 else -> Unit
             }
         },

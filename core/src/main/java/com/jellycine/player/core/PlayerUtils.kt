@@ -159,6 +159,14 @@ object PlayerUtils {
     }
 
     @UnstableApi
+    fun getDownloadSpeedBps(): Long = PlayerCacheManager.getDownloadSpeedBps()
+
+    @UnstableApi
+    fun resetDownloadSpeed() {
+        PlayerDownloadSpeedTracker.reset()
+    }
+
+    @UnstableApi
     private fun createLoadControl(
         context: Context,
         playerPreferences: PlayerPreferences,

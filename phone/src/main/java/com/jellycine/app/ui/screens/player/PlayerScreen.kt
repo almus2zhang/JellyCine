@@ -1,17 +1,29 @@
 package com.jellycine.app.ui.screens.player
 
 import android.app.Activity
+import android.app.PendingIntent
+import android.app.PictureInPictureParams
+import android.app.RemoteAction
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Rect
+import android.graphics.drawable.Icon
 import android.media.AudioManager
+import android.os.Build
 import android.provider.Settings
+import android.util.Rational
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
@@ -151,27 +163,6 @@ fun PlayerScreen(
         Unit
     }
 
-    val enterPip = {
-        (context as? Activity)?.let { act ->
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                val hasPipFeature = act.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
-                if (hasPipFeature) {
-                    val isPortrait = act.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-                    val aspectRatio = if (isPortrait) android.util.Rational(9, 16) else android.util.Rational(16, 9)
-                    val params = android.app.PictureInPictureParams.Builder()
-                        .setAspectRatio(aspectRatio)
-                        .build()
-                    act.enterPictureInPictureMode(params)
-                } else {
-                    Toast.makeText(context, context.getString(R.string.player_pip_unsupported), Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                Toast.makeText(context, context.getString(R.string.player_pip_unsupported), Toast.LENGTH_SHORT).show()
-            }
-        }
-        Unit
-    }
-
     // Dialog states
     var showAudioTrackDialog by remember { mutableStateOf(false) }
     var showSubtitleTrackDialog by remember { mutableStateOf(false) }
@@ -185,6 +176,85 @@ fun PlayerScreen(
 
     // Player state from ViewModel
     val playerState by viewModel.playerState.collectAsState()
+
+    val playerView = LocalView.current
+    val activity = context as? Activity
+
+    // Handle PiP actions from system overlay
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                when (intent?.getStringExtra(EXTRA_PIP_CONTROL)) {
+                    PIP_ACTION_REWIND -> viewModel.seekBackward()
+                    PIP_ACTION_PLAY_PAUSE -> viewModel.togglePlayPause()
+                    PIP_ACTION_FORWARD -> viewModel.seekForward()
+                }
+            }
+        }
+        val filter = IntentFilter(ACTION_PIP_CONTROL)
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose {
+            runCatching { context.unregisterReceiver(receiver) }
+        }
+    }
+
+    val updatePipParams = { isPlaying: Boolean ->
+        activity?.let { act ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val hasPipFeature = act.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+                if (hasPipFeature) {
+                    val rect = Rect()
+                    playerView.getGlobalVisibleRect(rect)
+                    val params = buildPipParams(act, viewModel, isPlaying, rect)
+                    if (params != null) {
+                        try {
+                            act.setPictureInPictureParams(params)
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    }
+                }
+            }
+        }
+        Unit
+    }
+
+    // Keep PiP actions and state updated whenever play/pause state changes
+    LaunchedEffect(playerState.isPlaying) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            updatePipParams(playerState.isPlaying)
+        }
+    }
+
+    val enterPip = {
+        activity?.let { act ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val hasPipFeature = act.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+                if (hasPipFeature) {
+                    val rect = Rect()
+                    playerView.getGlobalVisibleRect(rect)
+                    val params = buildPipParams(act, viewModel, viewModel.isPlayingNow(), rect)
+                    if (params != null) {
+                        try {
+                            act.enterPictureInPictureMode(params)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, context.getString(R.string.player_pip_unsupported), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    Toast.makeText(context, context.getString(R.string.player_pip_unsupported), Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(context, context.getString(R.string.player_pip_unsupported), Toast.LENGTH_SHORT).show()
+            }
+        }
+        Unit
+    }
     val preferredStreamIndexes by viewModel.preferredStreamIndexes.collectAsState()
     val sourceVideoHeight = viewModel.getSourceVideoHeight()
     val availableStreamingQualityOptions = remember(
@@ -848,4 +918,96 @@ fun PlayerScreenPreviewHidden() {
             )
         }
     }
+}
+
+private const val ACTION_PIP_CONTROL = "com.jellycine.app.PIP_CONTROL"
+private const val EXTRA_PIP_CONTROL = "extra_pip_control"
+private const val PIP_ACTION_REWIND = "rewind"
+private const val PIP_ACTION_PLAY_PAUSE = "play_pause"
+private const val PIP_ACTION_FORWARD = "forward"
+
+private fun buildPipParams(
+    activity: Activity,
+    viewModel: PlayerViewModel,
+    isPlaying: Boolean,
+    sourceRect: Rect? = null
+): PictureInPictureParams? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
+    val hasPip = activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+    if (!hasPip) return null
+
+    val rawRatio = viewModel.getVideoAspectRatio() ?: (16f / 9f)
+    val clampedRatio = rawRatio.coerceIn(1f / 2.38f, 2.38f)
+    val rational = Rational((clampedRatio * 1000).toInt(), 1000)
+
+    val rewindIntent = PendingIntent.getBroadcast(
+        activity,
+        1,
+        Intent(ACTION_PIP_CONTROL)
+            .putExtra(EXTRA_PIP_CONTROL, PIP_ACTION_REWIND)
+            .setPackage(activity.packageName),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    val playPauseIntent = PendingIntent.getBroadcast(
+        activity,
+        2,
+        Intent(ACTION_PIP_CONTROL)
+            .putExtra(EXTRA_PIP_CONTROL, PIP_ACTION_PLAY_PAUSE)
+            .setPackage(activity.packageName),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    val forwardIntent = PendingIntent.getBroadcast(
+        activity,
+        3,
+        Intent(ACTION_PIP_CONTROL)
+            .putExtra(EXTRA_PIP_CONTROL, PIP_ACTION_FORWARD)
+            .setPackage(activity.packageName),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    val playPauseIcon = if (isPlaying) {
+        Icon.createWithResource(activity, R.drawable.ic_pip_pause)
+    } else {
+        Icon.createWithResource(activity, R.drawable.ic_pip_play)
+    }
+    val playPauseTitle = if (isPlaying) {
+        activity.getString(R.string.player_pip_pause)
+    } else {
+        activity.getString(R.string.player_pip_play)
+    }
+
+    val actions = listOf(
+        RemoteAction(
+            Icon.createWithResource(activity, R.drawable.ic_pip_rewind),
+            activity.getString(R.string.player_pip_rewind),
+            activity.getString(R.string.player_pip_rewind),
+            rewindIntent
+        ),
+        RemoteAction(
+            playPauseIcon,
+            playPauseTitle,
+            playPauseTitle,
+            playPauseIntent
+        ),
+        RemoteAction(
+            Icon.createWithResource(activity, R.drawable.ic_pip_forward),
+            activity.getString(R.string.player_pip_forward),
+            activity.getString(R.string.player_pip_forward),
+            forwardIntent
+        )
+    )
+
+    val builder = PictureInPictureParams.Builder()
+        .setAspectRatio(rational)
+        .setActions(actions)
+
+    if (sourceRect != null && !sourceRect.isEmpty) {
+        builder.setSourceRectHint(sourceRect)
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        builder.setAutoEnterEnabled(isPlaying)
+    }
+
+    return builder.build()
 }

@@ -196,6 +196,10 @@
     <string name="player_reset_zoom">重置画面</string>
     <string name="player_pip">小窗播放</string>
     <string name="player_pip_unsupported">当前设备不支持小窗播放</string>
+    <string name="player_pip_play">播放</string>
+    <string name="player_pip_pause">暂停</string>
+    <string name="player_pip_rewind">快退</string>
+    <string name="player_pip_forward">快进</string>
     <string name="player_buffer_speed">缓存速度</string>
     <string name="player_settings_start_maximized">启动时默认全屏</string>
     <string name="player_settings_start_maximized_summary">开始播放视频时直接进入全屏模式</string>

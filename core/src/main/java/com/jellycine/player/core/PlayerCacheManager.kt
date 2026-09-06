@@ -2,6 +2,7 @@ package com.jellycine.player.core
 
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
@@ -9,11 +10,65 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import com.jellycine.player.preferences.PlayerPreferences
 import java.io.File
+import java.util.ArrayDeque
+
+@UnstableApi
+object PlayerDownloadSpeedTracker : TransferListener {
+    private const val WINDOW_MS = 1_000L
+    private val lock = Any()
+    private val samples = ArrayDeque<Pair<Long, Long>>()
+
+    override fun onTransferInitializing(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
+
+    override fun onTransferStart(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
+
+    override fun onBytesTransferred(
+        source: DataSource,
+        dataSpec: DataSpec,
+        isNetwork: Boolean,
+        bytesTransferred: Int
+    ) {
+        if (bytesTransferred <= 0) return
+        val now = SystemClock.elapsedRealtime()
+        synchronized(lock) {
+            samples.addLast(now to bytesTransferred.toLong())
+            prune(now)
+        }
+    }
+
+    override fun onTransferEnd(source: DataSource, dataSpec: DataSpec, isNetwork: Boolean) {}
+
+    private fun prune(now: Long) {
+        val cutoff = now - WINDOW_MS
+        while (!samples.isEmpty() && samples.first.first < cutoff) {
+            samples.removeFirst()
+        }
+    }
+
+    fun getSpeedBytesPerSecond(): Long {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(lock) {
+            prune(now)
+            if (samples.isEmpty()) return 0L
+            val totalBytes = samples.sumOf { it.second }
+            val oldest = samples.first.first
+            val durationMs = (now - oldest).coerceAtLeast(250L)
+            return (totalBytes * 1000L) / durationMs
+        }
+    }
+
+    fun reset() {
+        synchronized(lock) {
+            samples.clear()
+        }
+    }
+}
 
 @UnstableApi
 internal object PlayerCacheManager {
@@ -38,6 +93,7 @@ internal object PlayerCacheManager {
             .setConnectTimeoutMs(MEDIA_CONNECT_TIMEOUT_MS)
             .setReadTimeoutMs(MEDIA_READ_TIMEOUT_MS)
             .setAllowCrossProtocolRedirects(true)
+            .setTransferListener(PlayerDownloadSpeedTracker)
         if (defaultRequestHeaders.isNotEmpty()) {
             httpDataSource.setDefaultRequestProperties(defaultRequestHeaders)
         }
@@ -47,6 +103,8 @@ internal object PlayerCacheManager {
             .setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
+
+    fun getDownloadSpeedBps(): Long = PlayerDownloadSpeedTracker.getSpeedBytesPerSecond()
 
     fun prefetchToCache(
         context: Context,

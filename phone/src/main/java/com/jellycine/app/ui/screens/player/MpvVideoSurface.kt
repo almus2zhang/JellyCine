@@ -91,7 +91,11 @@ fun MpvVideoSurface(
             player.applySubtitlePreferences()
             player.setZoomMode(resizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM)
             player.setVideoTransform(scale, offsetX, offsetY)
-            if (lifecycle == Lifecycle.Event.ON_PAUSE) {
+            val activity = it.context as? android.app.Activity
+            val isInPip = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                activity?.isInPictureInPictureMode == true
+            } else false
+            if (lifecycle == Lifecycle.Event.ON_PAUSE && !isInPip) {
                 player.pause()
             }
         },
