@@ -5,6 +5,12 @@ import android.content.Context
 import androidx.datastore.preferences.core.stringPreferencesKey
 import coil3.ComponentRegistry
 import coil3.ImageLoader
+import coil3.key.Keyer
+import coil3.intercept.Interceptor as CoilInterceptor
+import coil3.request.Options
+import coil3.Uri
+import coil3.request.ImageRequest
+import coil3.request.ImageResult
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
@@ -12,7 +18,9 @@ import coil3.request.CachePolicy
 import com.jellycine.data.DataModuleConfig
 import com.jellycine.data.datastore.DataStoreProvider
 import com.jellycine.data.model.AuthHeaderDto
+import com.jellycine.data.network.NetworkModule
 import com.jellycine.data.network.ServerType
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import com.jellycine.data.preferences.NetworkPreferences
 import com.jellycine.data.security.AuthSessionIds
 import com.jellycine.data.security.LEGACY_ACCESS_TOKEN_KEY
@@ -29,6 +37,46 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
 import kotlin.math.min
+
+private class CanonicalImageInterceptor(
+    private val diskCacheProvider: () -> DiskCache?
+) : CoilInterceptor {
+    override suspend fun intercept(chain: CoilInterceptor.Chain): ImageResult {
+        val request = chain.request
+        val url = request.data.toString()
+        val canonicalKey = ImageLoaderConfig.getCanonicalServerImageKey(url)
+        if (canonicalKey != null) {
+            val diskCache = diskCacheProvider()
+            if (diskCache != null) {
+                val canonicalSnapshot = diskCache.openSnapshot(canonicalKey)
+                if (canonicalSnapshot != null) {
+                    canonicalSnapshot.close()
+                } else {
+                    val rawSnapshot = diskCache.openSnapshot(url)
+                    if (rawSnapshot != null) {
+                        try {
+                            val editor = diskCache.openEditor(canonicalKey)
+                            if (editor != null) {
+                                rawSnapshot.data.toFile().copyTo(editor.data.toFile(), overwrite = true)
+                                editor.commit()
+                            }
+                        } catch (_: Exception) {
+                        } finally {
+                            rawSnapshot.close()
+                        }
+                    }
+                }
+            }
+            val newRequest = request.newBuilder()
+                .memoryCacheKey(MemoryCache.Key(canonicalKey))
+                .diskCacheKey(canonicalKey)
+                .build()
+            return chain.withRequest(newRequest).proceed()
+        }
+        return chain.proceed()
+    }
+}
+
 
 object ImageLoaderConfig {
     private val SERVER_URL_KEY = stringPreferencesKey("server_url")
@@ -99,6 +147,22 @@ object ImageLoaderConfig {
         }
     }
 
+    fun getCanonicalServerImageKey(url: String): String? {
+        val lower = url.lowercase()
+        val matchPrefix = when {
+            lower.contains("/items/") -> "/items/"
+            lower.contains("/users/") -> "/users/"
+            lower.contains("/images/") -> "/images/"
+            lower.contains("/api/v1/image") -> "/api/v1/image"
+            else -> return null
+        }
+        val idx = lower.indexOf(matchPrefix)
+        if (idx < 0) return null
+
+        val pathAndQuery = url.substring(idx)
+        return "canonical_server_image:$pathAndQuery"
+    }
+
     private fun createAuthenticatedOkHttpClient(context: Context): OkHttpClient {
         val dataStore = DataStoreProvider.getDataStore(context)
         val secureSessionStore = SecureSessionStore(context)
@@ -149,16 +213,57 @@ object ImageLoaderConfig {
                 .addHeader("Accept", "image/webp,image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5")
                 .build()
 
-            var response = chain.proceed(newRequest)
-            var retryCount = 0
+            var response: okhttp3.Response? = null
+            var error: Exception? = null
 
-            while (!response.isSuccessful && response.code >= 500 && retryCount < 2) {
-                response.close()
-                retryCount++
+            try {
                 response = chain.proceed(newRequest)
+            } catch (e: Exception) {
+                error = e
             }
 
-            response
+            val shouldRecover = error is java.io.IOException || (response != null && (response.code in 502..504 || (!response.isSuccessful && response.code >= 500)))
+            if (shouldRecover) {
+                val handler = NetworkModule.dynamic302RecoveryHandler
+                if (handler != null) {
+                    val newBaseUrl = runBlocking {
+                        runCatching { handler.invoke(originalRequest.url.toString()) }.getOrNull()
+                    }
+                    if (!newBaseUrl.isNullOrBlank()) {
+                        val newUri = newBaseUrl.toHttpUrlOrNull()
+                        if (newUri != null && (newUri.host != originalRequest.url.host || newUri.port != originalRequest.url.port || newUri.scheme != originalRequest.url.scheme)) {
+                            response?.close()
+                            val refreshedAuthHeader = buildAuthHeader()
+                            val rewrittenUrl = originalRequest.url.newBuilder()
+                                .scheme(newUri.scheme)
+                                .host(newUri.host)
+                                .port(newUri.port)
+                                .build()
+                            val retryReq = originalRequest.newBuilder()
+                                .url(rewrittenUrl)
+                                .header("Authorization", refreshedAuthHeader)
+                                .header("X-Emby-Authorization", refreshedAuthHeader)
+                                .header("Accept", "image/webp,image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5")
+                                .build()
+                            return@Interceptor chain.proceed(retryReq)
+                        }
+                    }
+                }
+            }
+
+            if (error != null) {
+                throw error
+            }
+
+            var res = response!!
+            var retryCount = 0
+            while (!res.isSuccessful && res.code >= 500 && retryCount < 2) {
+                res.close()
+                retryCount++
+                res = chain.proceed(newRequest)
+            }
+
+            res
         }
 
         val imageCachingInterceptor = Interceptor { chain ->
@@ -203,13 +308,22 @@ object ImageLoaderConfig {
         val imageCachingEnabled = networkPreferences.isImageCachingEnabled()
         val configuredMemoryCacheBytes = ImageMemoryCacheBytes(context)
 
+        var diskCacheRef: DiskCache? = null
+
         val componentRegistry = ComponentRegistry.Builder()
             .add(
                 OkHttpNetworkFetcherFactory(
                     callFactory = { createAuthenticatedOkHttpClient(context) }
                 )
             )
+            .add(CanonicalImageInterceptor { diskCacheRef })
             .build()
+
+        val builtDiskCache = DiskCache.Builder()
+            .directory(persistentImageCacheDir(context).toOkioPath())
+            .maxSizeBytes(configuredImageCacheBytes(context) ?: DiskCacheSize(context))
+            .build()
+        diskCacheRef = builtDiskCache
 
         val builder = ImageLoader.Builder(context)
             .components(componentRegistry)
@@ -222,13 +336,7 @@ object ImageLoaderConfig {
                 }
                 memoryCacheBuilder.build()
             }
-
-        builder.diskCache {
-            DiskCache.Builder()
-                .directory(persistentImageCacheDir(context).toOkioPath())
-                .maxSizeBytes(configuredImageCacheBytes(context) ?: DiskCacheSize(context))
-                .build()
-        }
+            .diskCache(builtDiskCache)
 
         if (imageCachingEnabled) {
             builder.memoryCachePolicy(CachePolicy.ENABLED)

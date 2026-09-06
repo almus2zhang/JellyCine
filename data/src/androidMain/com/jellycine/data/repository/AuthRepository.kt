@@ -61,6 +61,15 @@ class AuthRepository(private val context: Context) {
         observeActiveSession()
             .onEach { cachedSnapshot = it }
             .launchIn(scope)
+
+        NetworkModule.dynamic302RecoveryHandler = { _ ->
+            val sourceUrl = getActiveSourceUrl()
+            if (is302Url(sourceUrl)) {
+                refreshActive302Session(force = true).getOrNull()
+            } else {
+                null
+            }
+        }
     }
 
     companion object {
@@ -73,6 +82,7 @@ class AuthRepository(private val context: Context) {
         private val SAVED_SERVERS_KEY = stringPreferencesKey("saved_servers_v1")
         private val ACTIVE_SERVER_ID_KEY = stringPreferencesKey("active_server_id")
         private val SOURCE_URL_KEY = stringPreferencesKey("source_url")
+        val PREVIOUS_SERVER_URL_KEY = stringPreferencesKey("previous_server_url")
     }
 
     @Serializable
@@ -410,42 +420,64 @@ class AuthRepository(private val context: Context) {
         }
     }
 
-    suspend fun checkOrRefreshActiveSession(): Boolean {
-        return refreshSessionMutex.withLock {
-            try {
-                legacyStorageMigrated()
-                val preferences = dataStore.data.first()
-                val active = activeServer(preferences)
-                val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() } ?: active?.sourceUrl
-                if (!is302Url(sourceUrl)) {
-                    return@withLock true
-                }
+    fun getActiveSourceUrl(): String? = cachedSnapshot?.sourceUrl
 
-                val resolvedResult = resolve302ServerUrl(sourceUrl!!)
-                if (resolvedResult.isFailure) {
-                    return@withLock true
-                }
-                val newRealUrl = resolvedResult.getOrThrow()
-                val credentials = secureSessionStore.getCredentials(sourceUrl)
-                    ?: active?.id?.let { secureSessionStore.getCredentials(it) }
-                    ?: return@withLock true
-
-                val currentUrl = active?.serverUrl
-                val hasToken = active?.id?.let { secureSessionStore.hasToken(it) } == true
-                if (!sameServerUrl(currentUrl, newRealUrl) || !hasToken) {
-                    val authResult = authenticateUser(
-                        serverUrl = newRealUrl,
-                        username = credentials.first,
-                        password = credentials.second,
-                        sourceUrl = sourceUrl
-                    )
-                    authResult.isSuccess
-                } else {
-                    true
-                }
-            } catch (e: Exception) {
-                true
+    suspend fun refreshActive302Session(force: Boolean = false): Result<String> = refreshSessionMutex.withLock {
+        try {
+            legacyStorageMigrated()
+            val preferences = dataStore.data.first()
+            val active = activeServer(preferences)
+            val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() } ?: active?.sourceUrl
+            if (!is302Url(sourceUrl)) {
+                return@withLock Result.failure(Exception("当前活跃服务器未配置 302 动态地址"))
             }
+
+            val resolvedResult = resolve302ServerUrl(sourceUrl!!)
+            if (resolvedResult.isFailure) {
+                return@withLock Result.failure(
+                    resolvedResult.exceptionOrNull() ?: Exception("无法获取 302 服务器地址")
+                )
+            }
+            val newRealUrl = resolvedResult.getOrThrow()
+            val credentials = secureSessionStore.getCredentials(sourceUrl)
+                ?: active?.id?.let { secureSessionStore.getCredentials(it) }
+                ?: return@withLock Result.failure(Exception("未找到该 302 服务器的已保存凭据"))
+
+            val currentUrl = active?.serverUrl
+            val hasToken = active?.id?.let { secureSessionStore.hasToken(it) } == true
+            if (force || !sameServerUrl(currentUrl, newRealUrl) || !hasToken) {
+                val authResult = authenticateUser(
+                    serverUrl = newRealUrl,
+                    username = credentials.first,
+                    password = credentials.second,
+                    sourceUrl = sourceUrl
+                )
+                if (authResult.isSuccess) {
+                    Result.success(newRealUrl)
+                } else {
+                    Result.failure(
+                        authResult.exceptionOrNull() ?: Exception("302 动态地址认证失败")
+                    )
+                }
+            } else {
+                Result.success(newRealUrl)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun checkOrRefreshActiveSession(): Boolean {
+        return try {
+            val preferences = dataStore.data.first()
+            val active = activeServer(preferences)
+            val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() } ?: active?.sourceUrl
+            if (!is302Url(sourceUrl)) {
+                return true
+            }
+            refreshActive302Session(force = false).isSuccess
+        } catch (_: Exception) {
+            true
         }
     }
 
@@ -1032,6 +1064,10 @@ class AuthRepository(private val context: Context) {
                         val updatedServers = upsertSavedServer(serversToRetain, savedServer)
                         prefs[SAVED_SERVERS_KEY] = serializeSavedServers(updatedServers)
                         prefs[ACTIVE_SERVER_ID_KEY] = savedServer.id
+                        val oldServerUrl = prefs[SERVER_URL_KEY]
+                        if (!oldServerUrl.isNullOrBlank() && !sameServerUrl(oldServerUrl, endpoint.baseUrl)) {
+                            prefs[PREVIOUS_SERVER_URL_KEY] = oldServerUrl
+                        }
                         prefs[SERVER_URL_KEY] = endpoint.baseUrl
                         prefs[SERVER_NAME_KEY] = serverName
                         prefs[SERVER_TYPE_KEY] = endpoint.serverType.name

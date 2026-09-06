@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Cache
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
@@ -42,6 +43,9 @@ object NetworkModule {
     private const val OFFLINE_DEBOUNCE_MS = 4000L
     private val deviceId by lazy { "jellycine-android-${UUID.randomUUID()}" }
     private val apiCache = ConcurrentHashMap<String, MediaServerApi>()
+
+    @Volatile
+    var dynamic302RecoveryHandler: (suspend (failedUrl: String) -> String?)? = null
 
     fun getClientDeviceId(): String = deviceId
 
@@ -298,6 +302,52 @@ object NetworkModule {
             }
         }
 
+        val recoveryInterceptor = Interceptor { chain ->
+            val request = chain.request()
+            val handler = dynamic302RecoveryHandler
+            if (handler == null) {
+                return@Interceptor chain.proceed(request)
+            }
+
+            var response: okhttp3.Response? = null
+            var error: Exception? = null
+
+            try {
+                response = chain.proceed(request)
+            } catch (e: Exception) {
+                error = e
+            }
+
+            val shouldRecover = error is java.io.IOException || (response != null && response.code in 502..504)
+            if (shouldRecover) {
+                val newBaseUrl = kotlinx.coroutines.runBlocking {
+                    runCatching { handler.invoke(request.url.toString()) }.getOrNull()
+                }
+                if (!newBaseUrl.isNullOrBlank()) {
+                    val newUri = newBaseUrl.toHttpUrlOrNull()
+                    if (newUri != null && (newUri.host != request.url.host || newUri.port != request.url.port || newUri.scheme != request.url.scheme)) {
+                        response?.close()
+                        val newUrl = request.url.newBuilder()
+                            .scheme(newUri.scheme)
+                            .host(newUri.host)
+                            .port(newUri.port)
+                            .build()
+                        val newRequest = request.newBuilder()
+                            .url(newUrl)
+                            .build()
+                        Log.i(NETWORK_LOG_TAG, "302 dynamic address updated: recovering request ${request.url} -> $newUrl")
+                        return@Interceptor chain.proceed(newRequest)
+                    }
+                }
+            }
+
+            if (error != null) {
+                throw error
+            }
+            response!!
+        }
+
+        builder.addInterceptor(recoveryInterceptor)
         builder.addInterceptor(authInterceptor)
         builder.addNetworkInterceptor(cacheInterceptor)
         builder.addInterceptor(timingInterceptor)

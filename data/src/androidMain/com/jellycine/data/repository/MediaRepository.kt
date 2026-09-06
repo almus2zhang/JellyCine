@@ -70,6 +70,7 @@ data class EpisodeNavigationIds(
 class MediaRepository(private val context: Context) {
     companion object {
         private val SERVER_URL_KEY = stringPreferencesKey("server_url")
+        private val SOURCE_URL_KEY = stringPreferencesKey("source_url")
         private val SERVER_TYPE_KEY = stringPreferencesKey("server_type")
         private val USER_ID_KEY = stringPreferencesKey("user_id")
         private val PROVIDER_KEYS = listOf("Imdb", "Tmdb", "Tvdb")
@@ -98,6 +99,7 @@ class MediaRepository(private val context: Context) {
 
     private data class SessionConfig(
         val serverUrl: String,
+        val sourceUrl: String?,
         val serverTypeRaw: String?,
         val serverType: ServerType?,
         val accessToken: String?,
@@ -170,6 +172,7 @@ class MediaRepository(private val context: Context) {
     private suspend fun getSessionConfig(): SessionConfig? {
         val preferences = dataStore.data.first()
         val serverUrl = preferences[SERVER_URL_KEY] ?: return null
+        val sourceUrl = preferences[SOURCE_URL_KEY]
         val userId = preferences[USER_ID_KEY] ?: return null
         val serverTypeRaw = preferences[SERVER_TYPE_KEY]
         val serverType = serverTypeRaw?.let {
@@ -180,6 +183,7 @@ class MediaRepository(private val context: Context) {
 
         return SessionConfig(
             serverUrl = serverUrl,
+            sourceUrl = sourceUrl,
             serverTypeRaw = serverTypeRaw,
             serverType = serverType,
             accessToken = accessToken,
@@ -242,7 +246,8 @@ class MediaRepository(private val context: Context) {
     }
 
     private fun buildSnapshotKey(config: SessionConfig): String {
-        return "${trimTrailingSlash(config.serverUrl)}|${config.userId}"
+        val serverKey = config.sourceUrl?.takeIf { it.isNotBlank() } ?: config.serverUrl
+        return "${trimTrailingSlash(serverKey)}|${config.userId}"
     }
 
     fun getPersistedHomeSnapshot(): PersistedHomeSnapshot? {
@@ -253,10 +258,39 @@ class MediaRepository(private val context: Context) {
         maxAgeMs: Long? = null
     ): PersistedHomeSnapshot? {
         val config = getSessionConfig() ?: return null
-        return homeSnapshotStore.loadPersistedHomeSnapshot(
+        val primarySnapshot = homeSnapshotStore.loadPersistedHomeSnapshot(
             expectedSnapshotKey = buildSnapshotKey(config),
             maxAgeMs = maxAgeMs
         )
+        if (primarySnapshot != null) return primarySnapshot
+
+        // Fallback to legacy serverUrl snapshot key if sourceUrl was used and old cache exists
+        val legacyKey = "${trimTrailingSlash(config.serverUrl)}|${config.userId}"
+        if (legacyKey != buildSnapshotKey(config)) {
+            val legacySnapshot = homeSnapshotStore.loadPersistedHomeSnapshot(
+                expectedSnapshotKey = legacyKey,
+                maxAgeMs = maxAgeMs
+            )
+            if (legacySnapshot != null) {
+                persistHomeSnapshot(
+                    featuredHomeItems = legacySnapshot.featuredHomeItems,
+                    continueWatchingItems = legacySnapshot.continueWatchingItems,
+                    nextUpItems = legacySnapshot.nextUpItems,
+                    homeLibrarySections = legacySnapshot.homeLibrarySections,
+                    myMediaLibraries = legacySnapshot.myMediaLibraries,
+                    username = legacySnapshot.username,
+                    serverName = legacySnapshot.serverName,
+                    serverUrl = legacySnapshot.serverUrl,
+                    profileImageUrl = legacySnapshot.profileImageUrl,
+                    isAdministrator = legacySnapshot.isAdministrator,
+                    isVideoTranscodingAllowed = legacySnapshot.isVideoTranscodingAllowed,
+                    isAudioTranscodingAllowed = legacySnapshot.isAudioTranscodingAllowed,
+                    isSyncTranscodingAllowed = legacySnapshot.isSyncTranscodingAllowed
+                )
+                return legacySnapshot
+            }
+        }
+        return null
     }
 
     suspend fun persistHomeSnapshot(
