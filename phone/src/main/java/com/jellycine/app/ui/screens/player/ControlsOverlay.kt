@@ -217,6 +217,23 @@ fun ControlsOverlay(
                             modifier = Modifier.size(24.dp)
                         )
                     }
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .combinedClickable(
+                                onClick = onToggleOrientation,
+                                onLongClick = onToggleAutoRotation
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ScreenRotation,
+                            contentDescription = stringResource(R.string.player_toggle_orientation),
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                     if (showPlaybackSettingsButton) {
                         IconButton(onClick = onShowPlaybackSettings) {
                             Icon(
@@ -515,24 +532,6 @@ fun ControlsOverlay(
                                     fontWeight = FontWeight.Medium
                                 )
                             }
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .combinedClickable(
-                                    onClick = onToggleOrientation,
-                                    onLongClick = onToggleAutoRotation
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.ScreenRotation,
-                                contentDescription = stringResource(R.string.player_toggle_orientation),
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
                         }
                     }
                 }
