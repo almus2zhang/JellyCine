@@ -72,7 +72,8 @@ data class PlayerUiState(
     val zoomIndicatorScale: Float? = null,
     val videoScale: Float = 1f,
     val videoOffsetX: Float = 0f,
-    val videoOffsetY: Float = 0f
+    val videoOffsetY: Float = 0f,
+    val slideSeekState: SlideSeekState? = null
 )
 
 /**
@@ -602,6 +603,29 @@ fun PlayerScreen(
             onResetTransform = {
                 viewModel.resetVideoTransform()
                 uiState = uiState.copy(zoomIndicatorScale = null)
+            },
+            getCurrentPosition = { viewModel.getCurrentPosition() },
+            getDuration = { viewModel.getDuration() },
+            onSlideSeek = { target, delta, current, duration ->
+                if (!playerState.isLocked) {
+                    uiState = uiState.copy(
+                        slideSeekState = SlideSeekState(
+                            targetPositionMs = target,
+                            deltaMs = delta,
+                            currentPositionMs = current,
+                            durationMs = duration
+                        )
+                    )
+                }
+            },
+            onSlideSeekEnd = { target ->
+                if (!playerState.isLocked) {
+                    viewModel.seekTo(target)
+                }
+                uiState = uiState.copy(slideSeekState = null)
+            },
+            onSlideSeekCancel = {
+                uiState = uiState.copy(slideSeekState = null)
             },
             modifier = Modifier.fillMaxSize()
         )

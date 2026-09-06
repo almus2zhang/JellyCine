@@ -655,4 +655,10 @@
     <string name="dynamic_server_refresh_success">已更新目标地址：%1$s</string>
     <string name="dynamic_server_refresh_failed">获取目标地址失败：%1$s</string>
     <string name="dynamic_server_refreshing">正在获取目标地址…</string>
+
+    <!-- Slide Seek Duration Settings -->
+    <string name="player_settings_slide_seek_duration">滑动跳转总时间</string>
+    <string name="player_settings_slide_seek_duration_summary">手指在屏幕中区滑满全屏对应的跳转时长（默认 3 分钟）。</string>
+    <string name="player_settings_slide_seek_duration_min">%1$d 分钟</string>
+    <string name="player_settings_slide_seek_duration_min_fraction">%1$.1f 分钟</string>
 </resources>

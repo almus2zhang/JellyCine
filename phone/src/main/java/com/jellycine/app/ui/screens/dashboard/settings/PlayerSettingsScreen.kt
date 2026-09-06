@@ -504,7 +504,7 @@ fun PlayerSettingsScreen(
                             uiState.seekBackwardIntervalSeconds
                         ),
                         selectedValue = uiState.seekBackwardIntervalSeconds.toString(),
-                        options = (PlayerPreferences.MIN_SEEK_INTERVAL_SECONDS..PlayerPreferences.MAX_SEEK_INTERVAL_SECONDS step PlayerPreferences.SEEK_INTERVAL_STEP_SECONDS)
+                        options = PlayerPreferences.SEEK_INTERVAL_OPTIONS
                             .map { seconds ->
                                 SelectionOption(
                                     value = seconds.toString(),
@@ -528,7 +528,7 @@ fun PlayerSettingsScreen(
                             uiState.seekForwardIntervalSeconds
                         ),
                         selectedValue = uiState.seekForwardIntervalSeconds.toString(),
-                        options = (PlayerPreferences.MIN_SEEK_INTERVAL_SECONDS..PlayerPreferences.MAX_SEEK_INTERVAL_SECONDS step PlayerPreferences.SEEK_INTERVAL_STEP_SECONDS)
+                        options = PlayerPreferences.SEEK_INTERVAL_OPTIONS
                             .map { seconds ->
                                 SelectionOption(
                                     value = seconds.toString(),
@@ -539,6 +539,37 @@ fun PlayerSettingsScreen(
                             },
                         onOptionSelected = { seconds ->
                             viewModel.setSeekForwardIntervalSeconds(seconds.toInt())
+                        },
+                        accentColor = seekingColor
+                    )
+
+                    SettingsDivider()
+                    val slideDurationSeconds = uiState.slideSeekDurationSeconds
+                    val slideDurationLabel = if (slideDurationSeconds % 60 == 0) {
+                        stringResource(R.string.player_settings_slide_seek_duration_min, slideDurationSeconds / 60)
+                    } else {
+                        stringResource(R.string.player_settings_slide_seek_duration_min_fraction, slideDurationSeconds / 60f)
+                    }
+                    SelectionDialogSettingsItem(
+                        icon = Icons.Rounded.Schedule,
+                        title = stringResource(R.string.player_settings_slide_seek_duration),
+                        subtitle = slideDurationLabel,
+                        selectedValue = slideDurationSeconds.toString(),
+                        options = PlayerPreferences.SLIDE_SEEK_DURATION_OPTIONS.map { seconds ->
+                            val label = if (seconds % 60 == 0) {
+                                "${seconds / 60}m"
+                            } else {
+                                "${seconds / 60f}m"
+                            }
+                            SelectionOption(
+                                value = seconds.toString(),
+                                label = label,
+                                description = "",
+                                isDefault = seconds == PlayerPreferences.DEFAULT_SLIDE_SEEK_DURATION_SECONDS
+                            )
+                        },
+                        onOptionSelected = { seconds ->
+                            viewModel.setSlideSeekDurationSeconds(seconds.toInt())
                         },
                         accentColor = seekingColor
                     )

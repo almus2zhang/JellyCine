@@ -47,6 +47,7 @@ data class PlayerSettingsUiState(
     val playerCacheTimeSeconds: Int = PlayerPreferences.DEFAULT_PLAYER_CACHE_TIME_SECONDS,
     val seekBackwardIntervalSeconds: Int = PlayerPreferences.DEFAULT_SEEK_INTERVAL_SECONDS,
     val seekForwardIntervalSeconds: Int = PlayerPreferences.DEFAULT_SEEK_INTERVAL_SECONDS,
+    val slideSeekDurationSeconds: Int = PlayerPreferences.DEFAULT_SLIDE_SEEK_DURATION_SECONDS,
     val skipIntroEnabled: Boolean = PlayerPreferences.DEFAULT_SKIP_INTRO_ENABLED,
     val chapterMarkersEnabled: Boolean = PlayerPreferences.DEFAULT_CHAPTER_MARKERS_ENABLED,
     
@@ -122,6 +123,7 @@ class PlayerSettingsViewModel(private val context: Context) : ViewModel() {
                 playerCacheTimeSeconds = playerPreferences.getPlayerCacheTimeSeconds(),
                 seekBackwardIntervalSeconds = playerPreferences.getSeekBackwardIntervalSeconds(),
                 seekForwardIntervalSeconds = playerPreferences.getSeekForwardIntervalSeconds(),
+                slideSeekDurationSeconds = playerPreferences.getSlideSeekDurationSeconds(),
                 skipIntroEnabled = playerPreferences.isSkipIntroEnabled(),
                 chapterMarkersEnabled = playerPreferences.areChapterMarkersEnabled(),
                 batteryOptimizationEnabled = playerPreferences.isBatteryOptimizationEnabled()
@@ -331,6 +333,13 @@ class PlayerSettingsViewModel(private val context: Context) : ViewModel() {
         playerPreferences.setSeekForwardIntervalSeconds(seconds)
         _uiState.value = _uiState.value.copy(
             seekForwardIntervalSeconds = playerPreferences.getSeekForwardIntervalSeconds()
+        )
+    }
+
+    fun setSlideSeekDurationSeconds(seconds: Int) {
+        playerPreferences.setSlideSeekDurationSeconds(seconds)
+        _uiState.value = _uiState.value.copy(
+            slideSeekDurationSeconds = playerPreferences.getSlideSeekDurationSeconds()
         )
     }
 

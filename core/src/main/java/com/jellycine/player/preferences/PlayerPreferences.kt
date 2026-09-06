@@ -45,6 +45,7 @@ class PlayerPreferences(context: Context) {
         private const val KEY_PLAYER_CACHE_TIME_SECONDS = "player_cache_time_seconds"
         private const val KEY_SEEK_BACKWARD_INTERVAL_SECONDS = "seek_backward_interval_seconds"
         private const val KEY_SEEK_FORWARD_INTERVAL_SECONDS = "seek_forward_interval_seconds"
+        private const val KEY_SLIDE_SEEK_DURATION_SECONDS = "slide_seek_duration_seconds"
         private const val KEY_SKIP_INTRO_ENABLED = "skip_intro_enabled"
         private const val KEY_CHAPTER_MARKERS_ENABLED = "chapter_markers_enabled"
         private const val KEY_SUBTITLE_TEXT_SIZE = "subtitle_text_size"
@@ -125,9 +126,12 @@ class PlayerPreferences(context: Context) {
         const val MIN_PLAYER_CACHE_TIME_SECONDS = 30
         const val PLAYER_CACHE_TIME_STEP_SECONDS = 30
         const val DEFAULT_SEEK_INTERVAL_SECONDS = 30
-        const val MAX_SEEK_INTERVAL_SECONDS = 30
+        const val MAX_SEEK_INTERVAL_SECONDS = 120
         const val MIN_SEEK_INTERVAL_SECONDS = 5
         const val SEEK_INTERVAL_STEP_SECONDS = 5
+        val SEEK_INTERVAL_OPTIONS = listOf(5, 10, 15, 20, 25, 30, 45, 60, 90, 120)
+        const val DEFAULT_SLIDE_SEEK_DURATION_SECONDS = 180
+        val SLIDE_SEEK_DURATION_OPTIONS = listOf(60, 90, 120, 180, 300, 600)
         const val DEFAULT_USE_DEVICE_VOLUME_IN_PLAYER = false
         const val DEFAULT_USE_DEVICE_BRIGHTNESS_IN_PLAYER = false
         const val DEFAULT_CACHE_NEXT_EPISODE = false
@@ -623,6 +627,17 @@ class PlayerPreferences(context: Context) {
                 KEY_SEEK_FORWARD_INTERVAL_SECONDS,
                 seconds.coerceIn(MIN_SEEK_INTERVAL_SECONDS, MAX_SEEK_INTERVAL_SECONDS)
             )
+            .apply()
+    }
+
+    fun getSlideSeekDurationSeconds(): Int {
+        return prefs.getInt(KEY_SLIDE_SEEK_DURATION_SECONDS, DEFAULT_SLIDE_SEEK_DURATION_SECONDS)
+            .coerceIn(10, 3600)
+    }
+
+    fun setSlideSeekDurationSeconds(seconds: Int) {
+        prefs.edit()
+            .putInt(KEY_SLIDE_SEEK_DURATION_SECONDS, seconds.coerceIn(10, 3600))
             .apply()
     }
 

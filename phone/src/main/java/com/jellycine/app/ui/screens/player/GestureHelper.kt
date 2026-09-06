@@ -33,7 +33,12 @@ class GestureHelper(
     private val getPlayer: () -> Player? = { null },
     private val onTransform: (scaleMultiplier: Float, deltaX: Float, deltaY: Float) -> Unit = { _, _, _ -> },
     private val onTransformEnd: () -> Unit = {},
-    private val onResetTransform: () -> Unit = {}
+    private val onResetTransform: () -> Unit = {},
+    private val getCurrentPosition: () -> Long = { 0L },
+    private val getDuration: () -> Long = { 0L },
+    private val onSlideSeek: (targetPositionMs: Long, deltaMs: Long, currentPositionMs: Long, durationMs: Long) -> Unit = { _, _, _, _ -> },
+    private val onSlideSeekEnd: (targetPositionMs: Long) -> Unit = {},
+    private val onSlideSeekCancel: () -> Unit = {}
 ) {
     private val playerPreferences = PlayerPreferences(context)
     // Gesture state tracking
@@ -43,6 +48,10 @@ class GestureHelper(
     private var swipeGestureVolumeOpen = false
     private var swipeGestureBrightnessOpen = false
     private var swipeGestureProgressOpen = false
+    private var isSlideSeeking = false
+    private var slideSeekStartPositionMs = 0L
+    private var slideSeekDurationMs = 0L
+    private var slideSeekTargetPositionMs = 0L
     private var lastScaleEvent: Long = 0
     private var currentNumberOfPointers: Int = 0
     private var isZoomEnabled = false
@@ -120,23 +129,59 @@ class GestureHelper(
                 distanceY: Float,
             ): Boolean {
                 if (firstEvent == null) return false
-                if (!playerPreferences.arePlayerGesturesEnabled()) {
+                if (!playerPreferences.arePlayerGesturesEnabled() ||
+                    !playerPreferences.isProgressSeekGestureEnabled()
+                ) {
                     return false
                 }
                 if (inExclusionArea(firstEvent)) return false
 
+                // Check if touch begins in the vertically middle area of the screen (e.g. 18% .. 82%)
+                val isMiddleVertical = if (screenHeight > 0) {
+                    firstEvent.y in (screenHeight * 0.18f)..(screenHeight * 0.82f)
+                } else true
+
+                if (!isMiddleVertical && !swipeGestureProgressOpen) return false
+
                 // Check if swipe is horizontal
                 if (abs(distanceX) > abs(distanceY)) {
-                    return if ((abs(currentEvent.x - firstEvent.x) > 50 || swipeGestureProgressOpen) &&
+                    val deltaX = currentEvent.x - firstEvent.x
+                    val swipeThreshold = 30f
+                    if ((abs(deltaX) > swipeThreshold || swipeGestureProgressOpen) &&
                         !swipeGestureBrightnessOpen && !swipeGestureVolumeOpen &&
                         (SystemClock.elapsedRealtime() - lastScaleEvent) > 200
                     ) {
-                        val difference = ((currentEvent.x - firstEvent.x) * 90).toLong()
-                        swipeGestureValueTrackerProgress = difference
-                        swipeGestureProgressOpen = true
-                        true
-                    } else {
-                        false
+                        if (!swipeGestureProgressOpen) {
+                            swipeGestureProgressOpen = true
+                            isSlideSeeking = true
+                            slideSeekStartPositionMs = getCurrentPosition()
+                            slideSeekDurationMs = getDuration()
+                        }
+
+                        val maxSeekSpanMs = playerPreferences.getSlideSeekDurationSeconds() * 1000L
+                        val viewWidth = if (touchView.measuredWidth > 0) touchView.measuredWidth else screenWidth
+                        val progressRatio = if (viewWidth > 0) deltaX / viewWidth else 0f
+                        val deltaMs = (progressRatio * maxSeekSpanMs).toLong()
+                        val duration = if (slideSeekDurationMs > 0L) slideSeekDurationMs else getDuration()
+                        if (slideSeekDurationMs <= 0L && duration > 0L) {
+                            slideSeekDurationMs = duration
+                        }
+                        val targetMs = if (duration > 0L) {
+                            (slideSeekStartPositionMs + deltaMs).coerceIn(0L, duration)
+                        } else {
+                            (slideSeekStartPositionMs + deltaMs).coerceAtLeast(0L)
+                        }
+                        slideSeekTargetPositionMs = targetMs
+                        val effectiveDeltaMs = targetMs - slideSeekStartPositionMs
+                        swipeGestureValueTrackerProgress = effectiveDeltaMs
+
+                        onSlideSeek(
+                            targetMs,
+                            effectiveDeltaMs,
+                            slideSeekStartPositionMs,
+                            if (duration > 0L) duration else slideSeekDurationMs
+                        )
+                        return true
                     }
                 }
                 return true
@@ -167,7 +212,7 @@ class GestureHelper(
                 if (abs(distanceY) < abs(distanceX)) {
                     return false
                 }
-                if (swipeGestureProgressOpen) {
+                if (swipeGestureProgressOpen || isSlideSeeking) {
                     return false
                 }
 
@@ -259,12 +304,22 @@ class GestureHelper(
                 swipeGestureValueTrackerBrightness = -1f
             }
             
-            if (swipeGestureProgressOpen) {
-                if (swipeGestureValueTrackerProgress != 0L) {
-                    onSeek(swipeGestureValueTrackerProgress)
+            if (swipeGestureProgressOpen || isSlideSeeking) {
+                if (event.action == MotionEvent.ACTION_UP) {
+                    if (slideSeekTargetPositionMs != slideSeekStartPositionMs || swipeGestureValueTrackerProgress != 0L) {
+                        onSlideSeekEnd(slideSeekTargetPositionMs)
+                    } else {
+                        onSlideSeekCancel()
+                    }
+                } else {
+                    onSlideSeekCancel()
                 }
                 swipeGestureProgressOpen = false
+                isSlideSeeking = false
                 swipeGestureValueTrackerProgress = 0L
+                slideSeekTargetPositionMs = 0L
+                slideSeekStartPositionMs = 0L
+                slideSeekDurationMs = 0L
             }
             
             currentNumberOfPointers = 0
@@ -367,13 +422,20 @@ class GestureHelper(
         }
 
         if (event.pointerCount >= 2) {
-            if (swipeGestureVolumeOpen || swipeGestureBrightnessOpen || swipeGestureProgressOpen) {
+            if (swipeGestureVolumeOpen || swipeGestureBrightnessOpen || swipeGestureProgressOpen || isSlideSeeking) {
+                if (isSlideSeeking) {
+                    onSlideSeekCancel()
+                }
                 swipeGestureVolumeOpen = false
                 swipeGestureBrightnessOpen = false
                 swipeGestureProgressOpen = false
+                isSlideSeeking = false
                 swipeGestureValueTrackerVolume = -1f
                 swipeGestureValueTrackerBrightness = -1f
                 swipeGestureValueTrackerProgress = 0L
+                slideSeekTargetPositionMs = 0L
+                slideSeekStartPositionMs = 0L
+                slideSeekDurationMs = 0L
             }
         }
 

@@ -51,6 +51,11 @@ fun VideoSurface(
     onTransform: (scaleMultiplier: Float, deltaX: Float, deltaY: Float) -> Unit = { _, _, _ -> },
     onTransformEnd: () -> Unit = {},
     onResetTransform: () -> Unit = {},
+    getCurrentPosition: () -> Long = { 0L },
+    getDuration: () -> Long = { 0L },
+    onSlideSeek: (targetPositionMs: Long, deltaMs: Long, currentPositionMs: Long, durationMs: Long) -> Unit = { _, _, _, _ -> },
+    onSlideSeekEnd: (targetPositionMs: Long) -> Unit = {},
+    onSlideSeekCancel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -97,6 +102,11 @@ fun VideoSurface(
                 onTransformEnd = onTransformEnd,
                 onResetTransform = onResetTransform,
                 onTogglePlayPause = onTogglePlayPause,
+                getCurrentPosition = getCurrentPosition,
+                getDuration = getDuration,
+                onSlideSeek = onSlideSeek,
+                onSlideSeekEnd = onSlideSeekEnd,
+                onSlideSeekCancel = onSlideSeekCancel,
                 modifier = surfaceModifier
             )
         } else if (player != null) {
@@ -119,6 +129,11 @@ fun VideoSurface(
                 onTransformEnd = onTransformEnd,
                 onResetTransform = onResetTransform,
                 onTogglePlayPause = onTogglePlayPause,
+                getCurrentPosition = getCurrentPosition,
+                getDuration = getDuration,
+                onSlideSeek = onSlideSeek,
+                onSlideSeekEnd = onSlideSeekEnd,
+                onSlideSeekCancel = onSlideSeekCancel,
                 modifier = surfaceModifier
             )
         }
@@ -147,6 +162,11 @@ private fun ExoPlayerView(
     onTransformEnd: () -> Unit,
     onResetTransform: () -> Unit,
     onTogglePlayPause: () -> Unit,
+    getCurrentPosition: () -> Long = { 0L },
+    getDuration: () -> Long = { 0L },
+    onSlideSeek: (targetPositionMs: Long, deltaMs: Long, currentPositionMs: Long, durationMs: Long) -> Unit = { _, _, _, _ -> },
+    onSlideSeekEnd: (targetPositionMs: Long) -> Unit = {},
+    onSlideSeekCancel: () -> Unit = {},
     modifier: Modifier
 ) {
     val context = LocalContext.current
@@ -184,7 +204,12 @@ private fun ExoPlayerView(
                     getPlayer = { this.player },
                     onTransform = onTransform,
                     onTransformEnd = onTransformEnd,
-                    onResetTransform = onResetTransform
+                    onResetTransform = onResetTransform,
+                    getCurrentPosition = { if (player != null) player.currentPosition else getCurrentPosition() },
+                    getDuration = { if (player != null && player.duration > 0L) player.duration else getDuration() },
+                    onSlideSeek = onSlideSeek,
+                    onSlideSeekEnd = onSlideSeekEnd,
+                    onSlideSeekCancel = onSlideSeekCancel
                 )
                 setOnTouchListener { _, event -> helper.handleTouchEvent(event) }
             }

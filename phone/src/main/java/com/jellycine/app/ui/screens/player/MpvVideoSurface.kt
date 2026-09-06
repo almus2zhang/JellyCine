@@ -36,6 +36,11 @@ fun MpvVideoSurface(
     onTransformEnd: () -> Unit,
     onResetTransform: () -> Unit,
     onTogglePlayPause: () -> Unit,
+    getCurrentPosition: () -> Long = { 0L },
+    getDuration: () -> Long = { 0L },
+    onSlideSeek: (targetPositionMs: Long, deltaMs: Long, currentPositionMs: Long, durationMs: Long) -> Unit = { _, _, _, _ -> },
+    onSlideSeekEnd: (targetPositionMs: Long) -> Unit = {},
+    onSlideSeekCancel: () -> Unit = {},
     modifier: Modifier
 ) {
     AndroidView(
@@ -59,7 +64,12 @@ fun MpvVideoSurface(
                     onTogglePlayPause = onTogglePlayPause,
                     onTransform = onTransform,
                     onTransformEnd = onTransformEnd,
-                    onResetTransform = onResetTransform
+                    onResetTransform = onResetTransform,
+                    getCurrentPosition = getCurrentPosition,
+                    getDuration = getDuration,
+                    onSlideSeek = onSlideSeek,
+                    onSlideSeekEnd = onSlideSeekEnd,
+                    onSlideSeekCancel = onSlideSeekCancel
                 )
                 setOnTouchListener { _, event -> gestureHelper.handleTouchEvent(event) }
                 holder.addCallback(object : SurfaceHolder.Callback {

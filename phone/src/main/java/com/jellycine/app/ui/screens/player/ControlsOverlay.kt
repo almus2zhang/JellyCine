@@ -312,12 +312,22 @@ fun ControlsOverlay(
                 onClick = onSeekBackward,
                 modifier = Modifier.size(58.dp)
             ) {
-                Icon(
-                    imageVector = replayIcon(seekBackwardSeconds),
-                    contentDescription = "Replay $seekBackwardSeconds seconds",
-                    tint = Color.White,
-                    modifier = Modifier.size(44.dp)
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = replayIcon(seekBackwardSeconds),
+                        contentDescription = "Replay $seekBackwardSeconds seconds",
+                        tint = Color.White,
+                        modifier = Modifier.size(44.dp)
+                    )
+                    if (seekBackwardSeconds != 5 && seekBackwardSeconds != 10 && seekBackwardSeconds != 30) {
+                        Text(
+                            text = "$seekBackwardSeconds",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
             // Play/Pause button
@@ -358,21 +368,31 @@ fun ControlsOverlay(
                 onClick = onSeekForward,
                 modifier = Modifier.size(58.dp)
             ) {
-                Icon(
-                    imageVector = replayforwardIcon(seekForwardSeconds),
-                    contentDescription = "Forward $seekForwardSeconds seconds",
-                    tint = Color.White,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .graphicsLayer {
-                            if (seekForwardSeconds != 5 &&
-                                seekForwardSeconds != 10 &&
-                                seekForwardSeconds != 30
-                            ) {
-                                scaleX = -1f
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = replayforwardIcon(seekForwardSeconds),
+                        contentDescription = "Forward $seekForwardSeconds seconds",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .graphicsLayer {
+                                if (seekForwardSeconds != 5 &&
+                                    seekForwardSeconds != 10 &&
+                                    seekForwardSeconds != 30
+                                ) {
+                                    scaleX = -1f
+                                }
                             }
-                        }
-                )
+                    )
+                    if (seekForwardSeconds != 5 && seekForwardSeconds != 10 && seekForwardSeconds != 30) {
+                        Text(
+                            text = "$seekForwardSeconds",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
             if (canPlayNextEpisode) {
