@@ -82,6 +82,13 @@ fun MpvVideoSurface(
                     }
 
                     override fun surfaceDestroyed(holder: SurfaceHolder) {
+                        val activity = context as? android.app.Activity
+                        val isInPip = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                            activity?.isInPictureInPictureMode == true
+                        } else false
+                        if (!isInPip) {
+                            player.pause()
+                        }
                         player.detachSurface()
                     }
                 })
@@ -95,7 +102,7 @@ fun MpvVideoSurface(
             val isInPip = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
                 activity?.isInPictureInPictureMode == true
             } else false
-            if (lifecycle == Lifecycle.Event.ON_PAUSE && !isInPip) {
+            if ((lifecycle == Lifecycle.Event.ON_PAUSE || lifecycle == Lifecycle.Event.ON_STOP) && !isInPip) {
                 player.pause()
             }
         },

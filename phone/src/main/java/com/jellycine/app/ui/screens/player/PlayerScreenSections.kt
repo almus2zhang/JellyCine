@@ -174,6 +174,14 @@ internal fun PlayerScreenEffects(
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
+            val activity = context as? Activity
+            val isInPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                activity?.isInPictureInPictureMode == true
+            } else false
+
+            if (!isInPip && (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP)) {
+                viewModel.pause()
+            }
             onLifecycleChange(event)
         }
         lifecycleOwner.lifecycle.addObserver(observer)

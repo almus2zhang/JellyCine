@@ -231,6 +231,22 @@ fun PlayerScreen(
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            activity?.let { act ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        act.setPictureInPictureParams(
+                            PictureInPictureParams.Builder().setAutoEnterEnabled(false).build()
+                        )
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }
+            }
+        }
+    }
+
     val enterPip = {
         activity?.let { act ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -1006,7 +1022,7 @@ private fun buildPipParams(
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        builder.setAutoEnterEnabled(isPlaying)
+        builder.setAutoEnterEnabled(false)
     }
 
     return builder.build()
