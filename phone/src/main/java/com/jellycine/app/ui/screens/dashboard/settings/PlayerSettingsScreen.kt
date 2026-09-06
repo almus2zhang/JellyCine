@@ -713,6 +713,7 @@ fun SubtitleSettingsScreen(
     var textColor by remember { mutableStateOf(playerPreferences.getSubtitleTextColor()) }
     var backgroundColor by remember { mutableStateOf(playerPreferences.getSubtitleBackgroundColor()) }
     var edgeType by remember { mutableStateOf(playerPreferences.getSubtitleEdgeType()) }
+    var edgeWidthRaw by remember { mutableStateOf(playerPreferences.getSubtitleEdgeWidthRaw()) }
     var textOpacityPercent by remember { mutableStateOf(playerPreferences.getSubtitleTextOpacityPercent()) }
     var bottomEdgePercent by remember {
         mutableStateOf(playerPreferences.getSubtitlePosition())
@@ -826,6 +827,25 @@ fun SubtitleSettingsScreen(
                             playerPreferences.setSubtitleEdgeType(selected)
                         },
                         accentColor = subtitleAccent
+                    )
+
+                    SettingsDivider()
+                    ValueSliderSettingsItem(
+                        icon = Icons.Rounded.Tune,
+                        title = stringResource(R.string.subtitle_settings_edge_width),
+                        subtitle = stringResource(R.string.subtitle_settings_edge_width_summary),
+                        value = edgeWidthRaw,
+                        defaultValue = PlayerPreferences.DEFAULT_SUBTITLE_EDGE_WIDTH,
+                        minValue = PlayerPreferences.MIN_SUBTITLE_EDGE_WIDTH,
+                        maxValue = PlayerPreferences.MAX_SUBTITLE_EDGE_WIDTH,
+                        stepSize = 1,
+                        onValueChanged = { updated ->
+                            edgeWidthRaw = updated
+                            playerPreferences.setSubtitleEdgeWidthRaw(updated)
+                        },
+                        accentColor = subtitleAccent,
+                        valueLabel = { String.format(java.util.Locale.US, "%.1f", it / 10f) },
+                        defaultLabel = { "" }
                     )
 
                     SettingsDivider()

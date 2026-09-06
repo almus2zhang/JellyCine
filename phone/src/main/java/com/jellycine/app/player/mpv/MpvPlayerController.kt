@@ -534,14 +534,16 @@ class MpvPlayerController(
     private fun applySubtitleEdge(edgeType: String, textColor: String) {
         val borderColor = if (textColor == PlayerPreferences.SUBTITLE_TEXT_COLOR_BLACK) "#FFFFFFFF" else "#FF000000"
         val shadowColor = if (textColor == PlayerPreferences.SUBTITLE_TEXT_COLOR_BLACK) "#CCFFFFFF" else "#CC000000"
+        val edgeWidth = playerPreferences.getSubtitleEdgeWidth()
+        val borderSizeStr = String.format(java.util.Locale.US, "%.1f", edgeWidth)
         when (edgeType) {
             PlayerPreferences.SUBTITLE_EDGE_TYPE_OUTLINE -> {
-                mpv.setOptionString("sub-border-size", "2.8")
+                mpv.setOptionString("sub-border-size", borderSizeStr)
                 mpv.setOptionString("sub-shadow-offset", "0")
             }
             PlayerPreferences.SUBTITLE_EDGE_TYPE_DROP_SHADOW -> {
                 mpv.setOptionString("sub-border-size", "0")
-                mpv.setOptionString("sub-shadow-offset", "2")
+                mpv.setOptionString("sub-shadow-offset", String.format(java.util.Locale.US, "%.1f", edgeWidth.coerceAtLeast(1.0f)))
             }
             PlayerPreferences.SUBTITLE_EDGE_TYPE_RAISED -> {
                 mpv.setOptionString("sub-border-size", "1")

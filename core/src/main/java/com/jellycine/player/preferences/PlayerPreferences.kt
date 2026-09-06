@@ -55,6 +55,7 @@ class PlayerPreferences(context: Context) {
         private const val KEY_SUBTITLE_TEXT_COLOR = "subtitle_text_color"
         private const val KEY_SUBTITLE_BACKGROUND_COLOR = "subtitle_background_color"
         private const val KEY_SUBTITLE_EDGE_TYPE = "subtitle_edge_type"
+        private const val KEY_SUBTITLE_EDGE_WIDTH = "subtitle_edge_width"
         private const val KEY_SUBTITLE_TEXT_OPACITY_PERCENT = "subtitle_text_opacity_percent"
         private const val KEY_SUBTITLE_BOTTOM_EDGE_PERCENT = "subtitle_bottom_edge_percent"
         private const val KEY_SUBTITLE_TOP_EDGE_PERCENT = "subtitle_top_edge_percent"
@@ -120,6 +121,9 @@ class PlayerPreferences(context: Context) {
         const val DEFAULT_SUBTITLE_TEXT_COLOR = SUBTITLE_TEXT_COLOR_WHITE
         const val DEFAULT_SUBTITLE_BACKGROUND_COLOR = SUBTITLE_BACKGROUND_TRANSPARENT
         const val DEFAULT_SUBTITLE_EDGE_TYPE = SUBTITLE_EDGE_TYPE_OUTLINE
+        const val DEFAULT_SUBTITLE_EDGE_WIDTH = 16
+        const val MIN_SUBTITLE_EDGE_WIDTH = 0
+        const val MAX_SUBTITLE_EDGE_WIDTH = 30
         const val DEFAULT_SUBTITLE_TEXT_OPACITY_PERCENT = 100
         const val DEFAULT_SUBTITLE_BOTTOM_EDGE_PERCENT = 6
         const val DEFAULT_SUBTITLE_TOP_EDGE_PERCENT = 5
@@ -785,6 +789,26 @@ class PlayerPreferences(context: Context) {
     fun setSubtitleEdgeType(edgeType: String) {
         val value = if (edgeType in SUBTITLE_EDGE_TYPE_OPTIONS) edgeType else DEFAULT_SUBTITLE_EDGE_TYPE
         prefs.edit().putString(KEY_SUBTITLE_EDGE_TYPE, value).apply()
+    }
+
+    fun getSubtitleEdgeWidthRaw(): Int {
+        return prefs.getInt(
+            KEY_SUBTITLE_EDGE_WIDTH,
+            DEFAULT_SUBTITLE_EDGE_WIDTH
+        ).coerceIn(MIN_SUBTITLE_EDGE_WIDTH, MAX_SUBTITLE_EDGE_WIDTH)
+    }
+
+    fun setSubtitleEdgeWidthRaw(width: Int) {
+        prefs.edit()
+            .putInt(
+                KEY_SUBTITLE_EDGE_WIDTH,
+                width.coerceIn(MIN_SUBTITLE_EDGE_WIDTH, MAX_SUBTITLE_EDGE_WIDTH)
+            )
+            .apply()
+    }
+
+    fun getSubtitleEdgeWidth(): Float {
+        return getSubtitleEdgeWidthRaw() / 10f
     }
 
     fun getSubtitleTextOpacityPercent(): Int {

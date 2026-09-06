@@ -240,6 +240,8 @@
     <string name="subtitle_settings_text_color">字幕字体颜色</string>
     <string name="subtitle_settings_background_color">背景颜色</string>
     <string name="subtitle_settings_edge_type">描边效果</string>
+    <string name="subtitle_settings_edge_width">描边粗细</string>
+    <string name="subtitle_settings_edge_width_summary">调节字幕描边宽度，最粗3.0</string>
     <string name="subtitle_settings_text_opacity">文字不透明度</string>
     <string name="subtitle_settings_text_opacity_summary">字幕文字的可见度</string>
     <string name="subtitle_settings_bottom_edge_position">底部边距</string>

@@ -242,6 +242,8 @@
     <string name="subtitle_settings_text_color">Text Color</string>
     <string name="subtitle_settings_background_color">Background Color</string>
     <string name="subtitle_settings_edge_type">Edge Type</string>
+    <string name="subtitle_settings_edge_width">Outline Width</string>
+    <string name="subtitle_settings_edge_width_summary">Adjust subtitle outline thickness, up to 3.0</string>
     <string name="subtitle_settings_text_opacity">Text Opacity</string>
     <string name="subtitle_settings_text_opacity_summary">Subtitle text visibility</string>
     <string name="subtitle_settings_bottom_edge_position">Bottom Edge Position</string>
