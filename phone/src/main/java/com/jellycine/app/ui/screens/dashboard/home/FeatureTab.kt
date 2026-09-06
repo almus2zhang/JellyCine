@@ -70,6 +70,7 @@ import coil3.compose.rememberAsyncImagePainter
 import coil3.imageLoader
 import coil3.request.*
 import com.jellycine.shared.R
+import com.jellycine.app.ui.components.common.DynamicServerRefreshButton
 import com.jellycine.app.ui.components.common.ScreenCastButton
 import com.jellycine.app.ui.screens.auth.ProfileImageLoader
 import com.jellycine.shared.util.image.imageTagFor
@@ -625,6 +626,13 @@ fun FeatureTab(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val isDynamic301Server = authRepository.is301Url(sessionSnapshot.sourceUrl) ||
+                        authRepository.is301Url(sessionSnapshot.serverUrl)
+                    if (isDynamic301Server) {
+                        DynamicServerRefreshButton(
+                            size = 34.dp
+                        )
+                    }
                     ScreenCastButton(
                         onConnectedClick = onCastButtonClick,
                         size = 34.dp

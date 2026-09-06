@@ -427,21 +427,34 @@ class AuthRepository(private val context: Context) {
             legacyStorageMigrated()
             val preferences = dataStore.data.first()
             val active = activeServer(preferences)
-            val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() } ?: active?.sourceUrl
+            val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() }
+                ?: active?.sourceUrl?.takeIf { it.isNotBlank() }
+                ?: preferences[SERVER_URL_KEY]?.takeIf { is302Url(it) }
+                ?: active?.serverUrl?.takeIf { is302Url(it) }
             if (!is302Url(sourceUrl)) {
-                return@withLock Result.failure(Exception("当前活跃服务器未配置 302 动态地址"))
+                return@withLock Result.failure(Exception("当前活跃服务器未配置 301/302 动态地址"))
             }
 
             val resolvedResult = resolve302ServerUrl(sourceUrl!!)
             if (resolvedResult.isFailure) {
                 return@withLock Result.failure(
-                    resolvedResult.exceptionOrNull() ?: Exception("无法获取 302 服务器地址")
+                    resolvedResult.exceptionOrNull() ?: Exception("无法获取目标服务器地址")
                 )
             }
             val newRealUrl = resolvedResult.getOrThrow()
             val credentials = secureSessionStore.getCredentials(sourceUrl)
                 ?: active?.id?.let { secureSessionStore.getCredentials(it) }
-                ?: return@withLock Result.failure(Exception("未找到该 302 服务器的已保存凭据"))
+                ?: preferences[USER_ID_KEY]?.let { userId ->
+                    preferences[SERVER_URL_KEY]?.let { url ->
+                        secureSessionStore.getCredentials(buildServerId(url, userId))
+                    }
+                }
+                ?: preferences[USER_ID_KEY]?.let { userId ->
+                    preferences[PREVIOUS_SERVER_URL_KEY]?.let { oldUrl ->
+                        secureSessionStore.getCredentials(buildServerId(oldUrl, userId))
+                    }
+                }
+                ?: return@withLock Result.failure(Exception("未找到该服务器的已保存登录凭据"))
 
             val currentUrl = active?.serverUrl
             val hasToken = active?.id?.let { secureSessionStore.hasToken(it) } == true

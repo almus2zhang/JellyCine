@@ -40,6 +40,7 @@ import com.jellycine.shared.util.image.JellyfinPosterImage
 import com.jellycine.app.cast.CastController
 import com.jellycine.app.ui.screens.cast.CastPlayback
 import com.jellycine.app.ui.screens.cast.loadCastPlaybackData
+import com.jellycine.app.ui.components.common.DynamicServerRefreshButton
 import com.jellycine.app.ui.components.common.ScreenCastButton
 import com.jellycine.shared.ui.components.common.*
 import com.jellycine.data.model.BaseItemDto
@@ -2228,10 +2229,22 @@ private fun BrandHeader(
                 }
             }
 
+            val authRepository = remember { com.jellycine.data.repository.AuthRepositoryProvider.getInstance(context) }
+            val sessionSnapshot by authRepository.observeActiveSession().collectAsState(
+                initial = authRepository.getActiveSessionSnapshot()
+            )
+            val isDynamic301Server = authRepository.is301Url(sessionSnapshot.sourceUrl) ||
+                authRepository.is301Url(sessionSnapshot.serverUrl)
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (isDynamic301Server) {
+                    DynamicServerRefreshButton(
+                        size = 34.dp
+                    )
+                }
                 ScreenCastButton(
                     onConnectedClick = { openCastPlayback() },
                     size = 34.dp

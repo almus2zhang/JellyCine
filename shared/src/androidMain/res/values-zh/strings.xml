@@ -649,4 +649,10 @@
     <string name="detail_person_no_related_titles">暂无相关参演/执导作品。</string>
     <string name="detail_person_read_more">展开简介</string>
     <string name="detail_person_read_less">收起简介</string>
+
+    <!-- Dynamic Server Address -->
+    <string name="dynamic_server_refresh_target_address">刷新目标地址</string>
+    <string name="dynamic_server_refresh_success">已更新目标地址：%1$s</string>
+    <string name="dynamic_server_refresh_failed">获取目标地址失败：%1$s</string>
+    <string name="dynamic_server_refreshing">正在获取目标地址…</string>
 </resources>

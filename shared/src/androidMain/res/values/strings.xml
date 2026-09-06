@@ -666,4 +666,10 @@
     <string name="detail_person_no_related_titles">No related titles available.</string>
     <string name="detail_person_read_more">Read more</string>
     <string name="detail_person_read_less">Read less</string>
+
+    <!-- Dynamic Server Address -->
+    <string name="dynamic_server_refresh_target_address">Refresh target address</string>
+    <string name="dynamic_server_refresh_success">Target address updated: %1$s</string>
+    <string name="dynamic_server_refresh_failed">Failed to refresh address: %1$s</string>
+    <string name="dynamic_server_refreshing">Refreshing target address...</string>
 </resources>
