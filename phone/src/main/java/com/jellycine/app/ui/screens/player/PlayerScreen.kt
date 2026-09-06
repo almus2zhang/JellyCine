@@ -73,7 +73,8 @@ data class PlayerUiState(
     val videoScale: Float = 1f,
     val videoOffsetX: Float = 0f,
     val videoOffsetY: Float = 0f,
-    val slideSeekState: SlideSeekState? = null
+    val slideSeekState: SlideSeekState? = null,
+    val longPressSpeed: Float? = null
 )
 
 /**
@@ -626,6 +627,16 @@ fun PlayerScreen(
             },
             onSlideSeekCancel = {
                 uiState = uiState.copy(slideSeekState = null)
+            },
+            onLongPressSpeedStart = { speed ->
+                if (!playerState.isLocked) {
+                    viewModel.startLongPressSpeed(speed)
+                    uiState = uiState.copy(longPressSpeed = speed, controlsVisible = false)
+                }
+            },
+            onLongPressSpeedEnd = {
+                viewModel.endLongPressSpeed()
+                uiState = uiState.copy(longPressSpeed = null)
             },
             modifier = Modifier.fillMaxSize()
         )

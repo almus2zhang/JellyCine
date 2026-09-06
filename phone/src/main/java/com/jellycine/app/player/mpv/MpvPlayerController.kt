@@ -309,6 +309,17 @@ class MpvPlayerController(
         }
     }
 
+    fun setPlaybackSpeed(speed: Float) {
+        if (!released) {
+            mpv.setPropertyDouble("speed", speed.toDouble().coerceIn(0.25, 4.0))
+        }
+    }
+
+    fun getPlaybackSpeed(): Float {
+        if (released) return 1.0f
+        return (mpv.getPropertyDouble("speed") ?: 1.0).toFloat()
+    }
+
     fun selectAudioTrack(trackId: String) {
         if (!released) {
             mpv.setPropertyString("aid", trackId)

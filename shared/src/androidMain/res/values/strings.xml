@@ -678,4 +678,10 @@
     <string name="player_settings_slide_seek_duration_summary">Total seek time skipped when swiping across the screen.</string>
     <string name="player_settings_slide_seek_duration_min">%1$d min</string>
     <string name="player_settings_slide_seek_duration_min_fraction">%1$.1f min</string>
+
+    <!-- Long Press Speed Playback Settings -->
+    <string name="player_settings_long_press_speed_gesture">Long Press Fast-Forward</string>
+    <string name="player_settings_long_press_speed_gesture_summary">Long press screen to play at high speed, release to restore</string>
+    <string name="player_settings_long_press_speed">Long Press Playback Speed</string>
+    <string name="player_speed_indicator">%s Speed Playback</string>
 </resources>

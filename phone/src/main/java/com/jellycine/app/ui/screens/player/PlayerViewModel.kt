@@ -813,6 +813,36 @@ class PlayerViewModel @Inject constructor(
         persistPosition()
     }
 
+    private var speedBeforeLongPress: Float = 1.0f
+    private var wasPlayingBeforeLongPress: Boolean = true
+
+    fun setPlaybackSpeed(speed: Float) {
+        exoPlayer?.setPlaybackSpeed(speed)
+        mpvPlayer?.setPlaybackSpeed(speed)
+    }
+
+    fun getPlaybackSpeed(): Float {
+        return exoPlayer?.playbackParameters?.speed
+            ?: mpvPlayer?.getPlaybackSpeed()
+            ?: 1.0f
+    }
+
+    fun startLongPressSpeed(speed: Float) {
+        speedBeforeLongPress = getPlaybackSpeed()
+        wasPlayingBeforeLongPress = isPlayingNow()
+        setPlaybackSpeed(speed)
+        if (!wasPlayingBeforeLongPress) {
+            play()
+        }
+    }
+
+    fun endLongPressSpeed() {
+        setPlaybackSpeed(speedBeforeLongPress)
+        if (!wasPlayingBeforeLongPress) {
+            pause()
+        }
+    }
+
     fun seekToProgress(progress: Float) {
         val duration = getDuration()
         if (duration > 0L) {

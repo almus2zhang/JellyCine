@@ -661,4 +661,10 @@
     <string name="player_settings_slide_seek_duration_summary">手指在屏幕中区滑满全屏对应的跳转时长（默认 3 分钟）。</string>
     <string name="player_settings_slide_seek_duration_min">%1$d 分钟</string>
     <string name="player_settings_slide_seek_duration_min_fraction">%1$.1f 分钟</string>
+
+    <!-- Long Press Speed Playback Settings -->
+    <string name="player_settings_long_press_speed_gesture">长按倍速播放</string>
+    <string name="player_settings_long_press_speed_gesture_summary">长按屏幕时临时以倍速播放，松手恢复正常</string>
+    <string name="player_settings_long_press_speed">长按播放倍速</string>
+    <string name="player_speed_indicator">%s 倍速播放中</string>
 </resources>

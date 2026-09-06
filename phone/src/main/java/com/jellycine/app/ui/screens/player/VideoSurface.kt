@@ -56,6 +56,8 @@ fun VideoSurface(
     onSlideSeek: (targetPositionMs: Long, deltaMs: Long, currentPositionMs: Long, durationMs: Long) -> Unit = { _, _, _, _ -> },
     onSlideSeekEnd: (targetPositionMs: Long) -> Unit = {},
     onSlideSeekCancel: () -> Unit = {},
+    onLongPressSpeedStart: (speed: Float) -> Unit = {},
+    onLongPressSpeedEnd: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -107,6 +109,8 @@ fun VideoSurface(
                 onSlideSeek = onSlideSeek,
                 onSlideSeekEnd = onSlideSeekEnd,
                 onSlideSeekCancel = onSlideSeekCancel,
+                onLongPressSpeedStart = onLongPressSpeedStart,
+                onLongPressSpeedEnd = onLongPressSpeedEnd,
                 modifier = surfaceModifier
             )
         } else if (player != null) {
@@ -134,6 +138,8 @@ fun VideoSurface(
                 onSlideSeek = onSlideSeek,
                 onSlideSeekEnd = onSlideSeekEnd,
                 onSlideSeekCancel = onSlideSeekCancel,
+                onLongPressSpeedStart = onLongPressSpeedStart,
+                onLongPressSpeedEnd = onLongPressSpeedEnd,
                 modifier = surfaceModifier
             )
         }
@@ -167,6 +173,8 @@ private fun ExoPlayerView(
     onSlideSeek: (targetPositionMs: Long, deltaMs: Long, currentPositionMs: Long, durationMs: Long) -> Unit = { _, _, _, _ -> },
     onSlideSeekEnd: (targetPositionMs: Long) -> Unit = {},
     onSlideSeekCancel: () -> Unit = {},
+    onLongPressSpeedStart: (speed: Float) -> Unit = {},
+    onLongPressSpeedEnd: () -> Unit = {},
     modifier: Modifier
 ) {
     val context = LocalContext.current
@@ -209,7 +217,9 @@ private fun ExoPlayerView(
                     getDuration = { if (player != null && player.duration > 0L) player.duration else getDuration() },
                     onSlideSeek = onSlideSeek,
                     onSlideSeekEnd = onSlideSeekEnd,
-                    onSlideSeekCancel = onSlideSeekCancel
+                    onSlideSeekCancel = onSlideSeekCancel,
+                    onLongPressSpeedStart = onLongPressSpeedStart,
+                    onLongPressSpeedEnd = onLongPressSpeedEnd
                 )
                 setOnTouchListener { _, event -> helper.handleTouchEvent(event) }
             }

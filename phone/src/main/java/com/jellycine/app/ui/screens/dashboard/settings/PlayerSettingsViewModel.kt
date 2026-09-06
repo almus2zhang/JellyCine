@@ -41,6 +41,8 @@ data class PlayerSettingsUiState(
     val progressSeekGestureEnabled: Boolean = true,
     val zoomGestureEnabled: Boolean = true,
     val freeZoomAndPanEnabled: Boolean = true,
+    val longPressSpeedGestureEnabled: Boolean = PlayerPreferences.DEFAULT_LONG_PRESS_SPEED_GESTURE_ENABLED,
+    val longPressSpeed: Float = PlayerPreferences.DEFAULT_LONG_PRESS_PLAYBACK_SPEED,
     val startMaximized: Boolean = false,
     val cacheNextEpisodeEnabled: Boolean = false,
     val playerCacheSizeMb: Int = PlayerPreferences.DEFAULT_PLAYER_CACHE_SIZE_MB,
@@ -87,6 +89,8 @@ class PlayerSettingsViewModel(private val context: Context) : ViewModel() {
             progressSeekGestureEnabled = playerPreferences.isProgressSeekGestureEnabled(),
             zoomGestureEnabled = playerPreferences.isZoomGestureEnabled(),
             freeZoomAndPanEnabled = playerPreferences.isFreeZoomAndPanEnabled(),
+            longPressSpeedGestureEnabled = playerPreferences.isLongPressSpeedGestureEnabled(),
+            longPressSpeed = playerPreferences.getLongPressPlaybackSpeed(),
             startMaximized = playerPreferences.isStartMaximizedEnabled()
         )
     }
@@ -117,6 +121,8 @@ class PlayerSettingsViewModel(private val context: Context) : ViewModel() {
                 progressSeekGestureEnabled = playerPreferences.isProgressSeekGestureEnabled(),
                 zoomGestureEnabled = playerPreferences.isZoomGestureEnabled(),
                 freeZoomAndPanEnabled = playerPreferences.isFreeZoomAndPanEnabled(),
+                longPressSpeedGestureEnabled = playerPreferences.isLongPressSpeedGestureEnabled(),
+                longPressSpeed = playerPreferences.getLongPressPlaybackSpeed(),
                 startMaximized = playerPreferences.isStartMaximizedEnabled(),
                 cacheNextEpisodeEnabled = playerPreferences.isCacheNextEpisodeEnabled(),
                 playerCacheSizeMb = playerPreferences.getPlayerCacheSizeMb(),
@@ -293,6 +299,16 @@ class PlayerSettingsViewModel(private val context: Context) : ViewModel() {
 
     fun setFreeZoomAndPanEnabled(enabled: Boolean) {
         playerPreferences.setFreeZoomAndPanEnabled(enabled)
+        updateGestureState()
+    }
+
+    fun setLongPressSpeedGestureEnabled(enabled: Boolean) {
+        playerPreferences.setLongPressSpeedGestureEnabled(enabled)
+        updateGestureState()
+    }
+
+    fun setLongPressSpeed(speed: Float) {
+        playerPreferences.setLongPressPlaybackSpeed(speed)
         updateGestureState()
     }
     

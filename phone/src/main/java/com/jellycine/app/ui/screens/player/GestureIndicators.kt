@@ -17,11 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jellycine.shared.R
 import com.jellycine.player.core.PlayerConstants.GESTURE_INDICATOR_PADDING_DP
 import com.jellycine.player.core.PlayerState
 import java.util.Locale
@@ -46,7 +48,8 @@ fun GestureIndicators(
     seekPosition: String? = null,
     seekSide: SeekSide = SeekSide.CENTER,
     zoomScale: Float? = null,
-    slideSeekState: SlideSeekState? = null
+    slideSeekState: SlideSeekState? = null,
+    longPressSpeed: Float? = null
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         // Volume indicator (right side)
@@ -125,6 +128,54 @@ fun GestureIndicators(
             zoomScale?.let { scaleValue ->
                 ZoomIndicator(scale = scaleValue)
             }
+        }
+
+        // Long press speed indicator (top-center of screen)
+        AnimatedVisibility(
+            visible = longPressSpeed != null,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 2 }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it / 2 }),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 44.dp)
+        ) {
+            longPressSpeed?.let { speed ->
+                LongPressSpeedIndicator(speed = speed)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LongPressSpeedIndicator(
+    speed: Float,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = Color.Black.copy(alpha = 0.8f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.FastForward,
+                contentDescription = null,
+                tint = Color(0xFF22D3EE),
+                modifier = Modifier.size(20.dp)
+            )
+            val speedFormatted = if (speed % 1f == 0f) "${speed.toInt()}X" else "${speed}X"
+            Text(
+                text = stringResource(R.string.player_speed_indicator, speedFormatted),
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

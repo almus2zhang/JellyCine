@@ -5,6 +5,7 @@ import android.content.res.Resources
 import android.media.AudioManager
 import android.os.SystemClock
 import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
@@ -38,7 +39,9 @@ class GestureHelper(
     private val getDuration: () -> Long = { 0L },
     private val onSlideSeek: (targetPositionMs: Long, deltaMs: Long, currentPositionMs: Long, durationMs: Long) -> Unit = { _, _, _, _ -> },
     private val onSlideSeekEnd: (targetPositionMs: Long) -> Unit = {},
-    private val onSlideSeekCancel: () -> Unit = {}
+    private val onSlideSeekCancel: () -> Unit = {},
+    private val onLongPressSpeedStart: (speed: Float) -> Unit = {},
+    private val onLongPressSpeedEnd: () -> Unit = {}
 ) {
     private val playerPreferences = PlayerPreferences(context)
     // Gesture state tracking
@@ -49,6 +52,7 @@ class GestureHelper(
     private var swipeGestureBrightnessOpen = false
     private var swipeGestureProgressOpen = false
     private var isSlideSeeking = false
+    private var isLongPressingSpeed = false
     private var slideSeekStartPositionMs = 0L
     private var slideSeekDurationMs = 0L
     private var slideSeekTargetPositionMs = 0L
@@ -81,12 +85,18 @@ class GestureHelper(
     private val tapGestureDetector = GestureDetector(
         context,
         object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean {
+                return true
+            }
+
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                if (isLongPressingSpeed) return false
                 onShowControls()
                 return true
             }
 
             override fun onDoubleTap(e: MotionEvent): Boolean {
+                if (isLongPressingSpeed) return false
                 if (!playerPreferences.arePlayerGesturesEnabled()) return false
 
                 val viewWidth = touchView.measuredWidth
@@ -116,6 +126,23 @@ class GestureHelper(
                 }
                 return true
             }
+
+            override fun onLongPress(e: MotionEvent) {
+                if (!playerPreferences.arePlayerGesturesEnabled() ||
+                    !playerPreferences.isLongPressSpeedGestureEnabled()
+                ) {
+                    return
+                }
+                if (inExclusionArea(e)) return
+                if (swipeGestureProgressOpen || swipeGestureVolumeOpen || swipeGestureBrightnessOpen || isTransforming) {
+                    return
+                }
+
+                isLongPressingSpeed = true
+                touchView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                val speed = playerPreferences.getLongPressPlaybackSpeed()
+                onLongPressSpeedStart(speed)
+            }
         }
     )
 
@@ -128,7 +155,7 @@ class GestureHelper(
                 distanceX: Float,
                 distanceY: Float,
             ): Boolean {
-                if (firstEvent == null) return false
+                if (firstEvent == null || isLongPressingSpeed) return false
                 if (!playerPreferences.arePlayerGesturesEnabled() ||
                     !playerPreferences.isProgressSeekGestureEnabled()
                 ) {
@@ -199,7 +226,7 @@ class GestureHelper(
                 distanceX: Float,
                 distanceY: Float,
             ): Boolean {
-                if (firstEvent == null) return false
+                if (firstEvent == null || isLongPressingSpeed) return false
                 if (inExclusionArea(firstEvent)) {
                     return false
                 }
@@ -322,6 +349,11 @@ class GestureHelper(
                 slideSeekDurationMs = 0L
             }
             
+            if (isLongPressingSpeed) {
+                isLongPressingSpeed = false
+                onLongPressSpeedEnd()
+            }
+            
             currentNumberOfPointers = 0
         }
     }
@@ -422,6 +454,10 @@ class GestureHelper(
         }
 
         if (event.pointerCount >= 2) {
+            if (isLongPressingSpeed) {
+                isLongPressingSpeed = false
+                onLongPressSpeedEnd()
+            }
             if (swipeGestureVolumeOpen || swipeGestureBrightnessOpen || swipeGestureProgressOpen || isSlideSeeking) {
                 if (isSlideSeeking) {
                     onSlideSeekCancel()

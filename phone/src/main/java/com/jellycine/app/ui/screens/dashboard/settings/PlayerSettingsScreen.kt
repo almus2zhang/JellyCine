@@ -470,6 +470,43 @@ fun PlayerSettingsScreen(
                         accentColor = gesturesColor
                     )
 
+                    SettingsDivider()
+                    SwitchSettingsItem(
+                        icon = Icons.Rounded.FastForward,
+                        title = stringResource(R.string.player_settings_long_press_speed_gesture),
+                        subtitle = stringResource(R.string.player_settings_long_press_speed_gesture_summary),
+                        checked = uiState.longPressSpeedGestureEnabled,
+                        onCheckedChange = viewModel::setLongPressSpeedGestureEnabled,
+                        enabled = uiState.playerGesturesEnabled,
+                        accentColor = gesturesColor
+                    )
+
+                    SettingsDivider()
+                    val speedLabel = if (uiState.longPressSpeed % 1f == 0f) {
+                        "${uiState.longPressSpeed.toInt()}x"
+                    } else {
+                        "${uiState.longPressSpeed}x"
+                    }
+                    SelectionDialogSettingsItem(
+                        icon = Icons.Rounded.Speed,
+                        title = stringResource(R.string.player_settings_long_press_speed),
+                        subtitle = speedLabel,
+                        selectedValue = uiState.longPressSpeed.toString(),
+                        options = PlayerPreferences.LONG_PRESS_SPEED_OPTIONS.map { speed ->
+                            val label = if (speed % 1f == 0f) "${speed.toInt()}x" else "${speed}x"
+                            SelectionOption(
+                                value = speed.toString(),
+                                label = label,
+                                description = "",
+                                isDefault = speed == PlayerPreferences.DEFAULT_LONG_PRESS_PLAYBACK_SPEED
+                            )
+                        },
+                        onOptionSelected = { speed ->
+                            viewModel.setLongPressSpeed(speed.toFloat())
+                        },
+                        enabled = uiState.playerGesturesEnabled && uiState.longPressSpeedGestureEnabled,
+                        accentColor = gesturesColor
+                    )
                 }
             }
 

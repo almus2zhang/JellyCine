@@ -656,7 +656,8 @@ internal fun BoxScope.PlayerOverlayHost(
             seekPosition = uiState.seekPosition,
             seekSide = uiState.seekSide,
             zoomScale = uiState.zoomIndicatorScale,
-            slideSeekState = uiState.slideSeekState
+            slideSeekState = uiState.slideSeekState,
+            longPressSpeed = uiState.longPressSpeed
         )
     }
 

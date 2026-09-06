@@ -39,6 +39,8 @@ class PlayerPreferences(context: Context) {
         private const val KEY_PROGRESS_SEEK_GESTURE_ENABLED = "progress_seek_gesture_enabled"
         private const val KEY_ZOOM_GESTURE_ENABLED = "zoom_gesture_enabled"
         private const val KEY_FREE_ZOOM_AND_PAN_ENABLED = "free_zoom_and_pan_enabled"
+        private const val KEY_LONG_PRESS_SPEED_GESTURE_ENABLED = "long_press_speed_gesture_enabled"
+        private const val KEY_LONG_PRESS_PLAYBACK_SPEED = "long_press_playback_speed"
         private const val KEY_START_MAXIMIZED = "start_maximized"
         private const val KEY_CACHE_NEXT_EPISODE = "cache_next_episode"
         private const val KEY_PLAYER_CACHE_SIZE_MB = "player_cache_size_mb"
@@ -132,6 +134,9 @@ class PlayerPreferences(context: Context) {
         val SEEK_INTERVAL_OPTIONS = listOf(5, 10, 15, 20, 25, 30, 45, 60, 90, 120)
         const val DEFAULT_SLIDE_SEEK_DURATION_SECONDS = 180
         val SLIDE_SEEK_DURATION_OPTIONS = listOf(60, 90, 120, 180, 300, 600)
+        const val DEFAULT_LONG_PRESS_SPEED_GESTURE_ENABLED = true
+        const val DEFAULT_LONG_PRESS_PLAYBACK_SPEED = 2.0f
+        val LONG_PRESS_SPEED_OPTIONS = listOf(1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f)
         const val DEFAULT_USE_DEVICE_VOLUME_IN_PLAYER = false
         const val DEFAULT_USE_DEVICE_BRIGHTNESS_IN_PLAYER = false
         const val DEFAULT_CACHE_NEXT_EPISODE = false
@@ -549,6 +554,26 @@ class PlayerPreferences(context: Context) {
     fun setFreeZoomAndPanEnabled(enabled: Boolean) {
         prefs.edit()
             .putBoolean(KEY_FREE_ZOOM_AND_PAN_ENABLED, enabled)
+            .apply()
+    }
+
+    fun isLongPressSpeedGestureEnabled(): Boolean {
+        return prefs.getBoolean(KEY_LONG_PRESS_SPEED_GESTURE_ENABLED, DEFAULT_LONG_PRESS_SPEED_GESTURE_ENABLED)
+    }
+
+    fun setLongPressSpeedGestureEnabled(enabled: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_LONG_PRESS_SPEED_GESTURE_ENABLED, enabled)
+            .apply()
+    }
+
+    fun getLongPressPlaybackSpeed(): Float {
+        return prefs.getFloat(KEY_LONG_PRESS_PLAYBACK_SPEED, DEFAULT_LONG_PRESS_PLAYBACK_SPEED)
+    }
+
+    fun setLongPressPlaybackSpeed(speed: Float) {
+        prefs.edit()
+            .putFloat(KEY_LONG_PRESS_PLAYBACK_SPEED, speed)
             .apply()
     }
     
