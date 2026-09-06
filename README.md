@@ -88,6 +88,7 @@
 ### Multi-Server & Connections
 
 - Jellyfin and Emby support with automatic endpoint resolution
+- **Dynamic 302 Server Address Resolution**: Enter `302:http://...` (or `302:https://...`) as your server URL to automatically resolve dynamic server addresses via HTTP 301/302 redirects, with automatic address refresh and re-login upon server switching or reconnection
 - Merge-version support with local version selection (no server-side changes required)
 - **Discord Rich Presence** via official Social SDK with connection management
 - **Admin Panel** with live server info, now-playing sessions, and activity log

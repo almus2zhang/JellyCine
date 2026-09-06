@@ -66,14 +66,14 @@ class AuthScreenViewModel(application: Application) : AndroidViewModel(applicati
         )
         
         viewModelScope.launch {
-            val is301 = authRepository.is301Url(currentState.serverUrl)
-            val sourceUrl = if (is301) currentState.serverUrl.trim() else null
-            val rawActualUrl = if (is301) {
-                val resolvedResult = authRepository.resolve301ServerUrl(currentState.serverUrl)
+            val is302 = authRepository.is302Url(currentState.serverUrl)
+            val sourceUrl = if (is302) currentState.serverUrl.trim() else null
+            val rawActualUrl = if (is302) {
+                val resolvedResult = authRepository.resolve302ServerUrl(currentState.serverUrl)
                 if (resolvedResult.isFailure) {
                     _uiState.value = _uiState.value.copy(
                         isServerLoading = false,
-                        serverErrorMessage = "无法获取 301 服务器地址: ${resolvedResult.exceptionOrNull()?.message}"
+                        serverErrorMessage = "无法获取 302 服务器地址: ${resolvedResult.exceptionOrNull()?.message}"
                     )
                     return@launch
                 }
@@ -121,7 +121,7 @@ class AuthScreenViewModel(application: Application) : AndroidViewModel(applicati
         )
         
         viewModelScope.launch {
-            val effectiveSourceUrl = currentState.sourceUrl ?: currentState.serverUrl.takeIf { authRepository.is301Url(it) }
+            val effectiveSourceUrl = currentState.sourceUrl ?: currentState.serverUrl.takeIf { authRepository.is302Url(it) }
             val result = authRepository.authenticateUser(
                 serverUrl = serverUrl,
                 username = currentState.username,

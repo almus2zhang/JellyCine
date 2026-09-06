@@ -353,11 +353,11 @@ class AuthRepository(private val context: Context) {
                 ?: activeServer(preferences)?.takeIf { it.id == serverId }
                 ?: return Result.failure(Exception(string(R.string.auth_error_saved_server_not_found)))
 
-            if (is301Url(targetServer.sourceUrl)) {
+            if (is302Url(targetServer.sourceUrl)) {
                 val sourceUrl = targetServer.sourceUrl!!
-                val resolvedResult = resolve301ServerUrl(sourceUrl)
+                val resolvedResult = resolve302ServerUrl(sourceUrl)
                 if (resolvedResult.isFailure) {
-                    return Result.failure(Exception("无法获取 301 服务器地址: ${resolvedResult.exceptionOrNull()?.message}"))
+                    return Result.failure(Exception("无法获取 302 服务器地址: ${resolvedResult.exceptionOrNull()?.message}"))
                 }
                 val newRealUrl = resolvedResult.getOrThrow()
                 val credentials = secureSessionStore.getCredentials(sourceUrl)
@@ -378,7 +378,7 @@ class AuthRepository(private val context: Context) {
                             ?: targetServer
                         return Result.success(switchedServer)
                     } else {
-                        return Result.failure(Exception(authResult.exceptionOrNull()?.message ?: "301 自动登录失败"))
+                        return Result.failure(Exception(authResult.exceptionOrNull()?.message ?: "302 自动登录失败"))
                     }
                 }
             }
@@ -417,11 +417,11 @@ class AuthRepository(private val context: Context) {
                 val preferences = dataStore.data.first()
                 val active = activeServer(preferences)
                 val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() } ?: active?.sourceUrl
-                if (!is301Url(sourceUrl)) {
+                if (!is302Url(sourceUrl)) {
                     return@withLock true
                 }
 
-                val resolvedResult = resolve301ServerUrl(sourceUrl!!)
+                val resolvedResult = resolve302ServerUrl(sourceUrl!!)
                 if (resolvedResult.isFailure) {
                     return@withLock true
                 }
@@ -526,20 +526,29 @@ class AuthRepository(private val context: Context) {
         )
     }
 
-    fun is301Url(url: String?): Boolean {
+    fun is302Url(url: String?): Boolean {
         if (url.isNullOrBlank()) return false
         val trimmed = url.trim()
-        return trimmed.startsWith("301:", ignoreCase = true) || trimmed.startsWith("301：")
+        return trimmed.startsWith("302:", ignoreCase = true) ||
+            trimmed.startsWith("302：") ||
+            trimmed.startsWith("301:", ignoreCase = true) ||
+            trimmed.startsWith("301：")
     }
 
-    fun extract301TargetUrl(url: String): String {
+    fun is301Url(url: String?): Boolean = is302Url(url)
+
+    fun extract302TargetUrl(url: String): String {
         val trimmed = url.trim()
         return when {
+            trimmed.startsWith("302:", ignoreCase = true) -> trimmed.substring(4).trim()
+            trimmed.startsWith("302：") -> trimmed.substring(4).trim()
             trimmed.startsWith("301:", ignoreCase = true) -> trimmed.substring(4).trim()
             trimmed.startsWith("301：") -> trimmed.substring(4).trim()
             else -> trimmed
         }
     }
+
+    fun extract301TargetUrl(url: String): String = extract302TargetUrl(url)
 
     private data class HttpResponseSnapshot(
         val statusCode: Int,
@@ -699,7 +708,7 @@ class AuthRepository(private val context: Context) {
             trimmed.startsWith("web/", ignoreCase = true)
     }
 
-    private fun fetch301WithRedirects(startUrl: String, maxHops: Int = 5): String {
+    private fun fetch302WithRedirects(startUrl: String, maxHops: Int = 5): String {
         var currentUrl = sanitizeMediaServerUrl(startUrl)
         val visited = mutableSetOf<String>()
 
@@ -794,9 +803,9 @@ class AuthRepository(private val context: Context) {
         }
     }
 
-    suspend fun resolve301ServerUrl(url: String): Result<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+    suspend fun resolve302ServerUrl(url: String): Result<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
         try {
-            val targetUrlRaw = extract301TargetUrl(url)
+            val targetUrlRaw = extract302TargetUrl(url)
             val sanitizedTarget = sanitizeMediaServerUrl(targetUrlRaw)
             if (sanitizedTarget.isBlank()) {
                 return@withContext Result.failure(Exception(string(R.string.auth_error_invalid_url_scheme)))
@@ -812,7 +821,7 @@ class AuthRepository(private val context: Context) {
             var lastException: Exception? = null
             for (targetUrl in urlsToTry) {
                 try {
-                    val realAddress = fetch301WithRedirects(targetUrl).trim()
+                    val realAddress = fetch302WithRedirects(targetUrl).trim()
                     if (realAddress.isNotBlank()) {
                         val sanitized = sanitizeMediaServerUrl(realAddress)
                         val fullAddress = if (!sanitized.startsWith("http://", ignoreCase = true) && !sanitized.startsWith("https://", ignoreCase = true)) {
@@ -826,16 +835,18 @@ class AuthRepository(private val context: Context) {
                     lastException = e
                 }
             }
-            Result.failure(lastException ?: Exception("无法获取 301 服务器地址"))
+            Result.failure(lastException ?: Exception("无法获取 302 服务器地址"))
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
+    suspend fun resolve301ServerUrl(url: String): Result<String> = resolve302ServerUrl(url)
+
     suspend fun resolveServerUrl(inputUrl: String): Result<String> {
         val sanitized = sanitizeMediaServerUrl(inputUrl)
-        return if (is301Url(sanitized)) {
-            resolve301ServerUrl(sanitized)
+        return if (is302Url(sanitized)) {
+            resolve302ServerUrl(sanitized)
         } else {
             val redirected = resolveDirectRedirect(sanitized)
             Result.success(sanitizeMediaServerUrl(redirected))
@@ -846,9 +857,9 @@ class AuthRepository(private val context: Context) {
         legacyStorageMigrated()
         return try {
             val sanitized = sanitizeMediaServerUrl(serverUrl)
-            val resolvedUrl = if (is301Url(sanitized)) {
-                resolve301ServerUrl(sanitized).getOrElse { error ->
-                    return Result.failure(Exception("无法获取 301 服务器地址: ${error.message}"))
+            val resolvedUrl = if (is302Url(sanitized)) {
+                resolve302ServerUrl(sanitized).getOrElse { error ->
+                    return Result.failure(Exception("无法获取 302 服务器地址: ${error.message}"))
                 }
             } else {
                 resolveDirectRedirect(sanitized)
