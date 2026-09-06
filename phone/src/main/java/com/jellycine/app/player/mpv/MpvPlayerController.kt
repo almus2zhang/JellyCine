@@ -217,7 +217,7 @@ class MpvPlayerController(
         mpv.setOptionString("vo", videoOutput)
         val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
         mpv.setOptionString("sub-use-margins", "yes")
-        mpv.setOptionString("sub-ass-force-margins", if (preserveStyles) "no" else "yes")
+        mpv.setOptionString("sub-ass-force-margins", "yes")
         mpv.setOptionString("sub-ass-override", if (preserveStyles) "no" else "strip")
         if (width > 0 && height > 0) {
             mpv.setPropertyString("android-surface-size", "${width}x$height")
@@ -237,7 +237,7 @@ class MpvPlayerController(
         mpv.setOptionString("panscan", if (enabled) "1" else "0")
         val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
         mpv.setOptionString("sub-use-margins", "yes")
-        mpv.setOptionString("sub-ass-force-margins", if (preserveStyles) "no" else "yes")
+        mpv.setOptionString("sub-ass-force-margins", "yes")
         mpv.setOptionString("sub-ass-override", if (preserveStyles) "no" else "strip")
     }
 
@@ -256,9 +256,10 @@ class MpvPlayerController(
         if (released) return
         val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
         mpv.setOptionString("sub-use-margins", "yes")
-        mpv.setOptionString("sub-ass-force-margins", if (preserveStyles) "no" else "yes")
+        mpv.setOptionString("sub-ass-force-margins", "yes")
         mpv.setOptionString("sub-ass-override", if (preserveStyles) "no" else "strip")
-        mpv.setOptionString("sub-scale", subtitleScale(playerPreferences.getSubtitleTextSize()))
+        val scaleFactor = (playerPreferences.getSubtitleFontSizeScale() * 0.1f).coerceIn(0.4f, 2.0f)
+        mpv.setOptionString("sub-scale", String.format(java.util.Locale.US, "%.2f", scaleFactor))
         mpv.setOptionString(
             "sub-color",
             mpvColor(
@@ -274,7 +275,10 @@ class MpvPlayerController(
             "sub-pos",
             (100 - playerPreferences.getSubtitlePosition().coerceIn(0, 50)).toString()
         )
-        applySubtitleEdge(playerPreferences.getSubtitleEdgeType())
+        applySubtitleEdge(
+            edgeType = playerPreferences.getSubtitleEdgeType(),
+            textColor = playerPreferences.getSubtitleTextColor()
+        )
     }
 
     fun detachSurface() {
@@ -494,7 +498,7 @@ class MpvPlayerController(
         mpv.setOptionString("sub-visibility", "yes")
         mpv.setOptionString("sub-bitmap", "yes")
         mpv.setOptionString("sub-scale-with-window", "yes")
-        mpv.setOptionString("sub-use-margins", "no")
+        mpv.setOptionString("sub-use-margins", "yes")
         mpv.setOptionString("ytdl", "no")
         applySubtitlePreferences()
     }
@@ -527,23 +531,33 @@ class MpvPlayerController(
         }
     }
 
-    private fun applySubtitleEdge(edgeType: String) {
+    private fun applySubtitleEdge(edgeType: String, textColor: String) {
+        val borderColor = if (textColor == PlayerPreferences.SUBTITLE_TEXT_COLOR_BLACK) "#FFFFFFFF" else "#FF000000"
+        val shadowColor = if (textColor == PlayerPreferences.SUBTITLE_TEXT_COLOR_BLACK) "#CCFFFFFF" else "#CC000000"
         when (edgeType) {
             PlayerPreferences.SUBTITLE_EDGE_TYPE_OUTLINE -> {
-                mpv.setOptionString("sub-border-size", "3")
+                mpv.setOptionString("sub-border-size", "2.8")
                 mpv.setOptionString("sub-shadow-offset", "0")
             }
             PlayerPreferences.SUBTITLE_EDGE_TYPE_DROP_SHADOW -> {
                 mpv.setOptionString("sub-border-size", "0")
                 mpv.setOptionString("sub-shadow-offset", "2")
             }
+            PlayerPreferences.SUBTITLE_EDGE_TYPE_RAISED -> {
+                mpv.setOptionString("sub-border-size", "1")
+                mpv.setOptionString("sub-shadow-offset", "1")
+            }
+            PlayerPreferences.SUBTITLE_EDGE_TYPE_DEPRESSED -> {
+                mpv.setOptionString("sub-border-size", "1")
+                mpv.setOptionString("sub-shadow-offset", "1")
+            }
             else -> {
                 mpv.setOptionString("sub-border-size", "0")
                 mpv.setOptionString("sub-shadow-offset", "0")
             }
         }
-        mpv.setOptionString("sub-border-color", "#FF000000")
-        mpv.setOptionString("sub-shadow-color", "#CC000000")
+        mpv.setOptionString("sub-border-color", borderColor)
+        mpv.setOptionString("sub-shadow-color", shadowColor)
     }
 
     private fun alphaHex(opacityPercent: Int): String {

@@ -231,8 +231,9 @@
     <string name="subtitle_settings_title">字幕设置</string>
     <string name="subtitle_settings_section_style">字体样式</string>
     <string name="subtitle_settings_section_position">显示位置</string>
-    <string name="subtitle_settings_text_size">字体大小</string>
-    <string name="subtitle_settings_text_color">字体颜色</string>
+    <string name="subtitle_settings_text_size">字幕字体大小</string>
+    <string name="subtitle_settings_srt_only_notice">此选项仅对srt字幕生效.</string>
+    <string name="subtitle_settings_text_color">字幕字体颜色</string>
     <string name="subtitle_settings_background_color">背景颜色</string>
     <string name="subtitle_settings_edge_type">描边效果</string>
     <string name="subtitle_settings_text_opacity">文字不透明度</string>

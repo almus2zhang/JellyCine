@@ -51,6 +51,7 @@ class PlayerPreferences(context: Context) {
         private const val KEY_SKIP_INTRO_ENABLED = "skip_intro_enabled"
         private const val KEY_CHAPTER_MARKERS_ENABLED = "chapter_markers_enabled"
         private const val KEY_SUBTITLE_TEXT_SIZE = "subtitle_text_size"
+        private const val KEY_SUBTITLE_FONT_SIZE_SCALE = "subtitle_font_size_scale"
         private const val KEY_SUBTITLE_TEXT_COLOR = "subtitle_text_color"
         private const val KEY_SUBTITLE_BACKGROUND_COLOR = "subtitle_background_color"
         private const val KEY_SUBTITLE_EDGE_TYPE = "subtitle_edge_type"
@@ -75,6 +76,10 @@ class PlayerPreferences(context: Context) {
             SUBTITLE_TEXT_SIZE_LARGE,
             SUBTITLE_TEXT_SIZE_EXTRA_LARGE
         )
+
+        const val DEFAULT_SUBTITLE_FONT_SIZE_SCALE = 10
+        const val MIN_SUBTITLE_FONT_SIZE_SCALE = 1
+        const val MAX_SUBTITLE_FONT_SIZE_SCALE = 20
 
         const val SUBTITLE_TEXT_COLOR_WHITE = "White"
         const val SUBTITLE_TEXT_COLOR_YELLOW = "Yellow"
@@ -114,9 +119,9 @@ class PlayerPreferences(context: Context) {
         const val DEFAULT_SUBTITLE_TEXT_SIZE = SUBTITLE_TEXT_SIZE_NORMAL
         const val DEFAULT_SUBTITLE_TEXT_COLOR = SUBTITLE_TEXT_COLOR_WHITE
         const val DEFAULT_SUBTITLE_BACKGROUND_COLOR = SUBTITLE_BACKGROUND_TRANSPARENT
-        const val DEFAULT_SUBTITLE_EDGE_TYPE = SUBTITLE_EDGE_TYPE_NONE
+        const val DEFAULT_SUBTITLE_EDGE_TYPE = SUBTITLE_EDGE_TYPE_OUTLINE
         const val DEFAULT_SUBTITLE_TEXT_OPACITY_PERCENT = 100
-        const val DEFAULT_SUBTITLE_BOTTOM_EDGE_PERCENT = 10
+        const val DEFAULT_SUBTITLE_BOTTOM_EDGE_PERCENT = 6
         const val DEFAULT_SUBTITLE_TOP_EDGE_PERCENT = 5
         const val DEFAULT_PRESERVE_SUBTITLE_STYLES = true
         const val DEFAULT_PLAYER_CACHE_SIZE_MB = 200
@@ -734,6 +739,22 @@ class PlayerPreferences(context: Context) {
     fun setSubtitleTextSize(size: String) {
         val value = if (size in SUBTITLE_TEXT_SIZE_OPTIONS) size else DEFAULT_SUBTITLE_TEXT_SIZE
         prefs.edit().putString(KEY_SUBTITLE_TEXT_SIZE, value).apply()
+    }
+
+    fun getSubtitleFontSizeScale(): Int {
+        return prefs.getInt(
+            KEY_SUBTITLE_FONT_SIZE_SCALE,
+            DEFAULT_SUBTITLE_FONT_SIZE_SCALE
+        ).coerceIn(MIN_SUBTITLE_FONT_SIZE_SCALE, MAX_SUBTITLE_FONT_SIZE_SCALE)
+    }
+
+    fun setSubtitleFontSizeScale(scale: Int) {
+        prefs.edit()
+            .putInt(
+                KEY_SUBTITLE_FONT_SIZE_SCALE,
+                scale.coerceIn(MIN_SUBTITLE_FONT_SIZE_SCALE, MAX_SUBTITLE_FONT_SIZE_SCALE)
+            )
+            .apply()
     }
 
     fun getSubtitleTextColor(): String {

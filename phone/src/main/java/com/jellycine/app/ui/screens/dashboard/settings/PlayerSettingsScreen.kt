@@ -707,7 +707,9 @@ fun SubtitleSettingsScreen(
     val subtitleAccent = Color(0xFF6366F1)
     val positionAccent = Color(0xFF0EA5E9)
 
-    var textSize by remember { mutableStateOf(playerPreferences.getSubtitleTextSize()) }
+    var fontSizeScale by remember {
+        mutableStateOf(playerPreferences.getSubtitleFontSizeScale())
+    }
     var textColor by remember { mutableStateOf(playerPreferences.getSubtitleTextColor()) }
     var backgroundColor by remember { mutableStateOf(playerPreferences.getSubtitleBackgroundColor()) }
     var edgeType by remember { mutableStateOf(playerPreferences.getSubtitleEdgeType()) }
@@ -751,22 +753,22 @@ fun SubtitleSettingsScreen(
                     )
 
                     SettingsDivider()
-                    SelectionDialogSettingsItem(
+                    ValueSliderSettingsItem(
                         icon = Icons.Rounded.Tune,
                         title = stringResource(R.string.subtitle_settings_text_size),
-                        subtitle = textSize,
-                        selectedValue = textSize,
-                        options = listOf(
-                            SelectionOption("Small", "Small", "Compact text, more screen space"),
-                            SelectionOption("Normal", "Normal", "Standard readable size", isDefault = true),
-                            SelectionOption("Large", "Large", "Bigger text, easier to read"),
-                            SelectionOption("Extra Large", "Extra Large", "Maximum readability")
-                        ),
-                        onOptionSelected = { selected ->
-                            textSize = selected
-                            playerPreferences.setSubtitleTextSize(selected)
+                        subtitle = stringResource(R.string.subtitle_settings_srt_only_notice),
+                        value = fontSizeScale,
+                        defaultValue = PlayerPreferences.DEFAULT_SUBTITLE_FONT_SIZE_SCALE,
+                        minValue = PlayerPreferences.MIN_SUBTITLE_FONT_SIZE_SCALE,
+                        maxValue = PlayerPreferences.MAX_SUBTITLE_FONT_SIZE_SCALE,
+                        stepSize = 1,
+                        onValueChanged = { updated ->
+                            fontSizeScale = updated
+                            playerPreferences.setSubtitleFontSizeScale(updated)
                         },
-                        accentColor = subtitleAccent
+                        accentColor = subtitleAccent,
+                        valueLabel = { it.toString() },
+                        defaultLabel = { "" }
                     )
 
                     SettingsDivider()
@@ -813,8 +815,8 @@ fun SubtitleSettingsScreen(
                         subtitle = edgeType,
                         selectedValue = edgeType,
                         options = listOf(
-                            SelectionOption("None", "None", "No edge effect", isDefault = true),
-                            SelectionOption("Outline", "Outline", "Border around text for readability"),
+                            SelectionOption("None", "None", "No edge effect"),
+                            SelectionOption("Outline", "Outline", "Border around text for readability", isDefault = true),
                             SelectionOption("Drop Shadow", "Drop Shadow", "Shadow below text for depth"),
                             SelectionOption("Raised", "Raised", "Embossed 3D effect"),
                             SelectionOption("Depressed", "Depressed", "Engraved 3D effect")
@@ -853,6 +855,9 @@ fun SubtitleSettingsScreen(
                         subtitle = stringResource(R.string.subtitle_settings_bottom_edge_position_summary),
                         value = bottomEdgePercent,
                         defaultValue = PlayerPreferences.DEFAULT_SUBTITLE_BOTTOM_EDGE_PERCENT,
+                        minValue = 0,
+                        maxValue = 30,
+                        stepSize = 1,
                         onValueChanged = { updated ->
                             bottomEdgePercent = updated
                             playerPreferences.setSubtitleBottomEdgePositionPercent(updated)

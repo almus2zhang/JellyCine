@@ -146,7 +146,7 @@ object MpvWarmPool {
                     audioOutput = preferences.getMpvAudioOutput(),
                     cacheSizeMb = preferences.getPlayerCacheSizeMb(),
                     cacheTimeSeconds = preferences.getPlayerCacheTimeSeconds(),
-                    subtitleTextSize = preferences.getSubtitleTextSize(),
+                    subtitleTextSize = preferences.getSubtitleFontSizeScale().toString(),
                     subtitleTextColor = preferences.getSubtitleTextColor(),
                     subtitleBackgroundColor = preferences.getSubtitleBackgroundColor(),
                     subtitleEdgeType = preferences.getSubtitleEdgeType(),

@@ -271,7 +271,8 @@ private fun PlayerView.applySubtitlePreferences(playerPreferences: PlayerPrefere
     subtitleView?.apply {
         setApplyEmbeddedStyles(true)
         setApplyEmbeddedFontSizes(preserveStyles)
-        setFractionalTextSize(subtitleTextSizeFraction(playerPreferences.getSubtitleTextSize()))
+        val scaleFactor = (playerPreferences.getSubtitleFontSizeScale() * 0.1f).coerceIn(0.4f, 2.0f)
+        setFractionalTextSize(0.0533f * scaleFactor)
         setStyle(
             CaptionStyleCompat(
                 subtitleTextColorArgb(
@@ -281,7 +282,10 @@ private fun PlayerView.applySubtitlePreferences(playerPreferences: PlayerPrefere
                 subtitleBackgroundColorArgb(playerPreferences.getSubtitleBackgroundColor()),
                 android.graphics.Color.TRANSPARENT,
                 subtitleEdgeType(playerPreferences.getSubtitleEdgeType()),
-                subtitleEdgeColor(playerPreferences.getSubtitleEdgeType()),
+                subtitleEdgeColor(
+                    playerPreferences.getSubtitleEdgeType(),
+                    playerPreferences.getSubtitleTextColor()
+                ),
                 null
             )
         )
@@ -338,9 +342,12 @@ private fun subtitleEdgeType(edgeType: String): Int {
     }
 }
 
-private fun subtitleEdgeColor(edgeType: String): Int {
-    return if (edgeType == PlayerPreferences.SUBTITLE_EDGE_TYPE_NONE) {
-        android.graphics.Color.TRANSPARENT
+private fun subtitleEdgeColor(edgeType: String, textColor: String): Int {
+    if (edgeType == PlayerPreferences.SUBTITLE_EDGE_TYPE_NONE) {
+        return android.graphics.Color.TRANSPARENT
+    }
+    return if (textColor == PlayerPreferences.SUBTITLE_TEXT_COLOR_BLACK) {
+        android.graphics.Color.WHITE
     } else {
         android.graphics.Color.BLACK
     }
