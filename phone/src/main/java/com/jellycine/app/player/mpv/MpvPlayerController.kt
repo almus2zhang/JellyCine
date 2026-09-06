@@ -139,7 +139,8 @@ class MpvPlayerController(
 
         var adaptationNotice: String? = null
         val targetHwdec = if (isDolbyVision && deviceHdrSupport != com.jellycine.player.video.HdrCapabilityManager.HdrSupport.DOLBY_VISION) {
-            if (dvProfile == 5) {
+            val effectiveProfile = dvProfile ?: 5 // Default to 5 for safety to avoid purple/green tint on non-DV screen
+            if (effectiveProfile == 5) {
                 adaptationNotice = "dv_p5_software"
                 "no"
             } else {
@@ -152,6 +153,18 @@ class MpvPlayerController(
 
         mpv.setPropertyString("hwdec", targetHwdec)
         return adaptationNotice
+    }
+
+    fun detectRuntimeDvProfile(): Int? {
+        if (released) return null
+        val colormatrix = mpv.getPropertyString("video-params/colormatrix").orEmpty().lowercase()
+        if (colormatrix.contains("ipt") || colormatrix.contains("dolby") || colormatrix.contains("dovi")) {
+            return 5
+        }
+        if (colormatrix.contains("2020") || colormatrix.contains("709")) {
+            return 8
+        }
+        return null
     }
 
     fun load(

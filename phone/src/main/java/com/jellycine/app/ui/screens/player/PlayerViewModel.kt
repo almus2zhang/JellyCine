@@ -98,6 +98,7 @@ class PlayerViewModel @Inject constructor(
     private var communityPlaybackSegmentsJob: Job? = null
     private var spatialAudioAnalysisJob: Job? = null
     private var currentItemDetails: BaseItemDto? = null
+    private var currentPlaybackMediaSource: MediaSource? = null
     var discordPosterUrl: String? = null
         private set
     private var nextEpisodePrefetchJob: Job? = null
@@ -112,13 +113,29 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun resolveMpvHdrFormatLabel(): String {
-        return CodecCapabilityManager.detectBestSourceHDRFormat(apiMediaStreams)
+        val hints = listOfNotNull(
+            currentItemDetails?.name,
+            currentItemDetails?.originalTitle,
+            currentItemDetails?.path,
+            currentPlaybackMediaSource?.name,
+            currentPlaybackMediaSource?.path,
+            _playerState.value.mediaTitle
+        ).toTypedArray()
+        return CodecCapabilityManager.detectBestSourceHDRFormat(apiMediaStreams, *hints)
             .ifBlank { if (MPVPlayer.isHdr(apiMediaStreams)) "HDR" else "" }
     }
 
     private fun resolveExoHdrFormatLabel(): String {
+        val hints = listOfNotNull(
+            currentItemDetails?.name,
+            currentItemDetails?.originalTitle,
+            currentItemDetails?.path,
+            currentPlaybackMediaSource?.name,
+            currentPlaybackMediaSource?.path,
+            _playerState.value.mediaTitle
+        ).toTypedArray()
         val runtimeFormat = PlayerMetadata.currentPlaybackHdrFormat(exoPlayer)
-        val sourceFormat = CodecCapabilityManager.detectBestSourceHDRFormat(apiMediaStreams)
+        val sourceFormat = CodecCapabilityManager.detectBestSourceHDRFormat(apiMediaStreams, *hints)
 
         return when {
             runtimeFormat.isNotBlank() -> runtimeFormat
@@ -336,6 +353,7 @@ class PlayerViewModel @Inject constructor(
                     }
 
                     primaryMediaSource = playbackInfo.mediaSources?.firstOrNull()
+                    currentPlaybackMediaSource = primaryMediaSource
                     
                     apiMediaStreams = PlayerTrack.resolveApiMediaStreams(
                         itemDetails = itemDetails,
@@ -438,8 +456,16 @@ class PlayerViewModel @Inject constructor(
                     val selectedSubtitleStreamIndex = _preferredStreamIndexes.value.subtitleStreamIndex
                         ?: defaultSubtitleStreamIndex
                     val selectedVideoStream = apiMediaStreams?.firstOrNull { it.type.equals("Video", ignoreCase = true) }
-                    val isDv = selectedVideoStream?.let { CodecCapabilityManager.isDolbyVision(it) } ?: false
-                    val dvProfile = selectedVideoStream?.let { CodecCapabilityManager.detectDolbyVisionProfile(it) }
+                    val hints = listOfNotNull(
+                        currentItemDetails?.name,
+                        currentItemDetails?.originalTitle,
+                        currentItemDetails?.path,
+                        currentPlaybackMediaSource?.name,
+                        currentPlaybackMediaSource?.path,
+                        mediaTitle
+                    ).toTypedArray()
+                    val isDv = selectedVideoStream?.let { CodecCapabilityManager.isDolbyVision(it, *hints) } ?: false
+                    val dvProfile = selectedVideoStream?.let { CodecCapabilityManager.detectDolbyVisionProfile(it, *hints) }
                     val isHdr = resolveMpvHdrFormatLabel().isNotBlank()
                     val deviceHdrSupport = com.jellycine.player.video.HdrCapabilityManager.getDeviceHdrSupport(context)
 
@@ -579,6 +605,7 @@ class PlayerViewModel @Inject constructor(
                 hasHandledPlaybackCompletion = false
                 hasRenderedFirstFrame = false
                 currentItemDetails = null
+                currentPlaybackMediaSource = null
                 apiMediaStreams = null
                 defaultAudioStreamIndex = null
                 defaultSubtitleStreamIndex = null
@@ -1098,6 +1125,7 @@ class PlayerViewModel @Inject constructor(
         playbackReporter.reset()
         trackSelectionCoordinator.clear()
         apiMediaStreams = null
+        currentPlaybackMediaSource = null
         defaultAudioStreamIndex = null
         defaultSubtitleStreamIndex = null
         mpvExternalSubtitleUrls = emptyMap()
@@ -1278,6 +1306,19 @@ class PlayerViewModel @Inject constructor(
                     hasStartedPlayback = true,
                     duration = getDuration()
                 )
+                // Refine DV profile if MPV detects it from stream at runtime
+                val currentHdr = _playerState.value.hdrFormat
+                val isDv = currentHdr.contains("Dolby Vision", ignoreCase = true) ||
+                    currentHdr.startsWith("DV", ignoreCase = true)
+                if (isDv && !currentHdr.contains("P", ignoreCase = true)) {
+                    val runtimeProfile = mpvPlayer?.detectRuntimeDvProfile()
+                    if (runtimeProfile != null) {
+                        _playerState.value = _playerState.value.copy(
+                            hdrFormat = "Dolby Vision P$runtimeProfile",
+                            isHdrEnabled = true
+                        )
+                    }
+                }
                 if (!playbackReporter.hasReportedStart() && isPlayingNow()) {
                     playbackReporter.reportPlaybackStatus()
                 }

@@ -127,7 +127,7 @@ object CodecCapabilityManager {
     /**
      * Detect HDR format from video stream
      */
-    fun detectHDRFormat(videoStream: MediaStream): String {
+    fun detectHDRFormat(videoStream: MediaStream, vararg hints: String?): String {
         val codec = videoStream.codec?.lowercase().orEmpty()
         val codecTag = videoStream.codecTag?.lowercase().orEmpty()
         val videoRange = videoStream.videoRange?.lowercase().orEmpty()
@@ -141,8 +141,8 @@ object CodecCapabilityManager {
         val comment = videoStream.comment?.lowercase().orEmpty()
         
         // Check for Dolby Vision
-        if (isDolbyVision(videoStream)) {
-            val profileNum = detectDolbyVisionProfile(videoStream)
+        if (isDolbyVision(videoStream, *hints)) {
+            val profileNum = detectDolbyVisionProfile(videoStream, *hints)
             return if (profileNum != null) "Dolby Vision P$profileNum" else "Dolby Vision"
         }
 
@@ -174,12 +174,12 @@ object CodecCapabilityManager {
         return ""
     }
 
-    fun detectBestSourceHDRFormat(mediaStreams: List<MediaStream>?): String {
+    fun detectBestSourceHDRFormat(mediaStreams: List<MediaStream>?, vararg hints: String?): String {
         return mediaStreams
             .orEmpty()
             .asSequence()
             .filter { it.type.equals("Video", ignoreCase = true) }
-            .map { detectHDRFormat(it) }
+            .map { detectHDRFormat(it, *hints) }
             .filter { it.isNotBlank() }
             .maxByOrNull { sourceHdrFormatRank(it) }
             .orEmpty()
@@ -289,7 +289,7 @@ object CodecCapabilityManager {
         return Regex("""\bdv(?:\d+)?\b""").containsMatchIn(this)
     }
 
-    fun isDolbyVision(videoStream: MediaStream): Boolean {
+    fun isDolbyVision(videoStream: MediaStream, vararg hints: String?): Boolean {
         val codec = videoStream.codec?.lowercase().orEmpty()
         val codecTag = videoStream.codecTag?.lowercase().orEmpty()
         val videoRange = videoStream.videoRange?.lowercase().orEmpty()
@@ -299,6 +299,7 @@ object CodecCapabilityManager {
         val doviTitle = videoStream.videoDoViTitle?.lowercase().orEmpty()
         val displayTitle = videoStream.displayTitle?.lowercase().orEmpty()
         val comment = videoStream.comment?.lowercase().orEmpty()
+        val hintsText = hints.filterNotNull().joinToString(" ").lowercase()
 
         return videoRangeType.contains("dovi") ||
             videoRange.contains("dovi") ||
@@ -316,40 +317,107 @@ object CodecCapabilityManager {
             displayTitle.contains("dovi") ||
             comment.contains("dolby vision") ||
             comment.contains("dovi") ||
+            hintsText.contains("dolby vision") ||
+            hintsText.containsDoviToken() ||
             videoStream.dvProfile != null ||
             videoStream.rpuPresentFlag == 1
     }
 
-    fun detectDolbyVisionProfile(videoStream: MediaStream?): Int? {
-        if (videoStream == null) return null
-        if (videoStream.dvProfile != null && videoStream.dvProfile in 1..9) {
-            return videoStream.dvProfile
+    fun detectDolbyVisionProfile(videoStream: MediaStream?, vararg hints: String?): Int? {
+        if (videoStream == null && hints.all { it.isNullOrBlank() }) return null
+
+        // 1. Direct metadata profile
+        val directProfile = videoStream?.dvProfile
+        if (directProfile != null && directProfile in 1..9) {
+            return directProfile
         }
-        val profileStr = videoStream.profile.orEmpty()
-        Regex("""(?i)profile\s*0?(\d+)""").find(profileStr)?.let {
-            return it.groupValues[1].toIntOrNull()
+
+        // 2. Compatibility ID from Dolby Vision configuration record
+        when (videoStream?.dvBlSignalCompatibilityId) {
+            1 -> return 8 // HDR10 base layer
+            0, 6 -> return 5 // None / proprietary IPT base layer
+            2, 4 -> return 8 // SDR or HLG base layer
         }
-        Regex("""(?i)(?:dvhe|dvh1)\.0?(\d+)""").find(profileStr)?.let {
-            return it.groupValues[1].toIntOrNull()
-        }
+
+        // 3. Match explicit profile mentions across all metadata and hints
         val allText = listOfNotNull(
-            videoStream.videoDoViTitle,
-            videoStream.title,
-            videoStream.displayTitle,
-            videoStream.comment
+            videoStream?.videoDoViTitle,
+            videoStream?.title,
+            videoStream?.displayTitle,
+            videoStream?.comment,
+            videoStream?.profile,
+            videoStream?.codecTag,
+            videoStream?.codec,
+            *hints
         ).joinToString(" ")
-        Regex("""(?i)(?:profile|dovi|dv)\s*0?([4578])\b""").find(allText)?.let {
-            return it.groupValues[1].toIntOrNull()
+
+        // Patterns: "Profile 5", "DV P8", "DoVi P5", "DV.P7", "P5", "P8", "P7", "P08"
+        Regex("""(?i)(?:profile|dovi|dv|p)\s*0?([4578])\b""").find(allText)?.let {
+            it.groupValues[1].toIntOrNull()?.let { p -> return p }
         }
-        Regex("""(?i)\bP0?([4578])\b""").find(allText)?.let {
-            return it.groupValues[1].toIntOrNull()
+        // Patterns: "DV5", "DV8", "DV7", "DoVi5", "DoVi8"
+        Regex("""(?i)\b(?:dovi|dv)0?([4578])\b""").find(allText)?.let {
+            it.groupValues[1].toIntOrNull()?.let { p -> return p }
         }
-        if (videoStream.videoRangeType.equals("DOVIWithHDR10", ignoreCase = true)) {
+        // Patterns: "dvhe.05", "dvh1.08", "dvh1.07"
+        Regex("""(?i)(?:dvhe|dvh1|dva1|dvav)\.0?([4578])""").find(allText)?.let {
+            it.groupValues[1].toIntOrNull()?.let { p -> return p }
+        }
+
+        val codecTag = videoStream?.codecTag?.lowercase().orEmpty()
+        when {
+            codecTag.contains("05") -> return 5
+            codecTag.contains("08") -> return 8
+            codecTag.contains("07") -> return 7
+        }
+
+        // MEL / FEL is exclusively Profile 7
+        if (Regex("""(?i)\b(?:mel|fel)\b""").containsMatchIn(allText)) {
+            return 7
+        }
+
+        // 4. Check videoRangeType and videoRange
+        val videoRangeType = videoStream?.videoRangeType?.lowercase().orEmpty()
+        val videoRange = videoStream?.videoRange?.lowercase().orEmpty()
+        if (videoRangeType.contains("doviwithhdr10") || videoRange.contains("doviwithhdr10") ||
+            videoRangeType.contains("hdr10") || videoRange.contains("hdr10")) {
             return 8
         }
-        if (videoStream.videoRangeType.equals("DOVI", ignoreCase = true)) {
+        if (videoRangeType.contains("doviwithhlg") || videoRange.contains("doviwithhlg") ||
+            videoRangeType.contains("hlg") || videoRange.contains("hlg")) {
+            return 8
+        }
+        if (videoRangeType.contains("doviwithsdr") || videoRange.contains("doviwithsdr") ||
+            videoRangeType.contains("sdr") || videoRange.contains("sdr")) {
+            return 8
+        }
+
+        // 5. If it is Dolby Vision, analyze transfer function / colorspace / source type
+        if (videoRangeType.contains("dovi") || videoRange.contains("dovi") ||
+            (videoStream != null && isDolbyVision(videoStream, *hints))) {
+            val transfer = videoStream?.colorTransfer?.lowercase().orEmpty()
+            val space = videoStream?.colorSpace?.lowercase().orEmpty()
+
+            if (transfer.contains("smpte2084") || transfer.contains("2084")) {
+                if (space.contains("bt2020nc") || space.contains("bt2020c")) {
+                    return 8
+                }
+                if (space.contains("ipt")) {
+                    return 5
+                }
+            }
+
+            if (Regex("""(?i)\b(?:bluray|remux|uhd)\b""").containsMatchIn(allText)) {
+                return 7
+            }
+            if (Regex("""(?i)\b(?:web-?dl|webrip|web)\b""").containsMatchIn(allText)) {
+                return 5
+            }
+
+            // Default for pure DOVI (no HDR10 base layer flag)
             return 5
         }
+
         return null
     }
 
