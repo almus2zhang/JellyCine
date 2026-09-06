@@ -141,26 +141,12 @@ object CodecCapabilityManager {
         val comment = videoStream.comment?.lowercase().orEmpty()
         
         // Check for Dolby Vision
+        if (isDolbyVision(videoStream)) {
+            val profileNum = detectDolbyVisionProfile(videoStream)
+            return if (profileNum != null) "Dolby Vision P$profileNum" else "Dolby Vision"
+        }
+
         when {
-            videoRangeType.contains("dovi") ||
-            videoRange.contains("dovi") ||
-            title.contains("dolby vision") ||
-            title.containsDoviToken() ||
-            profile.contains("dolby vision") ||
-            profile.contains("dovi") ||
-            codec.contains("dvhe") ||
-            codec.contains("dvh1") ||
-            codecTag.contains("dvhe") ||
-            codecTag.contains("dvh1") ||
-            doviTitle.contains("dolby vision") ||
-            doviTitle.contains("dovi") ||
-            displayTitle.contains("dolby vision") ||
-            displayTitle.contains("dovi") ||
-            comment.contains("dolby vision") ||
-            comment.contains("dovi") ||
-            // Check for DV profile indicators
-            videoStream.dvProfile != null ||
-            videoStream.rpuPresentFlag == 1 -> return "Dolby Vision"
             
             // Check for HDR10+
             videoRangeType.contains("hdr10+") ||
@@ -303,12 +289,77 @@ object CodecCapabilityManager {
         return Regex("""\bdv(?:\d+)?\b""").containsMatchIn(this)
     }
 
+    fun isDolbyVision(videoStream: MediaStream): Boolean {
+        val codec = videoStream.codec?.lowercase().orEmpty()
+        val codecTag = videoStream.codecTag?.lowercase().orEmpty()
+        val videoRange = videoStream.videoRange?.lowercase().orEmpty()
+        val videoRangeType = videoStream.videoRangeType?.lowercase().orEmpty()
+        val title = videoStream.title?.lowercase().orEmpty()
+        val profile = videoStream.profile?.lowercase().orEmpty()
+        val doviTitle = videoStream.videoDoViTitle?.lowercase().orEmpty()
+        val displayTitle = videoStream.displayTitle?.lowercase().orEmpty()
+        val comment = videoStream.comment?.lowercase().orEmpty()
+
+        return videoRangeType.contains("dovi") ||
+            videoRange.contains("dovi") ||
+            title.contains("dolby vision") ||
+            title.containsDoviToken() ||
+            profile.contains("dolby vision") ||
+            profile.contains("dovi") ||
+            codec.contains("dvhe") ||
+            codec.contains("dvh1") ||
+            codecTag.contains("dvhe") ||
+            codecTag.contains("dvh1") ||
+            doviTitle.contains("dolby vision") ||
+            doviTitle.contains("dovi") ||
+            displayTitle.contains("dolby vision") ||
+            displayTitle.contains("dovi") ||
+            comment.contains("dolby vision") ||
+            comment.contains("dovi") ||
+            videoStream.dvProfile != null ||
+            videoStream.rpuPresentFlag == 1
+    }
+
+    fun detectDolbyVisionProfile(videoStream: MediaStream?): Int? {
+        if (videoStream == null) return null
+        if (videoStream.dvProfile != null && videoStream.dvProfile in 1..9) {
+            return videoStream.dvProfile
+        }
+        val profileStr = videoStream.profile.orEmpty()
+        Regex("""(?i)profile\s*0?(\d+)""").find(profileStr)?.let {
+            return it.groupValues[1].toIntOrNull()
+        }
+        Regex("""(?i)(?:dvhe|dvh1)\.0?(\d+)""").find(profileStr)?.let {
+            return it.groupValues[1].toIntOrNull()
+        }
+        val allText = listOfNotNull(
+            videoStream.videoDoViTitle,
+            videoStream.title,
+            videoStream.displayTitle,
+            videoStream.comment
+        ).joinToString(" ")
+        Regex("""(?i)(?:profile|dovi|dv)\s*0?([4578])\b""").find(allText)?.let {
+            return it.groupValues[1].toIntOrNull()
+        }
+        Regex("""(?i)\bP0?([4578])\b""").find(allText)?.let {
+            return it.groupValues[1].toIntOrNull()
+        }
+        if (videoStream.videoRangeType.equals("DOVIWithHDR10", ignoreCase = true)) {
+            return 8
+        }
+        if (videoStream.videoRangeType.equals("DOVI", ignoreCase = true)) {
+            return 5
+        }
+        return null
+    }
+
     private fun sourceHdrFormatRank(format: String): Int {
-        return when (format.lowercase()) {
-            "dolby vision" -> 4
-            "hdr10+" -> 3
-            "hdr10" -> 2
-            "hdr" -> 1
+        val lower = format.lowercase()
+        return when {
+            lower.startsWith("dolby vision") -> 4
+            lower.startsWith("hdr10+") -> 3
+            lower.startsWith("hdr10") -> 2
+            lower.startsWith("hdr") -> 1
             else -> 0
         }
     }

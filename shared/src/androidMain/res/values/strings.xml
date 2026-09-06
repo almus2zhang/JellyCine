@@ -205,6 +205,7 @@
     <string name="player_pip_rewind">Rewind</string>
     <string name="player_pip_forward">Fast Forward</string>
     <string name="player_buffer_speed">Buffer Speed</string>
+    <string name="player_dv_p5_notice">Dolby Vision (Profile 5) color correction enabled. If playback stutters, try switching quality to transcode.</string>
     <string name="player_settings_start_maximized">Start Maximized</string>
     <string name="player_settings_start_maximized_summary">Start video in fullscreen mode</string>
     <string name="player_settings_seek_backward">Seek Backward</string>

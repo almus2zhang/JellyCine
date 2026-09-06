@@ -224,8 +224,7 @@ private fun detectHdrBadgeText(videoStream: MediaStream?): String {
     val displayTitle = videoStream.displayTitle?.lowercase().orEmpty()
     val comment = videoStream.comment?.lowercase().orEmpty()
 
-    return when {
-        videoRangeType.contains("dovi") ||
+        val isDv = videoRangeType.contains("dovi") ||
             videoRange.contains("dovi") ||
             title.contains("dolby vision") ||
             profile.contains("dolby vision") ||
@@ -239,7 +238,14 @@ private fun detectHdrBadgeText(videoStream: MediaStream?): String {
             displayTitle.contains("dovi") ||
             comment.contains("dolby vision") ||
             comment.contains("dovi") ||
-            videoStream.dvProfile != null -> "Dolby Vision"
+            videoStream.dvProfile != null
+
+        if (isDv) {
+            val p = CodecCapabilityManager.detectDolbyVisionProfile(videoStream)
+            return if (p != null) "Dolby Vision P$p" else "Dolby Vision"
+        }
+
+        return when {
         videoRangeType.contains("hdr10+") ||
             videoRange.contains("hdr10+") ||
             title.contains("hdr10+") ||
@@ -293,11 +299,12 @@ private fun detectAudioChannelBadgeText(audioStream: MediaStream?): String? {
 }
 
 private fun hdrBadgeRank(text: String): Int {
-    return when (text.lowercase()) {
-        "dolby vision" -> 4
-        "hdr10+" -> 3
-        "hdr10" -> 2
-        "hdr" -> 1
+    val lower = text.lowercase()
+    return when {
+        lower.startsWith("dolby vision") -> 4
+        lower.startsWith("hdr10+") -> 3
+        lower.startsWith("hdr10") -> 2
+        lower.startsWith("hdr") -> 1
         else -> 0
     }
 }

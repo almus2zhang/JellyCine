@@ -437,7 +437,28 @@ class PlayerViewModel @Inject constructor(
                         ?: defaultAudioStreamIndex
                     val selectedSubtitleStreamIndex = _preferredStreamIndexes.value.subtitleStreamIndex
                         ?: defaultSubtitleStreamIndex
+                    val selectedVideoStream = apiMediaStreams?.firstOrNull { it.type.equals("Video", ignoreCase = true) }
+                    val isDv = selectedVideoStream?.let { CodecCapabilityManager.isDolbyVision(it) } ?: false
+                    val dvProfile = selectedVideoStream?.let { CodecCapabilityManager.detectDolbyVisionProfile(it) }
+                    val isHdr = resolveMpvHdrFormatLabel().isNotBlank()
+                    val deviceHdrSupport = com.jellycine.player.video.HdrCapabilityManager.getDeviceHdrSupport(context)
+
                     mpvPlayer = createMpvPlayer(context).also { player ->
+                        val adaptation = player.applyPlaybackAdaptation(
+                            isDolbyVision = isDv,
+                            dvProfile = dvProfile,
+                            isHdr = isHdr,
+                            deviceHdrSupport = deviceHdrSupport
+                        )
+                        if (adaptation == "dv_p5_software") {
+                            viewModelScope.launch(Dispatchers.Main) {
+                                android.widget.Toast.makeText(
+                                    context.applicationContext,
+                                    context.getString(com.jellycine.shared.R.string.player_dv_p5_notice),
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
                         player.load(
                             url = mediaItem.localConfiguration?.uri?.toString().orEmpty(),
                             subtitleUrls = mpvExternalSubtitleUrls.values.toList(),

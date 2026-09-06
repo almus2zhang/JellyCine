@@ -130,7 +130,10 @@ fun ControlsOverlay(
     val useHdr10PlusBadge = hdrBadgeLabel == "HDR10+"
     val useHdr10Badge = hdrBadgeLabel == "HDR10"
     val useHdrBadge = hdrBadgeLabel == "HDR"
-    val useDolbyVisionBadge = hdrBadgeLabel == "DV"
+    val useDolbyVisionBadge = hdrBadgeLabel.startsWith("DV")
+    val dvProfileText = if (useDolbyVisionBadge && hdrBadgeLabel.length > 2) {
+        hdrBadgeLabel.substring(2).trim()
+    } else ""
     val hdrChipShape = RoundedCornerShape(999.dp)
     val hdrChipColor = if (useDolbyVisionBadge) Color.White else Color(0xFFE8E8E8)
     val hdrChipHorizontalPadding = if (useDolbyVisionBadge) 5.dp else 8.dp
@@ -474,6 +477,15 @@ fun ControlsOverlay(
                                         )
                                         .height(if (useDolbyVisionBadge) 18.dp else 16.dp)
                                 )
+                                if (useDolbyVisionBadge && dvProfileText.isNotBlank()) {
+                                    Text(
+                                        text = dvProfileText,
+                                        color = Color.Black,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    )
+                                }
                             }
                         }
 
@@ -868,7 +880,13 @@ fun SeekBarPreview() {
 private fun osdHdrLabel(format: String): String {
     val trimmedFormat = format.trim()
     return when {
-        trimmedFormat.contains("dolby vision", ignoreCase = true) -> "DV"
+        trimmedFormat.contains("dolby vision", ignoreCase = true) ||
+            trimmedFormat.contains("dovi", ignoreCase = true) ||
+            trimmedFormat.startsWith("dv", ignoreCase = true) -> {
+            val pMatch = Regex("""(?i)(?:p|profile)\s*0?([4578])\b""").find(trimmedFormat)
+                ?: Regex("""(?i)\b0?([4578])\b""").find(trimmedFormat)
+            if (pMatch != null) "DV P${pMatch.groupValues[1]}" else "DV"
+        }
         trimmedFormat.contains("hdr10+", ignoreCase = true) -> "HDR10+"
         trimmedFormat.contains("hdr10", ignoreCase = true) -> "HDR10"
         trimmedFormat.equals("hdr", ignoreCase = true) -> "HDR"
@@ -877,7 +895,7 @@ private fun osdHdrLabel(format: String): String {
 }
 
 private fun osdDescription(label: String): String {
-    return if (label == "DV") "Dolby Vision" else label
+    return if (label.startsWith("DV")) "Dolby Vision" else label
 }
 
 private fun formatSpeed(bytesPerSecond: Long): String {

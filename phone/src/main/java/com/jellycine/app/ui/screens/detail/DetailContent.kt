@@ -981,22 +981,12 @@ fun DetailContent(
 
                                 if (codecBadges.hdrBadgeText.isNotBlank()) {
                                     item {
+                                        val isDolbyVision = codecBadges.hdrBadgeText.startsWith("Dolby Vision", ignoreCase = true)
                                         CapabilityBadge(
                                             text = codecBadges.hdrBadgeText,
-                                            icon = if (codecBadges.hdrBadgeText.equals(
-                                                    "Dolby Vision",
-                                                    ignoreCase = true
-                                                )
-                                            ) null else Icons.Rounded.HdrOn,
-                                            customIcon = if (codecBadges.hdrBadgeText.equals(
-                                                    "Dolby Vision",
-                                                    ignoreCase = true
-                                                )
-                                            ) R.drawable.ic_dolby_logo else null,
-                                            iconTintUnspecified = codecBadges.hdrBadgeText.equals(
-                                                "Dolby Vision",
-                                                ignoreCase = true
-                                            )
+                                            icon = if (isDolbyVision) null else Icons.Rounded.HdrOn,
+                                            customIcon = if (isDolbyVision) R.drawable.ic_dolby_logo else null,
+                                            iconTintUnspecified = isDolbyVision
                                         )
                                     }
                                 }

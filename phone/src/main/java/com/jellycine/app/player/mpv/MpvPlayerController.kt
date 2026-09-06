@@ -107,6 +107,53 @@ class MpvPlayerController(
         mpv.observeProperty("eof-reached", MpvFormat.MPV_FORMAT_FLAG)
     }
 
+    fun applyPlaybackAdaptation(
+        isDolbyVision: Boolean,
+        dvProfile: Int?,
+        isHdr: Boolean,
+        deviceHdrSupport: com.jellycine.player.video.HdrCapabilityManager.HdrSupport
+    ): String? {
+        if (released) return null
+
+        val userHwdec = playerPreferences.getMpvHardwareDecoding()
+        val userHdrToSdr = playerPreferences.getMpvHdrToSdrTonemapping()
+
+        val needsToneMapping = when {
+            isDolbyVision -> deviceHdrSupport != com.jellycine.player.video.HdrCapabilityManager.HdrSupport.DOLBY_VISION
+            isHdr -> deviceHdrSupport == com.jellycine.player.video.HdrCapabilityManager.HdrSupport.SDR
+            else -> false
+        } || userHdrToSdr
+
+        if (needsToneMapping) {
+            mpv.setPropertyString("target-prim", "bt.709")
+            mpv.setPropertyString("target-trc", "bt.1886")
+            mpv.setPropertyString("tone-mapping-mode", "hybrid")
+            mpv.setPropertyString("gamut-mapping-mode", "perceptual")
+            mpv.setPropertyString("hdr-compute-peak", "yes")
+        } else {
+            mpv.setPropertyString("target-prim", "auto")
+            mpv.setPropertyString("target-trc", "auto")
+            mpv.setPropertyString("tone-mapping-mode", "auto")
+            mpv.setPropertyString("gamut-mapping-mode", "auto")
+        }
+
+        var adaptationNotice: String? = null
+        val targetHwdec = if (isDolbyVision && deviceHdrSupport != com.jellycine.player.video.HdrCapabilityManager.HdrSupport.DOLBY_VISION) {
+            if (dvProfile == 5) {
+                adaptationNotice = "dv_p5_software"
+                "no"
+            } else {
+                // Profile 7, 8 or compatible with HDR10
+                if (userHwdec == "no") "no" else "mediacodec-copy"
+            }
+        } else {
+            userHwdec
+        }
+
+        mpv.setPropertyString("hwdec", targetHwdec)
+        return adaptationNotice
+    }
+
     fun load(
         url: String,
         subtitleUrls: List<String>,
