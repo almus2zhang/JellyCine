@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import com.jellycine.app.ui.screens.dashboard.favorites.FAVORITES_VIEW_ALL_PARENT_ID
 import com.jellycine.data.repository.AwardsRepositoryProvider
@@ -53,6 +55,7 @@ class ViewAllViewModel @Inject constructor(
     private var totalItems = 0
     private var hasMorePages = true
     private var currentRequestKey: String? = null
+    private var loadJob: Job? = null
 
     fun ensureItemsLoaded(
         contentType: ContentType,
@@ -71,7 +74,7 @@ class ViewAllViewModel @Inject constructor(
         } else {
             parentId
         }
-        val requestKey = "$contentType|${effectiveParentId.orEmpty()}|${_uiState.value.browseMode}|${genreId.orEmpty()}"
+        val requestKey = "$contentType|${effectiveParentId.orEmpty()}|${_uiState.value.browseMode}|${_uiState.value.sortBy}|${_uiState.value.sortOrder}|${genreId.orEmpty()}"
 
         if (currentRequestKey == requestKey && _items.value.isNotEmpty()) return
         loadItems(contentType, parentId, refresh = true, genreId = genreId)
@@ -89,9 +92,11 @@ class ViewAllViewModel @Inject constructor(
         } else {
             parentId
         }
-        currentRequestKey = "$contentType|${effectiveParentId.orEmpty()}|${_uiState.value.browseMode}|${_uiState.value.sortBy}|${_uiState.value.sortOrder}|${genreId.orEmpty()}"
+        val requestKey = "$contentType|${effectiveParentId.orEmpty()}|${_uiState.value.browseMode}|${_uiState.value.sortBy}|${_uiState.value.sortOrder}|${genreId.orEmpty()}"
+        currentRequestKey = requestKey
 
         if (refresh) {
+            loadJob?.cancel()
             currentPage = 0
             hasMorePages = true
         }
@@ -152,15 +157,24 @@ class ViewAllViewModel @Inject constructor(
                     items
                 }
                 _items.value = initialItems
-                totalItems = cachedResult?.totalRecordCount ?: initialItems.size
+                totalItems = cachedResult.totalRecordCount ?: initialItems.size
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    totalItems = totalItems
+                    totalItems = totalItems,
+                    error = null
+                )
+            } else if (refresh) {
+                _items.value = emptyList()
+                totalItems = 0
+                _uiState.value = _uiState.value.copy(
+                    isLoading = true,
+                    totalItems = 0,
+                    error = null
                 )
             }
         }
 
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = _items.value.isEmpty(), error = null)
 
             try {
@@ -307,6 +321,7 @@ class ViewAllViewModel @Inject constructor(
                                 (currentPage + 1) * currentLimit < totalItems
 
                             withContext(Dispatchers.Main) {
+                                if (currentRequestKey != requestKey) return@withContext
                                 val combinedItems = if (refresh) {
                                     newItems
                                 } else {
@@ -321,12 +336,14 @@ class ViewAllViewModel @Inject constructor(
                                 _uiState.value = _uiState.value.copy(
                                     isLoading = false,
                                     totalItems = totalItems,
-                                    hasMorePages = hasMorePages
+                                    hasMorePages = hasMorePages,
+                                    error = null
                                 )
                             }
                         },
                         onFailure = { exception ->
                             withContext(Dispatchers.Main) {
+                                if (currentRequestKey != requestKey) return@withContext
                                 _uiState.value = _uiState.value.copy(
                                     isLoading = false,
                                     error = if (_items.value.isEmpty()) exception.message ?: "Unknown error occurred" else null
@@ -335,11 +352,16 @@ class ViewAllViewModel @Inject constructor(
                         }
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = if (_items.value.isEmpty()) e.message ?: "Unknown error occurred" else null
-                )
+                withContext(Dispatchers.Main) {
+                    if (currentRequestKey != requestKey) return@withContext
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = if (_items.value.isEmpty()) e.message ?: "Unknown error occurred" else null
+                    )
+                }
             }
         }
     }
@@ -421,7 +443,22 @@ class ViewAllViewModel @Inject constructor(
         currentScrollIndex: Int = 0,
         currentScrollOffset: Int = 0
     ) {
+        if (folderId.isBlank()) return
         val currentStack = _uiState.value.folderStack
+
+        // Prevent entering the same folder if it's already the current active folder
+        if (currentStack.lastOrNull()?.id == folderId) {
+            return
+        }
+
+        // Prevent duplicate entries if folder already exists in history stack
+        val existingIndex = currentStack.indexOfFirst { it.id == folderId }
+        if (existingIndex >= 0) {
+            if (existingIndex == currentStack.size - 1) return
+            navigateToFolderIndex(existingIndex, contentType, rootParentId, genreId)
+            return
+        }
+
         val updatedStack = if (currentStack.isNotEmpty()) {
             val lastCrumb = currentStack.last()
             currentStack.dropLast(1) + lastCrumb.copy(
