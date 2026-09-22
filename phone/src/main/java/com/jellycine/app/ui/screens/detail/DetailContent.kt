@@ -126,6 +126,8 @@ fun DetailContent(
     }
     val mergeVersionsEnabled by preferences.MergeVersionsEnabled()
         .collectAsState(initial = preferences.isMergeVersionsEnabled())
+    val noImageMode by preferences.NoImageModeEnabled()
+        .collectAsState(initial = preferences.isNoImageModeEnabled())
     val shouldMergeVersions = forceMergeVersions || mergeVersionsEnabled
     val metadataScrollState = rememberScrollState()
     val detailListState = rememberLazyListState()
@@ -410,7 +412,8 @@ fun DetailContent(
         isWidescreenLayout = isWidescreenLayout,
         useTabletBackdropLayout = useTabletBackdropLayout,
         screenWidthDp = screenWidthDp,
-        screenHeightDp = screenHeightDp
+        screenHeightDp = screenHeightDp,
+        isNoImageMode = noImageMode
     )
     val detailActionButtonHeight = if (useTabletBackdropLayout) 40.dp else 46.dp
     val contentFadeStart = if (useTabletBackdropLayout && layout.backdropHeight.value > 0f) {
@@ -696,7 +699,7 @@ fun DetailContent(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        if (useTabletBackdropLayout) {
+        if (!noImageMode && useTabletBackdropLayout) {
             DetailBackdropHero(
                 imageUrl = backdropImageUrl,
                 contentDescription = item.name,
@@ -721,12 +724,12 @@ fun DetailContent(
             state = detailListState,
             modifier = Modifier
                 .fillMaxSize()
-                .background(if (useTabletBackdropLayout) Color.Transparent else Color.Black),
+                .background(if (!noImageMode && useTabletBackdropLayout) Color.Transparent else Color.Black),
             verticalArrangement = Arrangement.spacedBy(0.dp),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
 
-            if (!useTabletBackdropLayout) {
+            if (!noImageMode && !useTabletBackdropLayout) {
                 item {
                     DetailBackdropHero(
                         imageUrl = backdropImageUrl,
@@ -766,7 +769,21 @@ fun DetailContent(
                             Modifier.fillMaxWidth()
                         }
                     ) {
-                        if (reserveLogoSpace || showTitleFallback) {
+                        if (noImageMode) {
+                            Text(
+                                text = logoFallbackTitle,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                lineHeight = 28.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .then(overviewModifier)
+                                    .padding(bottom = 6.dp)
+                            )
+                        } else if (reserveLogoSpace || showTitleFallback) {
                             Box(
                                 modifier = Modifier
                                     .height(layout.logoContainerHeight)
@@ -1049,7 +1066,7 @@ fun DetailContent(
                             )
                         }
 
-                        if (isWidescreenLayout) {
+                        if (!noImageMode && isWidescreenLayout) {
                             DirectorCreditRow(
                                 label = directorCreditLabel,
                                 directors = directors,
@@ -1164,7 +1181,7 @@ fun DetailContent(
                             )
                         }
 
-                        if (!isWidescreenLayout) {
+                        if (!noImageMode && !isWidescreenLayout) {
                             DirectorCreditRow(
                                 label = directorCreditLabel,
                                 directors = directors,
@@ -1172,7 +1189,7 @@ fun DetailContent(
                             )
                         }
 
-                        if ((item.type == "Series" || isEpisode) && !item.people.isNullOrEmpty()) {
+                        if (!noImageMode && (item.type == "Series" || isEpisode) && !item.people.isNullOrEmpty()) {
                             BoxSetCastRow(
                                 people = item.people!!.filter { !it.name.isNullOrBlank() },
                                 mediaRepository = mediaRepository,
@@ -1189,7 +1206,7 @@ fun DetailContent(
                             )
                         }
 
-                        if (item.type == "BoxSet" && boxSetItems.isNotEmpty()) {
+                        if (!noImageMode && item.type == "BoxSet" && boxSetItems.isNotEmpty()) {
                             val boxSetCast = remember(boxSetItems) {
                                 boxSetItems.flatMap { it.people.orEmpty() }
                                     .filter { it.type == "Actor" && !it.id.isNullOrBlank() }
@@ -1306,7 +1323,7 @@ fun DetailContent(
                             }
                         }
 
-                        if (!item.people.isNullOrEmpty() && item.type != "BoxSet" && item.type != "Series" && !isEpisode) {
+                        if (!noImageMode && !item.people.isNullOrEmpty() && item.type != "BoxSet" && item.type != "Series" && !isEpisode) {
                             BoxSetCastRow(
                                 people = item.people!!.filter { !it.name.isNullOrBlank() },
                                 mediaRepository = mediaRepository,
@@ -1314,22 +1331,24 @@ fun DetailContent(
                             )
                         }
 
-                        TrailersExtrasSection(
-                            item = item,
-                            isSeerDetail = isSeerDetail,
-                            mediaRepository = mediaRepository,
-                            onExtraClick = onRemoteTrailerClick
-                        )
+                        if (!noImageMode) {
+                            TrailersExtrasSection(
+                                item = item,
+                                isSeerDetail = isSeerDetail,
+                                mediaRepository = mediaRepository,
+                                onExtraClick = onRemoteTrailerClick
+                            )
 
-                        Recommendations(
-                            item = item,
-                            directors = directors,
-                            isSeerDetail = isSeerDetail,
-                            activeServerId = activeServerId,
-                            mediaRepository = mediaRepository,
-                            seerrRepository = seerrRepository,
-                            onItemClick = onSimilarItemClick
-                        )
+                            Recommendations(
+                                item = item,
+                                directors = directors,
+                                isSeerDetail = isSeerDetail,
+                                activeServerId = activeServerId,
+                                mediaRepository = mediaRepository,
+                                seerrRepository = seerrRepository,
+                                onItemClick = onSimilarItemClick
+                            )
+                        }
                     }
                 }
             }
@@ -1340,7 +1359,7 @@ fun DetailContent(
             modifier = Modifier.align(Alignment.TopStart)
         )
 
-        if (!logoImageUrl.isNullOrBlank() && !logoLoadError) {
+        if (!noImageMode && !logoImageUrl.isNullOrBlank() && !logoLoadError) {
             CompactTopLogo(
                 imageUrl = logoImageUrl.orEmpty(),
                 contentDescription = item.name,
@@ -1359,7 +1378,7 @@ fun DetailContent(
 
         if (!isSeerDetail) {
             DetailActionsOverlay(
-                progress = detailLogoCompactProgress,
+                progress = if (noImageMode) 1f else detailLogoCompactProgress,
                 isWatched = isWatched,
                 onWatchedClick = ::toggleWatched,
                 onCastButtonClick = onCastButtonClick,

@@ -813,9 +813,26 @@ internal fun detailScreenLayoutSpec(
     isWidescreenLayout: Boolean,
     useTabletBackdropLayout: Boolean,
     screenWidthDp: Dp,
-    screenHeightDp: Dp
+    screenHeightDp: Dp,
+    isNoImageMode: Boolean = false
 ): DetailScreenLayoutSpec {
     val horizontalPadding = if (isWidescreenLayout) 30.dp else 14.dp
+
+    if (isNoImageMode) {
+        return DetailScreenLayoutSpec(
+            heroHeight = 0.dp,
+            backdropHeight = 0.dp,
+            headerOffset = 0.dp,
+            contentTopPadding = 56.dp,
+            horizontalPadding = horizontalPadding,
+            contentMaxWidth = detailContentMaxWidth(
+                screenWidthDp = screenWidthDp,
+                horizontalPadding = horizontalPadding
+            ),
+            logoContainerHeight = 0.dp,
+            logoBottomSpacing = 8.dp
+        )
+    }
 
     return DetailScreenLayoutSpec(
         heroHeight = 330.dp,

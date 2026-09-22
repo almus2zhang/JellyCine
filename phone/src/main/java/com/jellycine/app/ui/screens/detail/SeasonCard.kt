@@ -1,5 +1,6 @@
 package com.jellycine.app.ui.screens.detail
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -49,6 +50,8 @@ fun SeasonCard(
     val currentServerType by authRepository.getServerType().collectAsState(initial = null)
     val posterEnhancersEnabled by preferences.PosterEnhancersEnabled()
         .collectAsState(initial = preferences.isPosterEnhancersEnabled())
+    val noImageMode by preferences.NoImageModeEnabled()
+        .collectAsState(initial = preferences.isNoImageModeEnabled())
     val disableImageEnhancers = currentServerType.equals("EMBY", ignoreCase = true) && posterEnhancersEnabled
     var seasonImageCandidates by remember(season.id, season.seriesId, season.imageUrl) { mutableStateOf<List<String>>(emptyList()) }
     var seasonImageIndex by remember(season.id, season.seriesId, season.imageUrl) { mutableIntStateOf(0) }
@@ -59,6 +62,45 @@ fun SeasonCard(
     val canRequestSeason = !isAvailableLocally &&
         seasonRequestState == SeerrRequestState.NONE &&
         onRequestClick != null
+
+    if (noImageMode) {
+        Surface(
+            onClick = {
+                if (!isLoading) {
+                    if (isAvailableLocally) {
+                        onClick()
+                    } else if (canRequestSeason) {
+                        onRequestClick?.invoke()
+                    }
+                }
+            },
+            shape = RoundedCornerShape(10.dp),
+            color = Color(0xFF1E1E1E),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+            modifier = modifier.height(44.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = season.name ?: "Season",
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+                season.childCount?.let { count ->
+                    Text(
+                        text = "$count eps",
+                        fontSize = 11.5.sp,
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+        return
+    }
 
     LaunchedEffect(season.id, season.seriesId, season.imageUrl, disableImageEnhancers) {
         hasImageLoadError = false

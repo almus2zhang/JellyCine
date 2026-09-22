@@ -674,4 +674,10 @@
     <string name="player_settings_long_press_speed_gesture_summary">长按屏幕时临时以倍速播放，松手恢复正常</string>
     <string name="player_settings_long_press_speed">长按播放倍速</string>
     <string name="player_speed_indicator">%s 倍速播放中</string>
+
+    <!-- No-Image Mode -->
+    <string name="no_image_mode">无图模式</string>
+    <string name="no_image_mode_desc">不显示任何图片，以极简文本横幅布局呈现</string>
+    <string name="no_image_mode_on">已开启无图模式</string>
+    <string name="no_image_mode_off">已退出无图模式</string>
 </resources>

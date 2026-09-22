@@ -71,6 +71,7 @@ import coil3.imageLoader
 import coil3.request.*
 import com.jellycine.shared.R
 import com.jellycine.app.ui.components.common.DynamicServerRefreshButton
+import com.jellycine.app.ui.components.common.NoImageModeToggleButton
 import com.jellycine.app.ui.components.common.ScreenCastButton
 import com.jellycine.app.ui.screens.auth.ProfileImageLoader
 import com.jellycine.shared.util.image.imageTagFor
@@ -626,6 +627,9 @@ fun FeatureTab(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    NoImageModeToggleButton(
+                        size = 34.dp
+                    )
                     val isDynamic301Server = authRepository.is301Url(sessionSnapshot.sourceUrl) ||
                         authRepository.is301Url(sessionSnapshot.serverUrl)
                     if (isDynamic301Server) {

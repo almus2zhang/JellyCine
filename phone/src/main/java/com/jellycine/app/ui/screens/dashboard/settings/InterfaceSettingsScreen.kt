@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.Business
+import androidx.compose.material.icons.rounded.HideImage
 import androidx.compose.material.icons.rounded.MergeType
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.SkipNext
@@ -73,6 +74,10 @@ fun InterfaceSettingsScreen(
     val currentServerType by authRepository.getServerType().collectAsStateWithLifecycle(initialValue = null)
     val isEmbyServer = currentServerType.equals("EMBY", ignoreCase = true)
     val isSeerrConnected = seerrRepository.getSavedConnectionInfo(activeServerId)?.isVerified == true
+    val noImageMode by preferences.NoImageModeEnabled()
+        .collectAsStateWithLifecycle(
+            initialValue = preferences.isNoImageModeEnabled()
+        )
     val featureCarouselEnabled by preferences.FeatureCarouselEnabled()
         .collectAsStateWithLifecycle(
             initialValue = preferences.isFeatureCarouselEnabled()
@@ -153,6 +158,18 @@ fun InterfaceSettingsScreen(
         ) {
             item {
                 InterfaceSection {
+                    InterfaceSwitchItem(
+                        icon = Icons.Rounded.HideImage,
+                        title = stringResource(R.string.no_image_mode),
+                        subtitle = stringResource(R.string.no_image_mode_desc),
+                        checked = noImageMode,
+                        onCheckedChange = preferences::setNoImageModeEnabled,
+                        accentColor = Color(0xFF10B981)
+                    )
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    )
                     FeatureCarouselSettingsItem(
                         icon = Icons.Rounded.ViewCarousel,
                         title = stringResource(R.string.interface_feature_carousel),

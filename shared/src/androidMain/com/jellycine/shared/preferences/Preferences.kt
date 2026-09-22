@@ -27,6 +27,7 @@ class Preferences(context: Context) {
         private const val KEY_DISCORD_RPC_ENABLED = "discord_rpc_enabled"
         private const val KEY_FOLDER_VIEW_LAYOUT_MODE = "folder_view_layout_mode"
         private const val KEY_FOLDER_VIEW_DIRECT_PLAY = "folder_view_direct_play"
+        private const val KEY_NO_IMAGE_MODE_ENABLED = "no_image_mode_enabled"
 
         const val FOLDER_LAYOUT_MODE_GRID = "grid"
         const val FOLDER_LAYOUT_MODE_LIST = "list"
@@ -294,6 +295,27 @@ class Preferences(context: Context) {
     fun setFolderViewDirectPlayEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_FOLDER_VIEW_DIRECT_PLAY, enabled).apply()
     }
+
+    fun isNoImageModeEnabled(): Boolean {
+        return prefs.getBoolean(KEY_NO_IMAGE_MODE_ENABLED, false)
+    }
+
+    fun setNoImageModeEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_NO_IMAGE_MODE_ENABLED, enabled).apply()
+    }
+
+    fun NoImageModeEnabled(): Flow<Boolean> = callbackFlow {
+        trySend(isNoImageModeEnabled())
+
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_NO_IMAGE_MODE_ENABLED) {
+                trySend(isNoImageModeEnabled())
+            }
+        }
+
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.distinctUntilChanged()
 
     private fun normalizeFeatureCarouselHeight(height: String?): String {
         return when (height) {

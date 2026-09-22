@@ -37,10 +37,15 @@ import androidx.compose.ui.unit.sp
 import com.jellycine.app.download.DownloadRepositoryProvider
 import com.jellycine.shared.preferences.Preferences
 import com.jellycine.shared.util.image.JellyfinPosterImage
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Check
+import java.util.Locale
 import com.jellycine.app.cast.CastController
 import com.jellycine.app.ui.screens.cast.CastPlayback
 import com.jellycine.app.ui.screens.cast.loadCastPlaybackData
 import com.jellycine.app.ui.components.common.DynamicServerRefreshButton
+import com.jellycine.app.ui.components.common.NoImageModeToggleButton
 import com.jellycine.app.ui.components.common.ScreenCastButton
 import com.jellycine.shared.ui.components.common.*
 import com.jellycine.data.model.BaseItemDto
@@ -1177,10 +1182,15 @@ fun Dashboard(
     val isNetworkAvailable by networkAvailabilityFlow.collectAsStateWithLifecycle(
         initialValue = NetworkModule.isInternetAvailable(appContext)
     )
-    val featureCarouselEnabled by preferences.FeatureCarouselEnabled()
+    val noImageMode by preferences.NoImageModeEnabled()
+        .collectAsStateWithLifecycle(
+            initialValue = preferences.isNoImageModeEnabled()
+        )
+    val featureCarouselSettingEnabled by preferences.FeatureCarouselEnabled()
         .collectAsStateWithLifecycle(
             initialValue = preferences.isFeatureCarouselEnabled()
         )
+    val featureCarouselEnabled = featureCarouselSettingEnabled && !noImageMode
     val featureCarouselHeight by preferences.FeatureCarouselHeight()
         .collectAsStateWithLifecycle(
             initialValue = preferences.getFeatureCarouselHeight()
@@ -2236,10 +2246,18 @@ private fun BrandHeader(
             val isDynamic301Server = authRepository.is301Url(sessionSnapshot.sourceUrl) ||
                 authRepository.is301Url(sessionSnapshot.serverUrl)
 
+            val preferences = remember { Preferences(context) }
+            val noImageMode by preferences.NoImageModeEnabled().collectAsState(
+                initial = preferences.isNoImageModeEnabled()
+            )
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                NoImageModeToggleButton(
+                    size = 34.dp
+                )
                 if (isDynamic301Server) {
                     DynamicServerRefreshButton(
                         size = 34.dp
@@ -2250,7 +2268,7 @@ private fun BrandHeader(
                     size = 34.dp
                 )
                 UserProfileAvatar(
-                    imageUrl = userImageUrl,
+                    imageUrl = if (noImageMode) null else userImageUrl,
                     serverTypeRaw = userServerTypeRaw,
                     onClick = { onProfileClick?.invoke() },
                     modifier = Modifier.size(34.dp)
@@ -3064,6 +3082,151 @@ private fun BurstLibrarySection(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+internal fun NoImageBannerItemCard(
+    item: BaseItemDto,
+    displayName: String,
+    modifier: Modifier = Modifier,
+    useLandscapeLayout: Boolean = false,
+    onClick: () -> Unit = {}
+) {
+    val stableItem = remember(item.id, item.userData) { StableBaseItem.from(item) }
+    val bannerWidth = if (useLandscapeLayout) 230.dp else 190.dp
+    val bannerHeight = 56.dp
+
+    val episodeCount = when {
+        item.type == "Series" && item.userData?.unplayedItemCount != null -> item.userData?.unplayedItemCount
+        item.type == "Series" && item.episodeCount != null && item.episodeCount!! > 0 -> item.episodeCount!!
+        item.type == "Series" && item.recursiveItemCount != null && item.recursiveItemCount!! > 0 -> item.recursiveItemCount!!
+        else -> null
+    }
+
+    val isFullyWatched = item.type == "Series" &&
+        item.userData?.unplayedItemCount == 0
+
+    val yearText = item.productionYear?.toString() ?: item.premiereDate?.take(4)
+
+    Card(
+        modifier = modifier
+            .width(bannerWidth)
+            .height(bannerHeight),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1E1E1E)
+        ),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        onClick = onClick
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = displayName,
+                        color = Color.White,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        yearText?.let { year ->
+                            Text(
+                                text = year,
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 11.5.sp,
+                                maxLines = 1
+                            )
+                        }
+                        item.communityRating?.let { rating ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Star,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFFB800),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Text(
+                                    text = String.format(Locale.US, "%.1f", rating),
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        if (item.type == "Episode") {
+                            val s = item.parentIndexNumber
+                            val e = item.indexNumber
+                            if (s != null && e != null) {
+                                Text(
+                                    text = "S${s}:E${e}",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (episodeCount != null && episodeCount > 0) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.padding(start = 6.dp)
+                    ) {
+                        Text(
+                            text = "$episodeCount",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                } else if (isFullyWatched || (episodeCount == null && stableItem.isWatched)) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = "Watched",
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .size(16.dp)
+                    )
+                }
+            }
+
+            val positionTicks = item.userData?.playbackPositionTicks ?: 0L
+            val totalTicks = item.runTimeTicks ?: 0L
+            if (positionTicks > 0 && totalTicks > 0) {
+                val progress = (positionTicks.toFloat() / totalTicks.toFloat()).coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth(progress)
+                        .height(2.5.dp)
+                        .background(MaterialTheme.colorScheme.primary)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 internal fun LibraryItemCard(
     item: BaseItemDto,
     modifier: Modifier = Modifier,
@@ -3073,6 +3236,11 @@ internal fun LibraryItemCard(
     watchedFeedStyle: Boolean = false,
     onClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val preferences = remember { Preferences(context) }
+    val noImageMode by preferences.NoImageModeEnabled()
+        .collectAsState(initial = preferences.isNoImageModeEnabled())
+
     val stableItem = remember(item.id, item.userData) { StableBaseItem.from(item) }
     val useWatchedEpisodeImage = watchedFeedStyle && item.type == "Episode"
     val useWatchedSeriesBadge = watchedFeedStyle && item.type == "Series"
@@ -3086,6 +3254,17 @@ internal fun LibraryItemCard(
             unknownTitle = unknownTitle,
             unknownEpisode = unknownEpisode
         )
+    }
+
+    if (noImageMode) {
+        NoImageBannerItemCard(
+            item = item,
+            displayName = displayName,
+            modifier = modifier,
+            useLandscapeLayout = useLandscapeLayout || useWatchedEpisodeImage,
+            onClick = onClick
+        )
+        return
     }
 
     val landscapeLayout = useLandscapeLayout || useWatchedEpisodeImage

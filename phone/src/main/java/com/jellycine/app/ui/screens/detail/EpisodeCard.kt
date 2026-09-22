@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import com.jellycine.shared.preferences.Preferences
 import com.jellycine.shared.util.image.JellyfinPosterImage
 import com.jellycine.shared.util.image.getBackdrop
 import com.jellycine.shared.ui.components.common.AnimatedCard
@@ -44,11 +45,17 @@ fun EpisodeCard(
     onClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val preferences = remember { Preferences(context) }
+    val noImageMode by preferences.NoImageModeEnabled()
+        .collectAsState(initial = preferences.isNoImageModeEnabled())
     var episodeImageUrl by remember(episode.id) { mutableStateOf<String?>(null) }
     var hasImageLoadError by remember(episode.id) { mutableStateOf(false) }
 
-
-    LaunchedEffect(episode.id) {
+    LaunchedEffect(episode.id, noImageMode) {
+        if (noImageMode) {
+            episodeImageUrl = null
+            return@LaunchedEffect
+        }
         episodeImageUrl = getBackdrop(
             episode = episode,
             mediaRepository = mediaRepository,
@@ -70,15 +77,17 @@ fun EpisodeCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = if (noImageMode) Alignment.CenterVertically else Alignment.Top
         ) {
-            // Episode thumbnail
-            Box(
-                modifier = Modifier
-                    .width(120.dp)
-                    .height(68.dp)
-                    .clip(RoundedCornerShape(8.dp))
-            ) {
+            if (!noImageMode) {
+                // Episode thumbnail
+                Box(
+                    modifier = Modifier
+                        .width(120.dp)
+                        .height(68.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                ) {
                 if (episodeImageUrl != null && !hasImageLoadError) {
                     JellyfinPosterImage(
                         context = context,
@@ -161,6 +170,25 @@ fun EpisodeCard(
                     }
                 }
             }
+        } else {
+            Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF2A2A2A),
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.PlayArrow,
+                            contentDescription = "Play",
+                            tint = Color.White.copy(alpha = 0.8f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
 
             // Episode info
             Column(
@@ -191,6 +219,15 @@ fun EpisodeCard(
                         lineHeight = 18.sp,
                         modifier = Modifier.weight(1f)
                     )
+
+                    if (noImageMode && episode.userData?.played == true) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = "Watched",
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
 
                 // Episode metadata

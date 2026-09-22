@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jellycine.shared.R
+import com.jellycine.shared.preferences.Preferences
 import com.jellycine.app.download.DownloadRepositoryProvider
 import com.jellycine.app.ui.components.common.BackButton
 import com.jellycine.app.ui.components.common.BackButton
@@ -76,6 +77,9 @@ fun SeasonDetailScreen(
     )
     val mediaRepository = remember { MediaRepositoryProvider.getInstance(context) }
     val downloadRepository = remember { DownloadRepositoryProvider.getInstance(context) }
+    val preferences = remember { Preferences(context) }
+    val noImageMode by preferences.NoImageModeEnabled()
+        .collectAsState(initial = preferences.isNoImageModeEnabled())
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     
@@ -276,38 +280,43 @@ fun SeasonDetailScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black),
-                contentPadding = PaddingValues(bottom = 24.dp),
+                contentPadding = PaddingValues(
+                    top = if (noImageMode) 56.dp else 0.dp,
+                    bottom = 24.dp
+                ),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        DetailBackdropHero(
-                            imageUrl = currentHeroImageUrl,
-                            contentDescription = seasonName,
-                            heroHeight = heroHeight,
-                            bottomFadeHeight = 120.dp,
-                            onErrorStateChange = { hasError ->
-                                if (hasError && heroImageIndex < heroImageCandidates.lastIndex) {
-                                    heroImageIndex += 1
+                        if (!noImageMode) {
+                            DetailBackdropHero(
+                                imageUrl = currentHeroImageUrl,
+                                contentDescription = seasonName,
+                                heroHeight = heroHeight,
+                                bottomFadeHeight = 120.dp,
+                                onErrorStateChange = { hasError ->
+                                    if (hasError && heroImageIndex < heroImageCandidates.lastIndex) {
+                                        heroImageIndex += 1
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
 
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .offset(y = (-22).dp)
+                                .then(if (noImageMode) Modifier else Modifier.offset(y = (-22).dp))
                                 .padding(horizontal = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(0.86f)
-                                    .height(58.dp)
+                                    .then(if (noImageMode) Modifier.wrapContentHeight() else Modifier.height(58.dp))
                                     .then(seriesOverviewModifier),
                                 contentAlignment = Alignment.CenterStart
                             ) {
-                                if (showLogoImage) {
+                                if (!noImageMode && showLogoImage) {
                                     JellyfinPosterImage(
                                         context = context,
                                         imageUrl = currentLogoImageUrl,
@@ -329,7 +338,7 @@ fun SeasonDetailScreen(
                                             }
                                         }
                                     )
-                                } else if (!reserveLogoSpace) {
+                                } else if (noImageMode || !reserveLogoSpace) {
                                     Text(
                                         text = fallbackHeaderTitle,
                                         fontSize = 17.sp,
@@ -505,21 +514,23 @@ fun SeasonDetailScreen(
                 modifier = Modifier.align(Alignment.TopStart)
             )
 
-            currentLogoImageUrl?.takeIf { showLogoImage }?.let { logoUrl ->
-                CompactTopLogo(
-                    imageUrl = logoUrl,
-                    contentDescription = seasonName,
-                    progress = logoCompactProgress,
-                    isTablet = useTabletBackdropLayout,
-                    onClick = {
-                        coroutineScope.launch {
-                            listState.animateScrollToItem(0)
-                        }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 48.dp)
-                )
+            if (!noImageMode) {
+                currentLogoImageUrl?.takeIf { showLogoImage }?.let { logoUrl ->
+                    CompactTopLogo(
+                        imageUrl = logoUrl,
+                        contentDescription = seasonName,
+                        progress = logoCompactProgress,
+                        isTablet = useTabletBackdropLayout,
+                        onClick = {
+                            coroutineScope.launch {
+                                listState.animateScrollToItem(0)
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 48.dp)
+                    )
+                }
             }
             }
         }
