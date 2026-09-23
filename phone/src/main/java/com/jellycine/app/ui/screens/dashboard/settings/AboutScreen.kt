@@ -25,27 +25,39 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Gavel
+import androidx.compose.material.icons.rounded.InstallMobile
 import androidx.compose.material.icons.rounded.Policy
 import androidx.compose.material.icons.rounded.StarRate
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -56,7 +68,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.jellycine.app.BuildConfig
+import com.jellycine.app.ota.OtaUpdateChecker
 import com.jellycine.shared.R
+import kotlinx.coroutines.launch
 
 private const val GithubUrl = "https://github.com/sureshfizzy/JellyCine"
 private const val PrivacyUrl = "https://github.com/sureshfizzy/JellyCine/blob/main/PRIVACY"
@@ -80,6 +94,48 @@ fun AboutScreen(
     onBackPressed: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val otaChecker = remember { OtaUpdateChecker(context) }
+
+    var updateStatus by remember {
+        mutableStateOf<OtaUpdateChecker.UpdateStatus>(OtaUpdateChecker.UpdateStatus.NoUpdate)
+    }
+    var isChecking by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableIntStateOf(0) }
+    var isDownloading by remember { mutableStateOf(false) }
+
+    // Auto-check for updates when entering the screen
+    LaunchedEffect(Unit) {
+        isChecking = true
+        updateStatus = otaChecker.checkForUpdate()
+        isChecking = false
+    }
+
+    fun performCheck() {
+        scope.launch {
+            isChecking = true
+            updateStatus = otaChecker.checkForUpdate()
+            isChecking = false
+        }
+    }
+
+    fun performDownload(url: String) {
+        scope.launch {
+            isDownloading = true
+            downloadProgress = 0
+            val result = otaChecker.downloadApk(url) { progress ->
+                downloadProgress = progress
+            }
+            isDownloading = false
+            result.onSuccess { apkFile ->
+                updateStatus = OtaUpdateChecker.UpdateStatus.ReadyToInstall(apkFile)
+            }.onFailure { e ->
+                updateStatus = OtaUpdateChecker.UpdateStatus.Error(
+                    e.message ?: "Download failed"
+                )
+            }
+        }
+    }
 
     Scaffold(
         containerColor = Color.Black,
@@ -122,6 +178,20 @@ fun AboutScreen(
                     onGithubClick = { openUrl(context, GithubUrl) },
                     onCoffeeClick = { openUrl(context, BuyMeACoffeeUrl) },
                     onPatreonClick = { openUrl(context, PatreonUrl) }
+                )
+            }
+
+            // — OTA Update Section —
+            item { AboutSectionLabel(stringResource(R.string.ota_section_update)) }
+            item {
+                OtaUpdateCard(
+                    updateStatus = updateStatus,
+                    isChecking = isChecking,
+                    isDownloading = isDownloading,
+                    downloadProgress = downloadProgress,
+                    onCheckClick = { performCheck() },
+                    onDownloadClick = { url -> performDownload(url) },
+                    onInstallClick = { apkFile -> otaChecker.installApk(apkFile) }
                 )
             }
 
@@ -329,6 +399,232 @@ private fun AboutActionRow(
             contentDescription = title,
             tint = Color.White.copy(alpha = 0.42f)
         )
+    }
+}
+
+@Composable
+private fun OtaUpdateCard(
+    updateStatus: OtaUpdateChecker.UpdateStatus,
+    isChecking: Boolean,
+    isDownloading: Boolean,
+    downloadProgress: Int,
+    onCheckClick: () -> Unit,
+    onDownloadClick: (String) -> Unit,
+    onInstallClick: (java.io.File) -> Unit
+) {
+    AboutSectionCard {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Current status display
+            when {
+                isChecking -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = AboutAccent,
+                            strokeWidth = 2.dp
+                        )
+                        Text(
+                            text = stringResource(R.string.ota_checking),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = AboutSecondaryText
+                        )
+                    }
+                }
+
+                isDownloading -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            color = AboutAccent.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Download,
+                                    contentDescription = null,
+                                    tint = AboutAccent,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.ota_downloading, downloadProgress),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            LinearProgressIndicator(
+                                progress = { downloadProgress / 100f },
+                                modifier = Modifier.fillMaxWidth(),
+                                color = AboutAccent,
+                                trackColor = AboutBorderColor,
+                                strokeCap = StrokeCap.Round,
+                            )
+                        }
+                    }
+                }
+
+                updateStatus is OtaUpdateChecker.UpdateStatus.UpdateAvailable -> {
+                    val info = updateStatus.info
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onDownloadClick(info.apkUrl) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            color = Color(0xFF2E7D32).copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Download,
+                                    contentDescription = null,
+                                    tint = Color(0xFF66BB6A),
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.ota_new_version, info.versionName),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White
+                            )
+                            if (info.changelog.isNotBlank()) {
+                                Text(
+                                    text = info.changelog,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = AboutSecondaryText
+                                )
+                            }
+                            Text(
+                                text = stringResource(R.string.ota_download),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AboutAccent
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.42f)
+                        )
+                    }
+                }
+
+                updateStatus is OtaUpdateChecker.UpdateStatus.ReadyToInstall -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onInstallClick(updateStatus.apkFile) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            color = Color(0xFF2E7D32).copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.InstallMobile,
+                                    contentDescription = null,
+                                    tint = Color(0xFF66BB6A),
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.ota_install),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.42f)
+                        )
+                    }
+                }
+
+                updateStatus is OtaUpdateChecker.UpdateStatus.Error -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onCheckClick),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            color = Color(0xFFC62828).copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.SystemUpdate,
+                                    contentDescription = null,
+                                    tint = Color(0xFFEF5350),
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.ota_error),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White
+                            )
+                            Text(
+                                text = updateStatus.message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AboutSecondaryText
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.42f)
+                        )
+                    }
+                }
+
+                // NoUpdate — show check button
+                else -> {
+                    AboutActionRow(
+                        icon = Icons.Rounded.SystemUpdate,
+                        title = stringResource(R.string.ota_check_update),
+                        subtitle = stringResource(R.string.ota_latest_version),
+                        onClick = onCheckClick
+                    )
+                }
+            }
+        }
     }
 }
 

@@ -2,6 +2,7 @@ package com.jellycine.app.ui.screens.detail
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -10,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -490,7 +492,8 @@ fun SeasonDetailScreen(
                 if (isLoading) {
                     items(4) {
                         EpisodeCardSkeleton(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            noImageMode = noImageMode
                         )
                     }
                 } else {
@@ -499,6 +502,7 @@ fun SeasonDetailScreen(
                             episode = episode,
                             mediaRepository = mediaRepository,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            noImageMode = noImageMode,
                             onClick = {
                                 episode.id?.let { episodeId ->
                                     onEpisodeClick(episodeId)
@@ -673,12 +677,17 @@ private fun EpisodeListItem(
     episode: BaseItemDto,
     mediaRepository: MediaRepository,
     modifier: Modifier = Modifier,
+    noImageMode: Boolean = false,
     onClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var episodeImageUrl by remember(episode.id) { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(episode.id) {
+    LaunchedEffect(episode.id, noImageMode) {
+        if (noImageMode) {
+            episodeImageUrl = null
+            return@LaunchedEffect
+        }
         episodeImageUrl = getBackdrop(
             episode = episode,
             mediaRepository = mediaRepository,
@@ -691,76 +700,140 @@ private fun EpisodeListItem(
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (noImageMode) Color(0xFF1E1E1E) else Color.Transparent
+        ),
+        border = if (noImageMode) BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)) else null
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.Top
+        if (noImageMode) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .width(130.dp)
-                        .height(74.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF1E1E1E))
-                ) {
-                    JellyfinPosterImage(
-                        context = context,
-                        imageUrl = episodeImageUrl,
-                        contentDescription = episode.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-
-                    if (episode.userData?.played == true) {
-                        WatchedIndicatorBadge(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(5.dp)
-                        )
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = buildString {
                             episode.indexNumber?.let { append("$it. ") }
                             append(episode.name ?: "Unknown Episode")
                         },
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         lineHeight = 20.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
 
-                    episode.runTimeTicks?.let { ticks ->
-                        Text(
-                            text = CodecUtils.formatRuntime(ticks),
-                            fontSize = 14.sp,
-                            color = Color.White.copy(alpha = 0.82f),
-                            fontWeight = FontWeight.Medium
+                    if (episode.userData?.played == true) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = "Watched",
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .size(16.dp)
                         )
                     }
                 }
-            }
 
-            episode.overview?.takeIf { it.isNotBlank() }?.let { overview ->
-                Text(
-                    text = overview,
-                    fontSize = 14.sp,
-                    lineHeight = 18.sp,
-                    color = Color.White.copy(alpha = 0.78f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                episode.runTimeTicks?.let { ticks ->
+                    Text(
+                        text = CodecUtils.formatRuntime(ticks),
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontWeight = FontWeight.Normal
+                    )
+                }
+
+                episode.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+                    Text(
+                        text = overview,
+                        fontSize = 12.5.sp,
+                        lineHeight = 17.sp,
+                        color = Color.White.copy(alpha = 0.72f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        } else {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(130.dp)
+                            .height(74.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF1E1E1E))
+                    ) {
+                        JellyfinPosterImage(
+                            context = context,
+                            imageUrl = episodeImageUrl,
+                            contentDescription = episode.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+
+                        if (episode.userData?.played == true) {
+                            WatchedIndicatorBadge(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(5.dp)
+                            )
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = buildString {
+                                episode.indexNumber?.let { append("$it. ") }
+                                append(episode.name ?: "Unknown Episode")
+                            },
+                            fontSize = 16.sp,
+                            lineHeight = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        episode.runTimeTicks?.let { ticks ->
+                            Text(
+                                text = CodecUtils.formatRuntime(ticks),
+                                fontSize = 14.sp,
+                                color = Color.White.copy(alpha = 0.82f),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                episode.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+                    Text(
+                        text = overview,
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
+                        color = Color.White.copy(alpha = 0.78f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }

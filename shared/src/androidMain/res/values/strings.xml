@@ -693,4 +693,17 @@
     <string name="no_image_mode_desc">Hide all images and display minimalist text layout</string>
     <string name="no_image_mode_on">No-Image Mode enabled</string>
     <string name="no_image_mode_off">No-Image Mode disabled</string>
+
+    <!-- OTA Update -->
+    <string name="ota_section_update">App Update</string>
+    <string name="ota_check_update">Check for Updates</string>
+    <string name="ota_check_update_subtitle">Check if a new version is available</string>
+    <string name="ota_checking">Checking…</string>
+    <string name="ota_latest_version">You are on the latest version</string>
+    <string name="ota_new_version">New version %s available</string>
+    <string name="ota_download">Download Update</string>
+    <string name="ota_downloading">Downloading %d%%</string>
+    <string name="ota_install">Install Update</string>
+    <string name="ota_error">Check failed, please try again later</string>
+    <string name="ota_changelog">Changelog</string>
 </resources>

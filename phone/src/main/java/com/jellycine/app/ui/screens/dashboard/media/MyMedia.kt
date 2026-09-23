@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.jellycine.shared.R
 import com.jellycine.app.ui.components.common.CompactPageHeader
 import com.jellycine.app.ui.components.common.CompactTopText
+import com.jellycine.shared.preferences.Preferences
 import com.jellycine.app.ui.components.common.rememberCompactProgress
 import com.jellycine.shared.util.image.disableEmbyPosterEnhancers
 import kotlinx.coroutines.Dispatchers
@@ -365,6 +366,9 @@ private fun VisualLibraryCard(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val preferences = remember { Preferences(context) }
+    val noImageMode by preferences.NoImageModeEnabled()
+        .collectAsState(initial = preferences.isNoImageModeEnabled())
 
     val itemCount = when {
         library.childCount != null && library.childCount!! > 0 -> library.childCount!!
@@ -395,7 +399,7 @@ private fun VisualLibraryCard(
                     .fillMaxSize()
                     .clip(cardShape)
             ) {
-                if (imageUrl != null) {
+                if (!noImageMode && imageUrl != null) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(imageUrl)

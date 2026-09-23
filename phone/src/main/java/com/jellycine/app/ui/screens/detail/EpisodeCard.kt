@@ -271,7 +271,8 @@ fun EpisodeCard(
 
 @Composable
 fun EpisodeCardSkeleton(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    noImageMode: Boolean = false
 ) {
     AnimatedCard(
         modifier = modifier.fillMaxWidth(),
@@ -287,13 +288,15 @@ fun EpisodeCardSkeleton(
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Thumbnail skeleton using polished ShimmerEffect
-            ShimmerEffect(
-                modifier = Modifier
-                    .width(120.dp)
-                    .height(68.dp),
-                cornerRadius = 8f
-            )
+            if (!noImageMode) {
+                // Thumbnail skeleton using polished ShimmerEffect
+                ShimmerEffect(
+                    modifier = Modifier
+                        .width(120.dp)
+                        .height(68.dp),
+                    cornerRadius = 8f
+                )
+            }
 
             // Content skeleton
             Column(

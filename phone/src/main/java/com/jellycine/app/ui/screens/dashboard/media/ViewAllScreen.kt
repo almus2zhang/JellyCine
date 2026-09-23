@@ -73,7 +73,11 @@ import com.jellycine.app.ui.components.common.compactHeaderLogo
 import com.jellycine.app.ui.components.common.containerWidthDp
 import com.jellycine.app.ui.components.common.isTabletLayout
 import com.jellycine.app.ui.components.common.rememberCompactProgress
+import com.jellycine.app.ui.components.common.NoImageBannerItemCard
+import com.jellycine.app.ui.components.common.NoImageBannerFolderCard
+import com.jellycine.app.ui.components.common.SkeletonBannerCard
 import com.jellycine.app.ui.screens.dashboard.home.LibraryItemCard
+import com.jellycine.shared.preferences.Preferences
 import com.jellycine.shared.ui.components.common.FilterChip as MediaFilterChip
 import com.jellycine.shared.ui.components.common.PosterCountBadge
 import com.jellycine.shared.ui.components.common.WatchedIndicatorBadge
@@ -106,6 +110,9 @@ fun ViewAllScreen(
     val userDataRefreshEvent by UserDataRefreshSignals.refreshEvent.collectAsState()
 
     val context = LocalContext.current
+    val preferences = remember { Preferences(context) }
+    val noImageMode by preferences.NoImageModeEnabled()
+        .collectAsState(initial = preferences.isNoImageModeEnabled())
     val screenWidthDp = containerWidthDp()
     val isTablet = isTabletLayout(screenWidthDp)
     val isSeerrCatalog = contentType.isSeerrCatalog()
@@ -127,7 +134,9 @@ fun ViewAllScreen(
             GridCells.Fixed(3)
         }
     }
-    val viewAllGridCells = if (isFolderListMode) {
+    val viewAllGridCells = if (noImageMode) {
+        if (isTablet) GridCells.Adaptive(minSize = 300.dp) else GridCells.Fixed(1)
+    } else if (isFolderListMode) {
         GridCells.Fixed(1)
     } else if (isWatchedEpisodeViewAll) {
         if (isTablet) GridCells.Adaptive(minSize = 200.dp) else GridCells.Fixed(2)
@@ -136,8 +145,8 @@ fun ViewAllScreen(
     }
 
     val horizontalPadding = if (isTablet) 24.dp else 16.dp
-    val verticalSpacing = if (isFolderListMode) 8.dp else if (isTablet) 20.dp else 16.dp
-    val horizontalSpacing = if (isFolderListMode) 0.dp else if (isTablet) 16.dp else 12.dp
+    val verticalSpacing = if (noImageMode || isFolderListMode) 8.dp else if (isTablet) 20.dp else 16.dp
+    val horizontalSpacing = if (noImageMode) (if (isTablet) 12.dp else 0.dp) else if (isFolderListMode) 0.dp else if (isTablet) 16.dp else 12.dp
 
     val mediaRepository = remember { MediaRepositoryProvider.getInstance(context) }
     val seerrLogoUrl = remember(contentType, parentId) {
@@ -327,7 +336,7 @@ fun ViewAllScreen(
             modifier = modifier.fillMaxWidth(),
             horizontalAlignment = if (usesCompactHeader) Alignment.CenterHorizontally else Alignment.Start
         ) {
-            if (!isSeerrCatalog || seerrLogoUrl == null) {
+            if (noImageMode || !isSeerrCatalog || seerrLogoUrl == null) {
                 CompactPageHeader(
                     title = currentFolderTitle,
                     subtitle = headerCountText,
@@ -354,9 +363,8 @@ fun ViewAllScreen(
                         Alignment.Start
                     }
                 ) {
-                    if (isSeerrCatalog && seerrLogoUrl != null) {
-                        WarmImageUrl(imageUrl = seerrLogoUrl, allowRgb565 = true)
-                        Box(
+                    WarmImageUrl(imageUrl = seerrLogoUrl, allowRgb565 = true)
+                    Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(if (isTablet) 132.dp else 92.dp)
@@ -375,7 +383,6 @@ fun ViewAllScreen(
                                 contentScale = ContentScale.Fit
                             )
                         }
-                    }
                     if (headerCountText != null) {
                         Text(
                             text = headerCountText,
@@ -564,33 +571,35 @@ fun ViewAllScreen(
                                 }
                             }
 
-                            Surface(
-                                color = Color.White.copy(alpha = 0.08f),
-                                shape = RoundedCornerShape(8.dp),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        val nextMode = if (uiState.folderLayoutMode == FolderLayoutMode.LIST) {
-                                            FolderLayoutMode.GRID
-                                        } else {
-                                            FolderLayoutMode.LIST
+                            if (!noImageMode) {
+                                Surface(
+                                    color = Color.White.copy(alpha = 0.08f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            val nextMode = if (uiState.folderLayoutMode == FolderLayoutMode.LIST) {
+                                                FolderLayoutMode.GRID
+                                            } else {
+                                                FolderLayoutMode.LIST
+                                            }
+                                            viewModel.setFolderLayoutMode(nextMode)
                                         }
-                                        viewModel.setFolderLayoutMode(nextMode)
-                                    }
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = if (uiState.folderLayoutMode == FolderLayoutMode.LIST) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
-                                        contentDescription = stringResource(
-                                            if (uiState.folderLayoutMode == FolderLayoutMode.LIST) R.string.view_all_layout_grid else R.string.view_all_layout_list
-                                        ),
-                                        tint = Color.White.copy(alpha = 0.85f),
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (uiState.folderLayoutMode == FolderLayoutMode.LIST) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
+                                            contentDescription = stringResource(
+                                                if (uiState.folderLayoutMode == FolderLayoutMode.LIST) R.string.view_all_layout_grid else R.string.view_all_layout_list
+                                            ),
+                                            tint = Color.White.copy(alpha = 0.85f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -646,7 +655,11 @@ fun ViewAllScreen(
                             }
 
                             items(24) {
-                                SkeletonPosterCard()
+                                if (noImageMode) {
+                                    SkeletonBannerCard()
+                                } else {
+                                    SkeletonPosterCard()
+                                }
                             }
                         }
                     }
@@ -782,7 +795,56 @@ fun ViewAllScreen(
                                      key = ::viewAllItemKey
                                  ) { item ->
                                      val isFolder = uiState.browseMode == BrowseMode.FOLDERS && (item.isFolder == true || item.type == "Folder" || item.type == "CollectionFolder")
-                                     if (isWatchedEpisodeViewAll) {
+                                     if (noImageMode) {
+                                         if (isFolder) {
+                                             val folderDisplayName = getItemDisplayName(item).ifBlank { item.name.orEmpty() }
+                                             val itemCount = item.childCount ?: item.recursiveItemCount
+                                             NoImageBannerFolderCard(
+                                                 item = item,
+                                                 displayName = folderDisplayName,
+                                                 fillMaxWidth = true,
+                                                 itemCount = itemCount,
+                                                 onClick = {
+                                                     viewModel.openFolder(
+                                                         folderId = item.id.orEmpty(),
+                                                         folderName = folderDisplayName,
+                                                         contentType = contentType,
+                                                         rootParentId = parentId,
+                                                         genreId = genreId,
+                                                         currentScrollIndex = gridState.firstVisibleItemIndex,
+                                                         currentScrollOffset = gridState.firstVisibleItemScrollOffset
+                                                     )
+                                                 }
+                                             )
+                                         } else if (isPhotoItem(item)) {
+                                             val itemDisplayName = getItemDisplayName(item).ifBlank { item.name.orEmpty() }
+                                             NoImageBannerItemCard(
+                                                 item = item,
+                                                 displayName = itemDisplayName,
+                                                 fillMaxWidth = true,
+                                                 onClick = {
+                                                     viewingPhotoItem = item
+                                                 }
+                                             )
+                                         } else {
+                                             val isVideo = item.mediaType == "Video" || item.type in listOf("Movie", "Episode", "Video") || !item.mediaSources.isNullOrEmpty() || (item.runTimeTicks ?: 0L) > 0L
+                                             val itemDisplayName = getItemDisplayName(item).ifBlank {
+                                                 item.name ?: stringResource(R.string.search_result_unknown_title)
+                                             }
+                                             NoImageBannerItemCard(
+                                                 item = item,
+                                                 displayName = itemDisplayName,
+                                                 fillMaxWidth = true,
+                                                 onClick = {
+                                                     if (uiState.browseMode == BrowseMode.FOLDERS && isVideo && uiState.directPlayVideos) {
+                                                         onPlayItem(item)
+                                                     } else {
+                                                         onItemClick(item)
+                                                     }
+                                                 }
+                                             )
+                                         }
+                                     } else if (isWatchedEpisodeViewAll) {
                                          Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                                              LibraryItemCard(
                                                  item = item,

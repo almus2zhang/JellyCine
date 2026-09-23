@@ -18,6 +18,9 @@
     <!-- Media playback permissions -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- OTA update install permission -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- File permissions for log sharing -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
