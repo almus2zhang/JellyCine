@@ -49,6 +49,7 @@ import com.jellycine.detail.CodecUtils
 import com.jellycine.shared.ui.components.common.ScreenWrapper
 import com.jellycine.shared.ui.components.common.ShimmerEffect
 import com.jellycine.app.ui.components.common.BackButton
+import com.jellycine.app.ui.components.common.NoImageBannerItemCard
 import com.jellycine.app.cast.CastController
 import com.jellycine.app.ui.screens.cast.CastPlayback
 import com.jellycine.app.ui.screens.cast.loadCastPlaybackData
@@ -759,7 +760,8 @@ internal fun MoreFromSeasonSection(
     mediaRepository: MediaRepository,
     title: String,
     onEpisodeClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    noImageMode: Boolean = false
 ) {
     if (episodes.isEmpty()) return
 
@@ -784,15 +786,30 @@ internal fun MoreFromSeasonSection(
                     "${episode.id ?: "${episode.name}-${episode.indexNumber}"}_$index"
                 }
             ) { _, episode ->
-                EpisodePreviewCard(
-                    episode = episode,
-                    mediaRepository = mediaRepository,
-                    cardWidth = 224.dp,
-                    thumbnailHeight = 126.dp,
-                    onClick = {
-                        episode.id?.let(onEpisodeClick)
+                if (noImageMode) {
+                    val episodeTitle = buildString {
+                        episode.indexNumber?.let { append("$it. ") }
+                        append(episode.name ?: "Unknown Episode")
                     }
-                )
+                    NoImageBannerItemCard(
+                        item = episode,
+                        displayName = episodeTitle,
+                        useLandscapeLayout = true,
+                        onClick = {
+                            episode.id?.let(onEpisodeClick)
+                        }
+                    )
+                } else {
+                    EpisodePreviewCard(
+                        episode = episode,
+                        mediaRepository = mediaRepository,
+                        cardWidth = 224.dp,
+                        thumbnailHeight = 126.dp,
+                        onClick = {
+                            episode.id?.let(onEpisodeClick)
+                        }
+                    )
+                }
             }
         }
     }

@@ -51,6 +51,7 @@ import com.jellycine.detail.CodecUtils
 import com.jellycine.shared.util.image.JellyfinPosterImage
 import com.jellycine.shared.util.image.imageTagFor
 import com.jellycine.shared.util.image.primaryImageTagOrNull
+import com.jellycine.app.ui.components.common.NoImageBannerItemCard
 import kotlinx.coroutines.flow.first
 
 @Composable
@@ -58,7 +59,8 @@ internal fun BoxSetItemsSection(
     items: List<BaseItemDto>,
     mediaRepository: MediaRepository,
     onItemClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    noImageMode: Boolean = false
 ) {
     if (items.isEmpty()) return
 
@@ -66,13 +68,24 @@ internal fun BoxSetItemsSection(
         modifier = modifier.padding(top = 28.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        items.forEachIndexed { index, item ->
-            BoxSetMovieCard(
-                item = item,
-                mediaRepository = mediaRepository,
-                posterOnLeft = index % 2 == 0,
-                onClick = { item.id?.let(onItemClick) }
-            )
+        if (noImageMode) {
+            items.forEach { item ->
+                NoImageBannerItemCard(
+                    item = item,
+                    displayName = item.name.orEmpty(),
+                    fillMaxWidth = true,
+                    onClick = { item.id?.let(onItemClick) }
+                )
+            }
+        } else {
+            items.forEachIndexed { index, item ->
+                BoxSetMovieCard(
+                    item = item,
+                    mediaRepository = mediaRepository,
+                    posterOnLeft = index % 2 == 0,
+                    onClick = { item.id?.let(onItemClick) }
+                )
+            }
         }
     }
 }

@@ -1202,7 +1202,8 @@ fun DetailContent(
                                 episodes = moreFromSeasonEpisodes,
                                 mediaRepository = mediaRepository,
                                 title = moreFromSeasonTitle,
-                                onEpisodeClick = onSimilarItemClick
+                                onEpisodeClick = onSimilarItemClick,
+                                noImageMode = noImageMode
                             )
                         }
 
@@ -1225,7 +1226,8 @@ fun DetailContent(
                             BoxSetItemsSection(
                                 items = boxSetItems,
                                 mediaRepository = mediaRepository,
-                                onItemClick = onSimilarItemClick
+                                onItemClick = onSimilarItemClick,
+                                noImageMode = noImageMode
                             )
                         }
 
