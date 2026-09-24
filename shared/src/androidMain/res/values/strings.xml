@@ -706,4 +706,12 @@
     <string name="ota_install">Install Update</string>
     <string name="ota_error">Check failed, please try again later</string>
     <string name="ota_changelog">Changelog</string>
+    <string name="ota_ignore_version">Ignore this version</string>
+    <string name="ota_ignored_badge">Ignored</string>
+    <string name="ota_unignore_version">Restore notifications</string>
+    <string name="ota_version_ignored_toast">Version %s will be ignored</string>
+    <string name="ota_version_unignored_toast">Update notifications restored</string>
+    <string name="ota_install_ready">Update is ready to install</string>
+    <string name="ota_install_now">Install Now</string>
+    <string name="ota_install_later">Install Later</string>
 </resources>

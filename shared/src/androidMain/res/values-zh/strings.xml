@@ -689,4 +689,12 @@
     <string name="ota_install">安装更新</string>
     <string name="ota_error">检查失败，请稍后重试</string>
     <string name="ota_changelog">更新日志</string>
+    <string name="ota_ignore_version">忽略此版本</string>
+    <string name="ota_ignored_badge">已忽略</string>
+    <string name="ota_unignore_version">恢复提醒</string>
+    <string name="ota_version_ignored_toast">已忽略版本 %s 更新</string>
+    <string name="ota_version_unignored_toast">已恢复更新提醒</string>
+    <string name="ota_install_ready">更新包已就绪</string>
+    <string name="ota_install_now">立即安装</string>
+    <string name="ota_install_later">稍后安装</string>
 </resources>

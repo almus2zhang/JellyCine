@@ -28,6 +28,7 @@ class Preferences(context: Context) {
         private const val KEY_FOLDER_VIEW_LAYOUT_MODE = "folder_view_layout_mode"
         private const val KEY_FOLDER_VIEW_DIRECT_PLAY = "folder_view_direct_play"
         private const val KEY_NO_IMAGE_MODE_ENABLED = "no_image_mode_enabled"
+        private const val KEY_IGNORED_OTA_VERSION = "ignored_ota_version"
 
         const val FOLDER_LAYOUT_MODE_GRID = "grid"
         const val FOLDER_LAYOUT_MODE_LIST = "list"
@@ -316,6 +317,18 @@ class Preferences(context: Context) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }.distinctUntilChanged()
+
+    fun getIgnoredOtaVersion(): Int {
+        return prefs.getInt(KEY_IGNORED_OTA_VERSION, 0)
+    }
+
+    fun setIgnoredOtaVersion(versionCode: Int) {
+        prefs.edit().putInt(KEY_IGNORED_OTA_VERSION, versionCode).apply()
+    }
+
+    fun clearIgnoredOtaVersion() {
+        prefs.edit().remove(KEY_IGNORED_OTA_VERSION).apply()
+    }
 
     private fun normalizeFeatureCarouselHeight(height: String?): String {
         return when (height) {

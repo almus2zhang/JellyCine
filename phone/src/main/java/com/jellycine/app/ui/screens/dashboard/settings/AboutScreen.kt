@@ -3,6 +3,7 @@ package com.jellycine.app.ui.screens.dashboard.settings
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -29,9 +30,12 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Gavel
 import androidx.compose.material.icons.rounded.InstallMobile
+import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Policy
 import androidx.compose.material.icons.rounded.StarRate
 import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -42,6 +46,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -70,6 +75,7 @@ import coil3.compose.AsyncImage
 import com.jellycine.app.BuildConfig
 import com.jellycine.app.ota.OtaUpdateChecker
 import com.jellycine.shared.R
+import com.jellycine.shared.preferences.Preferences
 import kotlinx.coroutines.launch
 
 private const val GithubUrl = "https://github.com/sureshfizzy/JellyCine"
@@ -95,6 +101,7 @@ fun AboutScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val preferences = remember { Preferences(context) }
     val otaChecker = remember { OtaUpdateChecker(context) }
 
     var updateStatus by remember {
@@ -104,17 +111,23 @@ fun AboutScreen(
     var downloadProgress by remember { mutableIntStateOf(0) }
     var isDownloading by remember { mutableStateOf(false) }
 
-    // Auto-check for updates when entering the screen
+    // Auto-check for updates when entering the screen (skips if current version was ignored)
     LaunchedEffect(Unit) {
         isChecking = true
-        updateStatus = otaChecker.checkForUpdate()
+        updateStatus = otaChecker.checkForUpdate(
+            checkIgnored = true,
+            ignoredVersionCode = preferences.getIgnoredOtaVersion()
+        )
         isChecking = false
     }
 
     fun performCheck() {
         scope.launch {
             isChecking = true
-            updateStatus = otaChecker.checkForUpdate()
+            updateStatus = otaChecker.checkForUpdate(
+                checkIgnored = false,
+                ignoredVersionCode = preferences.getIgnoredOtaVersion()
+            )
             isChecking = false
         }
     }
@@ -135,6 +148,31 @@ fun AboutScreen(
                 )
             }
         }
+    }
+
+    fun performIgnore(versionCode: Int, versionName: String) {
+        preferences.setIgnoredOtaVersion(versionCode)
+        updateStatus = OtaUpdateChecker.UpdateStatus.NoUpdate
+        Toast.makeText(
+            context,
+            context.getString(R.string.ota_version_ignored_toast, versionName),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    fun performUnignore() {
+        preferences.clearIgnoredOtaVersion()
+        updateStatus = (updateStatus as? OtaUpdateChecker.UpdateStatus.UpdateAvailable)?.copy(isIgnored = false)
+            ?: OtaUpdateChecker.UpdateStatus.NoUpdate
+        Toast.makeText(
+            context,
+            context.getString(R.string.ota_version_unignored_toast),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    fun performDismissInstall() {
+        updateStatus = OtaUpdateChecker.UpdateStatus.NoUpdate
     }
 
     Scaffold(
@@ -191,7 +229,10 @@ fun AboutScreen(
                     downloadProgress = downloadProgress,
                     onCheckClick = { performCheck() },
                     onDownloadClick = { url -> performDownload(url) },
-                    onInstallClick = { apkFile -> otaChecker.installApk(apkFile) }
+                    onInstallClick = { apkFile -> otaChecker.installApk(apkFile) },
+                    onIgnoreClick = { versionCode, versionName -> performIgnore(versionCode, versionName) },
+                    onUnignoreClick = { performUnignore() },
+                    onDismissInstall = { performDismissInstall() }
                 )
             }
 
@@ -410,7 +451,10 @@ private fun OtaUpdateCard(
     downloadProgress: Int,
     onCheckClick: () -> Unit,
     onDownloadClick: (String) -> Unit,
-    onInstallClick: (java.io.File) -> Unit
+    onInstallClick: (java.io.File) -> Unit,
+    onIgnoreClick: (Int, String) -> Unit,
+    onUnignoreClick: () -> Unit,
+    onDismissInstall: () -> Unit
 ) {
     AboutSectionCard {
         Column(
@@ -478,94 +522,211 @@ private fun OtaUpdateCard(
 
                 updateStatus is OtaUpdateChecker.UpdateStatus.UpdateAvailable -> {
                     val info = updateStatus.info
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onDownloadClick(info.apkUrl) },
-                        verticalAlignment = Alignment.CenterVertically
+                    val isIgnored = updateStatus.isIgnored
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Surface(
-                            modifier = Modifier.size(40.dp),
-                            color = Color(0xFF2E7D32).copy(alpha = 0.18f),
-                            shape = RoundedCornerShape(12.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            Surface(
+                                modifier = Modifier.size(40.dp),
+                                color = if (isIgnored) Color.White.copy(alpha = 0.08f) else Color(0xFF2E7D32).copy(alpha = 0.18f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (isIgnored) Icons.Rounded.NotificationsOff else Icons.Rounded.Download,
+                                        contentDescription = null,
+                                        tint = if (isIgnored) Color.White.copy(alpha = 0.6f) else Color(0xFF66BB6A),
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.ota_new_version, info.versionName),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.White
+                                    )
+                                    if (isIgnored) {
+                                        Surface(
+                                            color = Color.White.copy(alpha = 0.12f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.ota_ignored_badge),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White.copy(alpha = 0.7f),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                if (info.changelog.isNotBlank()) {
+                                    Text(
+                                        text = info.changelog,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = AboutSecondaryText
+                                    )
+                                }
+                            }
+                        }
+
+                        // Action Buttons Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = { onDownloadClick(info.apkUrl) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = AboutAccent,
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.Download,
                                     contentDescription = null,
-                                    tint = Color(0xFF66BB6A),
-                                    modifier = Modifier.size(19.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.ota_new_version, info.versionName),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White
-                            )
-                            if (info.changelog.isNotBlank()) {
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = info.changelog,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = AboutSecondaryText
+                                    text = stringResource(R.string.ota_download),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
-                            Text(
-                                text = stringResource(R.string.ota_download),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = AboutAccent
-                            )
+
+                            OutlinedButton(
+                                onClick = {
+                                    if (isIgnored) {
+                                        onUnignoreClick()
+                                    } else {
+                                        onIgnoreClick(info.versionCode, info.versionName)
+                                    }
+                                },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color.White.copy(alpha = 0.8f)
+                                ),
+                                border = BorderStroke(1.dp, AboutBorderColor),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = if (isIgnored) {
+                                        stringResource(R.string.ota_unignore_version)
+                                    } else {
+                                        stringResource(R.string.ota_ignore_version)
+                                    },
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
                         }
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.42f)
-                        )
                     }
                 }
 
                 updateStatus is OtaUpdateChecker.UpdateStatus.ReadyToInstall -> {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onInstallClick(updateStatus.apkFile) },
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Surface(
-                            modifier = Modifier.size(40.dp),
-                            color = Color(0xFF2E7D32).copy(alpha = 0.18f),
-                            shape = RoundedCornerShape(12.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Rounded.InstallMobile,
-                                    contentDescription = null,
-                                    tint = Color(0xFF66BB6A),
-                                    modifier = Modifier.size(19.dp)
+                            Surface(
+                                modifier = Modifier.size(40.dp),
+                                color = Color(0xFF2E7D32).copy(alpha = 0.18f),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.InstallMobile,
+                                        contentDescription = null,
+                                        tint = Color(0xFF66BB6A),
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.ota_install_ready),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = stringResource(R.string.ota_install),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = AboutSecondaryText
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
+
+                        // Buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = stringResource(R.string.ota_install),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White
-                            )
+                            Button(
+                                onClick = { onInstallClick(updateStatus.apkFile) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF2E7D32),
+                                    contentColor = Color.White
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.InstallMobile,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = stringResource(R.string.ota_install_now),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = onDismissInstall,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color.White.copy(alpha = 0.8f)
+                                ),
+                                border = BorderStroke(1.dp, AboutBorderColor),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.ota_install_later),
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
                         }
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.42f)
-                        )
                     }
                 }
 

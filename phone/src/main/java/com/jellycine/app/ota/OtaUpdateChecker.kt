@@ -41,7 +41,10 @@ class OtaUpdateChecker(private val context: Context) {
 
     sealed class UpdateStatus {
         data object NoUpdate : UpdateStatus()
-        data class UpdateAvailable(val info: OtaVersionInfo) : UpdateStatus()
+        data class UpdateAvailable(
+            val info: OtaVersionInfo,
+            val isIgnored: Boolean = false
+        ) : UpdateStatus()
         data class Downloading(val progress: Int) : UpdateStatus()
         data class ReadyToInstall(val apkFile: File) : UpdateStatus()
         data class Error(val message: String) : UpdateStatus()
@@ -59,10 +62,15 @@ class OtaUpdateChecker(private val context: Context) {
 
     /**
      * Checks for update by fetching version.json from server.
+     * @param checkIgnored If true, returns [UpdateStatus.NoUpdate] when the available version is <= [ignoredVersionCode].
+     * @param ignoredVersionCode The version code that the user previously chose to ignore.
      * Returns [UpdateStatus.UpdateAvailable] if new version exists,
-     * [UpdateStatus.NoUpdate] if current version is latest.
+     * [UpdateStatus.NoUpdate] if current version is latest or ignored (when [checkIgnored] is true).
      */
-    suspend fun checkForUpdate(): UpdateStatus = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(
+        checkIgnored: Boolean = false,
+        ignoredVersionCode: Int = 0
+    ): UpdateStatus = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
                 .url(UPDATE_URL)
@@ -76,7 +84,12 @@ class OtaUpdateChecker(private val context: Context) {
 
             val versionInfo = json.decodeFromString<OtaVersionInfo>(body)
             if (versionInfo.versionCode > BuildConfig.VERSION_CODE) {
-                UpdateStatus.UpdateAvailable(versionInfo)
+                val isIgnored = versionInfo.versionCode <= ignoredVersionCode
+                if (checkIgnored && isIgnored) {
+                    UpdateStatus.NoUpdate
+                } else {
+                    UpdateStatus.UpdateAvailable(versionInfo, isIgnored = isIgnored)
+                }
             } else {
                 UpdateStatus.NoUpdate
             }
