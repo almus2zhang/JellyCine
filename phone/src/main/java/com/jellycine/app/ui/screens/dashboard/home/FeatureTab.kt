@@ -145,7 +145,9 @@ fun FeatureTab(
     onProfileClick: () -> Unit = {},
     onCastButtonClick: () -> Unit = {},
     onCategorySelected: (String) -> Unit = {},
-    refreshTrigger: Int = 0
+    refreshTrigger: Int = 0,
+    serverName: String? = null,
+    onServerClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val mediaRepository = remember { MediaRepositoryProvider.getInstance(context) }
@@ -618,9 +620,10 @@ fun FeatureTab(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                CategoryChipMenu(
-                    selectedCategory = selectedCategory,
-                    onCategorySelected = onCategorySelected
+                ServerChipButton(
+                    serverName = serverName ?: sessionSnapshot.serverName,
+                    onClick = onServerClick,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
 
                 Row(

@@ -1816,7 +1816,9 @@ fun Dashboard(
                             onProfileClick = { showAccountOverview = true },
                             onCategorySelected = { category ->
                                 selectedCategory = category
-                            }
+                            },
+                            serverName = currentServerName,
+                            onServerClick = serverSwitchDialogsState::openServers
                         )
                     }
                 } else {
@@ -1860,6 +1862,7 @@ fun Dashboard(
                             error = if (homeMyMediaLibrariesQuery.isError) homeMyMediaLibrariesQuery.error else null,
                             mediaRepository = mediaRepository,
                             disablePosterEnhancers = disablePosterEnhancers,
+                            isNoImageMode = noImageMode,
                             onLibraryClick = { library ->
                                 val contentType = when (library.collectionType) {
                                     "movies" -> "MOVIES"
@@ -1894,10 +1897,15 @@ fun Dashboard(
 
                 if (ShowContinueWatchingSection) {
                     item(key = "continue_watching_section") {
+                        val continueWatchingTopOffset = when {
+                            noImageMode -> 0.dp
+                            SeerrStudios.isNotEmpty() -> 0.dp
+                            else -> (-12).dp
+                        }
                         Column(
                             modifier = Modifier
-                                .padding(top = 0.dp)
-                                .offset(y = if (SeerrStudios.isNotEmpty()) 0.dp else (-12).dp)
+                                .padding(top = if (noImageMode) 8.dp else 0.dp)
+                                .offset(y = continueWatchingTopOffset)
                         ) {
                             ContinueWatchingSection(
                                 items = ContinueWatchingItems,
@@ -1927,10 +1935,11 @@ fun Dashboard(
 
                 if (ShowNextUpSection) {
                     item(key = "next_up_section") {
+                        val nextUpTopOffset = if (noImageMode) 0.dp else (-12).dp
                         Column(
                             modifier = Modifier
-                                .padding(top = 0.dp)
-                                .offset(y = (-12).dp)
+                                .padding(top = if (noImageMode) 8.dp else 0.dp)
+                                .offset(y = nextUpTopOffset)
                         ) {
                             ContinueWatchingSection(
                                 titleRes = R.string.dashboard_next_up,
@@ -2093,6 +2102,58 @@ private fun TopHeader(
 }
 
 @Composable
+internal fun ServerChipButton(
+    serverName: String?,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    val displayServerName = serverName?.takeIf { it.isNotBlank() } ?: stringResource(R.string.dashboard_server_fallback)
+    val headerChipShape = RoundedCornerShape(22.dp)
+    Row(
+        modifier = modifier
+            .clip(headerChipShape)
+            .background(Color.White.copy(alpha = 0.14f))
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.10f),
+                shape = headerChipShape
+            )
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            )
+            .padding(start = 8.dp, end = 14.dp, top = 7.dp, bottom = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.28f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.jellycine_logo),
+                contentDescription = stringResource(R.string.app_name),
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = displayServerName,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
 private fun BrandHeader(
     serverName: String?,
     modifier: Modifier = Modifier,
@@ -2103,8 +2164,6 @@ private fun BrandHeader(
     onProfileClick: (() -> Unit)? = null,
     onServerClick: (() -> Unit)? = null
 ) {
-    val displayServerName = serverName?.takeIf { it.isNotBlank() } ?: stringResource(R.string.dashboard_server_fallback)
-    val headerChipShape = RoundedCornerShape(22.dp)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -2112,46 +2171,11 @@ private fun BrandHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .clip(headerChipShape)
-                .background(Color.White.copy(alpha = 0.14f))
-                .border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.10f),
-                    shape = headerChipShape
-                )
-                .then(
-                    if (onServerClick != null) {
-                        Modifier.clickable(onClick = onServerClick)
-                    } else {
-                        Modifier
-                    }
-                )
-                .padding(start = 8.dp, end = 14.dp, top = 7.dp, bottom = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.28f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.jellycine_logo),
-                    contentDescription = stringResource(R.string.app_name),
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = displayServerName,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.White
-            )
-        }
+        ServerChipButton(
+            serverName = serverName,
+            onClick = onServerClick,
+            modifier = Modifier.weight(1f, fill = false)
+        )
 
         if (showUserIcon) {
             val context = LocalContext.current
@@ -2489,6 +2513,7 @@ private fun HomeMyMediaSection(
     error: String?,
     mediaRepository: MediaRepository,
     disablePosterEnhancers: Boolean,
+    isNoImageMode: Boolean = false,
     onLibraryClick: (BaseItemDto) -> Unit = {}
 ) {
     val lazyRowState = rememberLazyListState()
@@ -2507,6 +2532,7 @@ private fun HomeMyMediaSection(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Black)
+            .padding(bottom = if (isNoImageMode) 14.dp else 0.dp)
     ) {
         Text(
             text = stringResource(R.string.libraries),
@@ -2535,7 +2561,11 @@ private fun HomeMyMediaSection(
                 LazyRow(
                     state = lazyRowState,
                     horizontalArrangement = Arrangement.spacedBy(ScrollOptimization.listItemSpacing),
-                    contentPadding = ScrollOptimization.optimizedContentPadding,
+                    contentPadding = if (isNoImageMode) {
+                        PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                    } else {
+                        ScrollOptimization.optimizedContentPadding
+                    },
                     flingBehavior = flingBehavior,
                     modifier = ScrollOptimization.getScrollContainerModifier()
                 ) {
