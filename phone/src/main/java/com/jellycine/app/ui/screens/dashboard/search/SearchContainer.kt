@@ -30,8 +30,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import com.jellycine.shared.preferences.Preferences
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -144,6 +146,8 @@ fun SearchContainer(
     val selectedSearchTypes by viewModel.selectedSearchTypes.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
+    val preferences = remember(context) { Preferences(context) }
+    val noImageMode by preferences.NoImageModeEnabled().collectAsState(initial = preferences.isNoImageModeEnabled())
     val authRepository = remember(context) { AuthRepositoryProvider.getInstance(context) }
     val activeServerId by authRepository.getActiveServerId().collectAsStateWithLifecycle(
         initialValue = authRepository.getActiveSessionSnapshot().activeServerId
@@ -169,11 +173,12 @@ fun SearchContainer(
     }
     val burstPrefetchItems = remember(
         isSearchActive,
+        noImageMode,
         uiState.movieResults,
         uiState.showResults,
         uiState.episodeResults
     ) {
-        if (isSearchActive) {
+        if (isSearchActive && !noImageMode) {
             buildList {
                 addAll(uiState.movieResults.take(12))
                 addAll(uiState.showResults.take(12))
@@ -203,8 +208,8 @@ fun SearchContainer(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(burstPrefetchItems.hashCode(), disablePosterEnhancers) {
-        if (burstPrefetchItems.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(burstPrefetchItems.hashCode(), disablePosterEnhancers, noImageMode) {
+        if (noImageMode || burstPrefetchItems.isEmpty()) return@LaunchedEffect
         SearchBurstImagePrefetcher.preload(
             items = burstPrefetchItems,
             mediaRepository = mediaRepository,
@@ -226,12 +231,13 @@ fun SearchContainer(
                     .padding(top = 120.dp)
             ) {
                 if (uiState.isSearching) {
-                    SearchResultsViewSkeleton()
+                    SearchResultsViewSkeleton(noImageMode = noImageMode)
                 } else if (hasSearchResults) {
                     SearchResultsView(
                         uiState = uiState,
                         onItemClick = onNavigateToDetail,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        noImageMode = noImageMode
                     )
                 } else {
                     Box(
@@ -256,6 +262,7 @@ fun SearchContainer(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = 20.dp),
+                noImageMode = noImageMode,
                 discoveryTabs = if (uiState.isSeerrConnected) SearchDiscoveryTab.entries.toList() else listOf(SearchDiscoveryTab.SUGGESTIONS),
                 selectedDiscoveryTab = selectedDiscoveryTab,
                 onDiscoveryTabClick = viewModel::selectDiscoveryTab

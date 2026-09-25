@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.PersonAddAlt1
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -45,6 +46,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -158,6 +161,7 @@ internal fun ServerSwitchDialogsHost(
     onRequestRemoveServer: (AuthRepository.SavedServer) -> Unit = {},
     onRequestRemoveUser: (AuthRepository.SavedServer) -> Unit = {},
     onRemoveServer: ((String, () -> Unit) -> Unit)? = null,
+    onRenameServer: ((String, String?) -> Unit)? = null,
     showRemoveAction: Boolean = true,
     dismissServerDialogOnRequest: Boolean = true,
     dismissUserDialogOnRequest: Boolean = true,
@@ -182,6 +186,7 @@ internal fun ServerSwitchDialogsHost(
                 onAddServer()
             },
             onRequestRemoveServer = onRequestRemoveServer,
+            onRenameServer = onRenameServer,
             onOpenServerUsers = { serverName, users ->
                 state.openUsers(serverName, users)
             },
@@ -303,8 +308,18 @@ internal fun ServerSwitchDialog(
     onAddServer: () -> Unit,
     onRequestRemoveServer: (AuthRepository.SavedServer) -> Unit,
     onOpenServerUsers: (String, List<AuthRepository.SavedServer>) -> Unit,
-    onServerSelected: (AuthRepository.SavedServer) -> Unit
+    onServerSelected: (AuthRepository.SavedServer) -> Unit,
+    onRenameServer: ((String, String?) -> Unit)? = null
 ) {
+    var serverToRename by remember { mutableStateOf<ServerGroupUiModel?>(null) }
+    var renameInput by remember { mutableStateOf("") }
+
+    LaunchedEffect(serverToRename) {
+        if (serverToRename != null) {
+            renameInput = serverToRename?.customName.orEmpty()
+        }
+    }
+
     val serverGroups = remember(servers, activeServerId) {
         servers
             .groupBy { it.sourceUrl ?: canonicalServerUrlKey(it.serverUrl) }
@@ -316,8 +331,10 @@ internal fun ServerSwitchDialog(
                 )
                 val activeUser = sortedUsers.firstOrNull { it.isActiveServer(activeServerId) }
                 val primary = activeUser ?: sortedUsers.first()
+                val customName = groupedUsers.firstNotNullOfOrNull { it.customName?.takeIf { name -> name.isNotBlank() } }
                 ServerGroupUiModel(
                     serverName = primary.serverName,
+                    customName = customName,
                     serverUrl = primary.sourceUrl ?: primary.serverUrl,
                     users = sortedUsers,
                     activeUser = activeUser
@@ -325,7 +342,7 @@ internal fun ServerSwitchDialog(
             }
             .sortedWith(
                 compareByDescending<ServerGroupUiModel> { if (it.activeUser != null) 1 else 0 }
-                    .thenBy { it.serverName.lowercase() }
+                    .thenBy { it.displayName.lowercase() }
             )
     }
 
@@ -369,7 +386,7 @@ internal fun ServerSwitchDialog(
                                 .fillMaxWidth()
                                 .clickable(enabled = clickGroup) {
                                     if (hasMultipleUsers) {
-                                        onOpenServerUsers(group.serverName, group.users)
+                                        onOpenServerUsers(group.displayName, group.users)
                                     } else {
                                         singleUser?.let(onServerSelected)
                                     }
@@ -379,10 +396,17 @@ internal fun ServerSwitchDialog(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = group.serverName.ifBlank { stringResource(R.string.settings_media_server) },
+                                    text = group.displayName.ifBlank { stringResource(R.string.settings_media_server) },
                                     style = MaterialTheme.typography.titleMedium,
                                     color = if (group.activeUser != null) Color(0xFF4FD06B) else Color.White
                                 )
+                                if (!group.customName.isNullOrBlank() && group.customName != group.serverName) {
+                                    Text(
+                                        text = "${stringResource(R.string.settings_original_server_name)}: ${group.serverName}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White.copy(alpha = 0.58f)
+                                    )
+                                }
                                 Text(
                                     text = group.serverUrl,
                                     style = MaterialTheme.typography.bodySmall,
@@ -400,34 +424,48 @@ internal fun ServerSwitchDialog(
                                     )
                                 }
                             }
-                            when {
-                                isSwitching && group.activeUser != null -> {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp,
-                                        color = Color(0xFF4FD06B)
-                                    )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (onRenameServer != null) {
+                                    IconButton(
+                                        enabled = !isSwitching,
+                                        onClick = { serverToRename = group }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Edit,
+                                            contentDescription = stringResource(R.string.rename_configuration),
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
 
-                                hasMultipleUsers -> {
-                                    Icon(
-                                        imageVector = Icons.Rounded.ChevronRight,
-                                        contentDescription = stringResource(R.string.settings_change_user),
-                                        tint = Color.White.copy(alpha = 0.48f)
-                                    )
-                                }
+                                when {
+                                    isSwitching && group.activeUser != null -> {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color(0xFF4FD06B)
+                                        )
+                                    }
 
-                                singleUser?.isActiveServer(activeServerId) == true -> {
-                                    Icon(
-                                        imageVector = Icons.Rounded.CheckCircle,
-                                        contentDescription = stringResource(R.string.settings_active_server),
-                                        tint = Color(0xFF4FD06B),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
+                                    hasMultipleUsers -> {
+                                        Icon(
+                                            imageVector = Icons.Rounded.ChevronRight,
+                                            contentDescription = stringResource(R.string.settings_change_user),
+                                            tint = Color.White.copy(alpha = 0.48f)
+                                        )
+                                    }
 
-                                else -> {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    singleUser?.isActiveServer(activeServerId) == true -> {
+                                        Icon(
+                                            imageVector = Icons.Rounded.CheckCircle,
+                                            contentDescription = stringResource(R.string.settings_active_server),
+                                            tint = Color(0xFF4FD06B),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    else -> {
                                         if (showRemoveAction && singleUser != null) {
                                             IconButton(
                                                 enabled = !isSwitching,
@@ -479,14 +517,74 @@ internal fun ServerSwitchDialog(
             }
         }
     }
+
+    if (serverToRename != null) {
+        val targetGroup = serverToRename!!
+        AlertDialog(
+            onDismissRequest = { serverToRename = null },
+            title = {
+                Text(
+                    text = stringResource(R.string.rename_configuration_title),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = stringResource(R.string.rename_configuration_hint, targetGroup.serverName),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    OutlinedTextField(
+                        value = renameInput,
+                        onValueChange = { renameInput = it },
+                        label = { Text(stringResource(R.string.rename_configuration_label)) },
+                        placeholder = { Text(targetGroup.serverName) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFFF97316),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                            focusedLabelColor = Color(0xFFF97316),
+                            unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val newName = renameInput.trim().takeIf { it.isNotEmpty() }
+                        onRenameServer?.invoke(targetGroup.serverUrl, newName)
+                        serverToRename = null
+                    }
+                ) {
+                    Text(stringResource(R.string.save), color = Color(0xFFF97316))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { serverToRename = null }) {
+                    Text(stringResource(R.string.cancel), color = Color(0xFFD0D0D0))
+                }
+            },
+            containerColor = Color(0xFF1C1C1E)
+        )
+    }
 }
 
 private data class ServerGroupUiModel(
     val serverName: String,
+    val customName: String?,
     val serverUrl: String,
     val users: List<AuthRepository.SavedServer>,
     val activeUser: AuthRepository.SavedServer?
-)
+) {
+    val displayName: String get() = customName?.takeIf { it.isNotBlank() } ?: serverName
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

@@ -8,6 +8,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
@@ -20,9 +21,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jellycine.shared.R
+import com.jellycine.app.ui.components.common.NoImageBannerItemCard
+import com.jellycine.app.ui.components.common.SkeletonBannerCard
+import com.jellycine.shared.ui.components.common.preferredDisplayTitle
 import com.jellycine.data.model.BaseItemDto
 import com.jellycine.data.repository.MediaRepositoryProvider
 import com.jellycine.app.ui.screens.detail.logoImage
@@ -51,6 +57,7 @@ fun ImmersiveSection(
     isLoading: Boolean,
     onItemClick: (BaseItemDto) -> Unit,
     modifier: Modifier = Modifier,
+    noImageMode: Boolean = false,
     discoveryTabs: List<SearchDiscoveryTab> = emptyList(),
     selectedDiscoveryTab: SearchDiscoveryTab? = null,
     onDiscoveryTabClick: (SearchDiscoveryTab) -> Unit = {}
@@ -58,11 +65,16 @@ fun ImmersiveSection(
     val context = LocalContext.current
     val mediaRepository = remember { MediaRepositoryProvider.getInstance(context) }
     val firstMovie = movies.firstOrNull()
-    var isFirstImageReady by remember(isLoading, firstMovie?.id) {
-        mutableStateOf(isLoading || firstMovie?.id == null)
+    var isFirstImageReady by remember(isLoading, firstMovie?.id, noImageMode) {
+        mutableStateOf(noImageMode || isLoading || firstMovie?.id == null)
     }
 
-    LaunchedEffect(isLoading, firstMovie?.id) {
+    LaunchedEffect(isLoading, firstMovie?.id, noImageMode) {
+        if (noImageMode) {
+            isFirstImageReady = true
+            return@LaunchedEffect
+        }
+
         if (isLoading) {
             isFirstImageReady = false
             return@LaunchedEffect
@@ -168,13 +180,61 @@ fun ImmersiveSection(
             .fillMaxWidth()
             .height(LocalConfiguration.current.screenHeightDp.dp)
     ) {
-        if (isLoading || !isFirstImageReady) {
-            SuggestionsShimmer()
+        if (noImageMode) {
+            if (isLoading) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .padding(top = if (discoveryTabs.isNotEmpty()) 120.dp else 60.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(10) {
+                        SkeletonBannerCard(modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            } else if (movies.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = stringResource(R.string.suggestions_empty),
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 14.sp
+                    )
+                }
+            } else {
+                val unknownTitle = stringResource(R.string.search_result_unknown_title)
+                val unknownEpisode = stringResource(R.string.search_result_unknown_episode)
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .padding(top = if (discoveryTabs.isNotEmpty()) 120.dp else 60.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(movies) { item ->
+                        NoImageBannerItemCard(
+                            item = item,
+                            displayName = item.preferredDisplayTitle(unknownTitle, unknownEpisode),
+                            fillMaxWidth = true,
+                            onClick = { onItemClick(item) }
+                        )
+                    }
+                }
+            }
         } else {
-            SuggestionsStoriesView(
-                suggestions = movies,
-                onItemClick = onItemClick
-            )
+            if (isLoading || !isFirstImageReady) {
+                SuggestionsShimmer()
+            } else {
+                SuggestionsStoriesView(
+                    suggestions = movies,
+                    onItemClick = onItemClick
+                )
+            }
         }
 
         if (discoveryTabs.isNotEmpty()) {

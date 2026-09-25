@@ -106,4 +106,20 @@ class ServerSwitchViewModel(application: Application) : AndroidViewModel(applica
             )
         }
     }
+
+    fun renameServer(
+        serverIdentifier: String,
+        newCustomName: String?,
+        onComplete: () -> Unit = {},
+        onFailed: (Throwable) -> Unit = {}
+    ) {
+        if (serverIdentifier.isBlank()) return
+        viewModelScope.launch {
+            val result = authRepository.renameServer(serverIdentifier, newCustomName)
+            result.fold(
+                onSuccess = { onComplete() },
+                onFailure = { onFailed(it) }
+            )
+        }
+    }
 }

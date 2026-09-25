@@ -518,6 +518,11 @@
     <string name="settings_change_user">Change user</string>
     <string name="settings_active_server">Active server</string>
     <string name="settings_remove_user">Remove user</string>
+    <string name="rename_configuration">Rename Configuration</string>
+    <string name="rename_configuration_title">Configuration Name</string>
+    <string name="rename_configuration_hint">Server: %1$s</string>
+    <string name="rename_configuration_label">Custom Name (leave blank for default)</string>
+    <string name="settings_original_server_name">Original</string>
     <string name="settings_whos_watching">Who\'s watching?</string>
     <string name="settings_no_saved_users_for_server">No saved users found for this server.</string>
     <string name="settings_unknown_username">Unknown</string>

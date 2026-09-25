@@ -357,6 +357,7 @@ fun Settings(
         },
         onRequestRemoveServer = serverSwitchDialogsState::requestRemoval,
         onRequestRemoveUser = serverSwitchDialogsState::requestRemoval,
+        onRenameServer = serverSwitchViewModel::renameServer,
         onRemoveServer = { serverId, onRemoveComplete ->
             serverSwitchViewModel.removeServer(
                 serverId = serverId,

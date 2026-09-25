@@ -504,6 +504,11 @@
     <string name="settings_change_user">切换用户</string>
     <string name="settings_active_server">当前服务器</string>
     <string name="settings_remove_user">移除用户</string>
+    <string name="rename_configuration">重命名配置</string>
+    <string name="rename_configuration_title">给配置命名</string>
+    <string name="rename_configuration_hint">原服务器名：%1$s</string>
+    <string name="rename_configuration_label">自定义配置名称（留空恢复默认）</string>
+    <string name="settings_original_server_name">原名</string>
     <string name="settings_whos_watching">谁在观看？</string>
     <string name="settings_no_saved_users_for_server">该服务器下暂无保存的其他用户。</string>
     <string name="settings_unknown_username">未知用户</string>

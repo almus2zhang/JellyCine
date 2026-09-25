@@ -33,6 +33,8 @@ import com.jellycine.shared.ui.components.common.ShimmerEffect
 import com.jellycine.shared.ui.components.common.LazyImageLoader
 import com.jellycine.shared.ui.components.common.episodeDisplaySubtitle
 import com.jellycine.shared.ui.components.common.preferredDisplayTitle
+import com.jellycine.app.ui.components.common.NoImageBannerItemCard
+import com.jellycine.app.ui.components.common.SkeletonBannerCard
 import com.jellycine.app.ui.screens.dashboard.PosterSkeleton
 import com.jellycine.app.ui.screens.dashboard.SectionTitleSkeleton
 import com.jellycine.shared.util.image.rememberImageUrl
@@ -47,8 +49,60 @@ import java.util.Locale
 
 @Composable
 fun SearchResultsViewSkeleton(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    noImageMode: Boolean = false
 ) {
+    if (noImageMode) {
+        LazyColumn(
+            modifier = modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            item {
+                SectionTitleSkeleton(
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    width = 90.dp
+                )
+            }
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    items(4) {
+                        SkeletonBannerCard(modifier = Modifier.width(180.dp))
+                    }
+                }
+            }
+            item {
+                SectionTitleSkeleton(
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    width = 100.dp
+                )
+            }
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    items(4) {
+                        SkeletonBannerCard(modifier = Modifier.width(180.dp))
+                    }
+                }
+            }
+            item {
+                SectionTitleSkeleton(
+                    modifier = Modifier.padding(bottom = 12.dp),
+                    width = 120.dp
+                )
+            }
+            items(3) {
+                SkeletonBannerCard(modifier = Modifier.fillMaxWidth())
+            }
+        }
+        return
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
@@ -130,8 +184,12 @@ private fun LazyListScope.searchPosterSectionSkeleton(titleWidth: Dp) {
 fun SearchResultsView(
     uiState: SearchUiState,
     onItemClick: (BaseItemDto) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    noImageMode: Boolean = false
 ) {
+    val unknownTitle = stringResource(R.string.search_result_unknown_title)
+    val unknownEpisode = stringResource(R.string.search_result_unknown_episode)
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
@@ -155,20 +213,41 @@ fun SearchResultsView(
                     contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
                     items(uiState.movieResults) { movie ->
-                        SearchResultCard(
-                            item = movie,
-                            onItemClick = { onItemClick(movie) }
-                        )
+                        if (noImageMode) {
+                            NoImageBannerItemCard(
+                                item = movie,
+                                displayName = movie.preferredDisplayTitle(
+                                    unknownTitle = unknownTitle,
+                                    unknownEpisode = unknownEpisode
+                                ),
+                                dynamicWidth = true,
+                                onClick = { onItemClick(movie) }
+                            )
+                        } else {
+                            SearchResultCard(
+                                item = movie,
+                                onItemClick = { onItemClick(movie) }
+                            )
+                        }
                     }
 
                     itemsIndexed(
                         items = uiState.seerrMovieResults,
                         key = { index, seerrItem -> "seerr-movie-${seerrItem.tmdbId}_$index" }
                     ) { _, seerrItem ->
-                        SearchSeerrResultCard(
-                            item = seerrItem,
-                            onItemClick = { onItemClick(seerrItem.toSeerDetailItem()) }
-                        )
+                        if (noImageMode) {
+                            NoImageBannerItemCard(
+                                item = seerrItem.toSeerDetailItem(),
+                                displayName = seerrItem.title,
+                                dynamicWidth = true,
+                                onClick = { onItemClick(seerrItem.toSeerDetailItem()) }
+                            )
+                        } else {
+                            SearchSeerrResultCard(
+                                item = seerrItem,
+                                onItemClick = { onItemClick(seerrItem.toSeerDetailItem()) }
+                            )
+                        }
                     }
                 }
             }
@@ -192,20 +271,41 @@ fun SearchResultsView(
                     contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
                     items(uiState.showResults) { show ->
-                        SearchResultCard(
-                            item = show,
-                            onItemClick = { onItemClick(show) }
-                        )
+                        if (noImageMode) {
+                            NoImageBannerItemCard(
+                                item = show,
+                                displayName = show.preferredDisplayTitle(
+                                    unknownTitle = unknownTitle,
+                                    unknownEpisode = unknownEpisode
+                                ),
+                                dynamicWidth = true,
+                                onClick = { onItemClick(show) }
+                            )
+                        } else {
+                            SearchResultCard(
+                                item = show,
+                                onItemClick = { onItemClick(show) }
+                            )
+                        }
                     }
 
                     itemsIndexed(
                         items = uiState.seerrShowResults,
                         key = { index, seerrItem -> "seerr-show-${seerrItem.tmdbId}_$index" }
                     ) { _, seerrItem ->
-                        SearchSeerrResultCard(
-                            item = seerrItem,
-                            onItemClick = { onItemClick(seerrItem.toSeerDetailItem()) }
-                        )
+                        if (noImageMode) {
+                            NoImageBannerItemCard(
+                                item = seerrItem.toSeerDetailItem(),
+                                displayName = seerrItem.title,
+                                dynamicWidth = true,
+                                onClick = { onItemClick(seerrItem.toSeerDetailItem()) }
+                            )
+                        } else {
+                            SearchSeerrResultCard(
+                                item = seerrItem,
+                                onItemClick = { onItemClick(seerrItem.toSeerDetailItem()) }
+                            )
+                        }
                     }
                 }
             }
@@ -224,10 +324,22 @@ fun SearchResultsView(
             }
             
             items(uiState.episodeResults) { episode ->
-                EpisodeResultCard(
-                    item = episode,
-                    onItemClick = { onItemClick(episode) }
-                )
+                if (noImageMode) {
+                    NoImageBannerItemCard(
+                        item = episode,
+                        displayName = episode.preferredDisplayTitle(
+                            unknownTitle = unknownTitle,
+                            unknownEpisode = unknownEpisode
+                        ),
+                        fillMaxWidth = true,
+                        onClick = { onItemClick(episode) }
+                    )
+                } else {
+                    EpisodeResultCard(
+                        item = episode,
+                        onItemClick = { onItemClick(episode) }
+                    )
+                }
             }
         }
     }

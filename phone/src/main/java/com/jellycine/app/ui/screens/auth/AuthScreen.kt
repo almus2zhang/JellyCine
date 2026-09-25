@@ -198,6 +198,7 @@ fun AuthScreen(
                     )
                 },
                 showRemoveAction = false,
+                onRenameServer = serverSwitchViewModel::renameServer,
                 dismissServerDialogOnRequest = false,
                 dismissUserDialogOnRequest = true,
                 showServerCloseAction = false,
