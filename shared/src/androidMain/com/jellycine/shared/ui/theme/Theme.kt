@@ -91,7 +91,7 @@ fun JellyCineTheme(
         SideEffect {
             val window = (view.context as Activity).window
             // enableEdgeToEdge() in MainActivity handles edge-to-edge setup
-            val insetsController = WindowCompat.getInsetsController(window, view)
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
             insetsController.isAppearanceLightStatusBars = false
             insetsController.isAppearanceLightNavigationBars = false
         }

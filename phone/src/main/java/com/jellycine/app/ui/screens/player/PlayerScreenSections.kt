@@ -165,9 +165,11 @@ internal fun PlayerScreenEffects(
                 }
                 val layoutParams = act.window.attributes
                 layoutParams.screenBrightness = -1f
-                act.window.attributes = layoutParams
-                WindowCompat.getInsetsController(act.window, act.window.decorView)
-                    .show(WindowInsetsCompat.Type.systemBars())
+                WindowCompat.getInsetsController(act.window, act.window.decorView).apply {
+                    show(WindowInsetsCompat.Type.systemBars())
+                    isAppearanceLightStatusBars = false
+                    isAppearanceLightNavigationBars = false
+                }
             }
         }
     }

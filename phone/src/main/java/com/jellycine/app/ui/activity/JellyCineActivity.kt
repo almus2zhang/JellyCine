@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -68,8 +69,11 @@ class JellyCineActivity : ComponentActivity() {
             authCheckCompleted.set(true)
         }
 
-        // Use modern edge-to-edge approach
-        enableEdgeToEdge()
+        // Use modern edge-to-edge approach with dark status bar and navigation bar styles (light/white icons & text)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
 
         setContent {
             JellyCineTheme {
@@ -82,8 +86,10 @@ class JellyCineActivity : ComponentActivity() {
                 val view = LocalView.current
                 SideEffect {
                     val window = (view.context as ComponentActivity).window
-                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-                    WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
+                    WindowCompat.getInsetsController(window, window.decorView).apply {
+                        isAppearanceLightStatusBars = false
+                        isAppearanceLightNavigationBars = false
+                    }
                 }
 
                 Surface(
@@ -105,6 +111,14 @@ class JellyCineActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
         }
     }
 
