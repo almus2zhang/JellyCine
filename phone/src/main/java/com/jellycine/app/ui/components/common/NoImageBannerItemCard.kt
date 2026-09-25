@@ -37,6 +37,7 @@ fun NoImageBannerItemCard(
     modifier: Modifier = Modifier,
     fillMaxWidth: Boolean = false,
     useLandscapeLayout: Boolean = false,
+    dynamicWidth: Boolean = false,
     onClick: () -> Unit = {}
 ) {
     val bannerWidth = if (useLandscapeLayout) 230.dp else 190.dp
@@ -53,14 +54,23 @@ fun NoImageBannerItemCard(
     val isFullyWatched = item.type == "Series" && item.userData?.unplayedItemCount == 0
     val yearText = item.productionYear?.toString() ?: item.premiereDate?.take(4)
 
-    val cardModifier = if (fillMaxWidth) {
-        modifier
-            .fillMaxWidth()
-            .height(bannerHeight)
-    } else {
-        modifier
-            .width(bannerWidth)
-            .height(bannerHeight)
+    val cardModifier = when {
+        fillMaxWidth -> {
+            modifier
+                .fillMaxWidth()
+                .height(bannerHeight)
+        }
+        dynamicWidth -> {
+            modifier
+                .widthIn(min = 72.dp, max = 220.dp)
+                .wrapContentWidth()
+                .height(bannerHeight)
+        }
+        else -> {
+            modifier
+                .width(bannerWidth)
+                .height(bannerHeight)
+        }
     }
 
     Card(
@@ -71,17 +81,28 @@ fun NoImageBannerItemCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         onClick = onClick
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = if (dynamicWidth) Modifier.fillMaxHeight().wrapContentWidth() else Modifier.fillMaxSize()
+        ) {
             Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                    .fillMaxHeight()
+                    .then(
+                        if (fillMaxWidth || !dynamicWidth) Modifier.fillMaxWidth()
+                        else Modifier.wrapContentWidth()
+                    )
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.Center
             ) {
                 Column(
                     modifier = Modifier.weight(1f, fill = false),
-                    verticalArrangement = Arrangement.Center
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = if (dynamicWidth && yearText == null && episodeCount == null && !isPlayed) {
+                        Alignment.CenterHorizontally
+                    } else {
+                        Alignment.Start
+                    }
                 ) {
                     Text(
                         text = displayName,

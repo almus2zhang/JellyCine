@@ -18,6 +18,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.rounded.ExitToApp
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -1224,12 +1225,6 @@ fun Dashboard(
     val serverSwitchDialogsState = rememberServerSwitchDialogsState()
     val userDataRefreshEvent by UserDataRefreshSignals.refreshEvent.collectAsState()
 
-    LaunchedEffect(featureCarouselEnabled) {
-        if (!featureCarouselEnabled && selectedCategory != HomeCategory.HOME) {
-            selectedCategory = HomeCategory.HOME
-        }
-    }
-
     var persistedHomeSnapshot by remember {
         mutableStateOf<PersistedHomeSnapshot?>(mediaRepository.getPersistedHomeSnapshot())
     }
@@ -1828,6 +1823,10 @@ fun Dashboard(
                             serverTypeRaw = currentServerType,
                             userName = HeaderUserName,
                             userImageUrl = noCarouselProfileImageUrl,
+                            selectedCategory = selectedCategory,
+                            onCategorySelected = { category ->
+                                selectedCategory = category
+                            },
                             onProfileClick = { showAccountOverview = true },
                             onServerClick = serverSwitchDialogsState::openServers
                         )
@@ -2085,6 +2084,8 @@ private fun TopHeader(
     serverTypeRaw: String?,
     userName: String?,
     userImageUrl: String?,
+    selectedCategory: String = HomeCategory.HOME,
+    onCategorySelected: (String) -> Unit = {},
     onProfileClick: (() -> Unit)? = null,
     onServerClick: (() -> Unit)? = null
 ) {
@@ -2096,71 +2097,174 @@ private fun TopHeader(
         userName = userName,
         userImageUrl = userImageUrl,
         userServerTypeRaw = serverTypeRaw,
+        selectedCategory = selectedCategory,
+        onCategorySelected = onCategorySelected,
         onProfileClick = onProfileClick,
         onServerClick = onServerClick
     )
 }
 
 @Composable
-internal fun ServerChipButton(
-    serverName: String?,
-    onClick: (() -> Unit)?,
+internal fun HeaderNavigationChip(
+    selectedCategory: String,
+    onCategorySelected: (String) -> Unit,
+    onServerClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val displayServerName = serverName?.takeIf { it.isNotBlank() } ?: stringResource(R.string.dashboard_server_fallback)
+    val menuOptions = remember(selectedCategory) {
+        HomeCategory.all.filterNot { it == selectedCategory }
+    }
+    var expanded by remember { mutableStateOf(false) }
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "category_arrow"
+    )
     val headerChipShape = RoundedCornerShape(22.dp)
-    Row(
-        modifier = modifier
-            .clip(headerChipShape)
-            .background(Color.White.copy(alpha = 0.14f))
-            .border(
-                width = 1.dp,
-                color = Color.White.copy(alpha = 0.10f),
-                shape = headerChipShape
-            )
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(onClick = onClick)
-                } else {
-                    Modifier
-                }
-            )
-            .padding(start = 8.dp, end = 14.dp, top = 7.dp, bottom = 7.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
+
+    Box(modifier = modifier) {
+        Row(
             modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.28f)),
-            contentAlignment = Alignment.Center
+                .clip(headerChipShape)
+                .background(Color.White.copy(alpha = 0.14f))
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.10f),
+                    shape = headerChipShape
+                )
+                .padding(start = 4.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.jellycine_logo),
-                contentDescription = stringResource(R.string.app_name),
-                modifier = Modifier.size(28.dp)
+            // Clickable Logo to switch server
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.28f))
+                    .then(
+                        if (onServerClick != null) {
+                            Modifier.clickable(onClick = onServerClick)
+                        } else {
+                            Modifier
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.jellycine_logo),
+                    contentDescription = stringResource(R.string.app_name),
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            // Subtle divider between Logo and Category/Library selector
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(16.dp)
+                    .background(Color.White.copy(alpha = 0.20f))
             )
+
+            Spacer(modifier = Modifier.width(4.dp))
+
+            // Clickable Category / Library name + arrow to open dropdown
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = stringResource(HomeCategory.titleRes(selectedCategory)),
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier
+                        .size(18.dp)
+                        .graphicsLayer(rotationZ = arrowRotation)
+                )
+            }
         }
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = displayServerName,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+
+        val pillShape = RoundedCornerShape(16.dp)
+        val glassGradient = Brush.horizontalGradient(
+            colors = listOf(
+                Color(0xFF2A2A2A),
+                Color(0xFF1E1E1E)
+            )
         )
+        val glassBorder = Color.White.copy(alpha = 0.18f)
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = Color.Transparent,
+            shadowElevation = 0.dp,
+            tonalElevation = 0.dp,
+            border = null,
+            modifier = Modifier.background(Color.Transparent)
+        ) {
+            Column(
+                modifier = Modifier.padding(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                menuOptions.forEach { category ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(pillShape)
+                            .background(glassGradient)
+                            .border(1.dp, glassBorder, pillShape)
+                            .clickable {
+                                expanded = false
+                                onCategorySelected(category)
+                            }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(HomeCategory.titleRes(category)),
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Icon(
+                            imageVector = Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.55f),
+                            modifier = Modifier
+                                .size(16.dp)
+                                .graphicsLayer(rotationZ = -90f)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun BrandHeader(
-    serverName: String?,
+    serverName: String? = null,
     modifier: Modifier = Modifier,
     showUserIcon: Boolean = false,
     userName: String? = null,
     userImageUrl: String? = null,
     userServerTypeRaw: String? = null,
+    selectedCategory: String = HomeCategory.HOME,
+    onCategorySelected: (String) -> Unit = {},
     onProfileClick: (() -> Unit)? = null,
     onServerClick: (() -> Unit)? = null
 ) {
@@ -2171,9 +2275,10 @@ private fun BrandHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ServerChipButton(
-            serverName = serverName,
-            onClick = onServerClick,
+        HeaderNavigationChip(
+            selectedCategory = selectedCategory,
+            onCategorySelected = onCategorySelected,
+            onServerClick = onServerClick,
             modifier = Modifier.weight(1f, fill = false)
         )
 
@@ -2581,6 +2686,7 @@ private fun HomeMyMediaSection(
                             mediaRepository = mediaRepository,
                             disableImageEnhancers = disablePosterEnhancers,
                             useLandscapeLayout = true,
+                            dynamicWidth = isNoImageMode,
                             onClick = stableOnClick
                         )
                     }
@@ -3120,6 +3226,7 @@ internal fun LibraryItemCard(
     disableImageEnhancers: Boolean = false,
     useLandscapeLayout: Boolean = false,
     watchedFeedStyle: Boolean = false,
+    dynamicWidth: Boolean = false,
     onClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -3148,6 +3255,7 @@ internal fun LibraryItemCard(
             displayName = displayName,
             modifier = modifier,
             useLandscapeLayout = useLandscapeLayout || useWatchedEpisodeImage,
+            dynamicWidth = dynamicWidth,
             onClick = onClick
         )
         return

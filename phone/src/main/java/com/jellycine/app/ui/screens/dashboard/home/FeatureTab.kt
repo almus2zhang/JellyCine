@@ -620,9 +620,10 @@ fun FeatureTab(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                ServerChipButton(
-                    serverName = serverName ?: sessionSnapshot.serverName,
-                    onClick = onServerClick,
+                HeaderNavigationChip(
+                    selectedCategory = selectedCategory,
+                    onCategorySelected = onCategorySelected,
+                    onServerClick = onServerClick,
                     modifier = Modifier.weight(1f, fill = false)
                 )
 
@@ -671,110 +672,6 @@ private fun hasFeatureHeroAssets(item: BaseItemDto): Boolean {
     return hasLogo && hasBackdrop
 }
 
-@Composable
-private fun CategoryChipMenu(
-    selectedCategory: String,
-    onCategorySelected: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val menuOptions = remember(selectedCategory) {
-        HomeCategory.all.filterNot { it == selectedCategory }
-    }
-    var expanded by remember { mutableStateOf(false) }
-    val arrowRotation by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f,
-        label = "category_arrow"
-    )
-    val pillShape = RoundedCornerShape(18.dp)
-    val glassGradient = Brush.horizontalGradient(
-        colors = listOf(
-            Color.White.copy(alpha = 0.12f),
-            Color.White.copy(alpha = 0.05f)
-        )
-    )
-    val glassBorder = Color.White.copy(alpha = 0.22f)
-
-    Box(modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .clip(pillShape)
-                .background(glassGradient)
-                .border(1.dp, glassBorder, pillShape)
-                .clickable { expanded = true }
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.jellycine_logo),
-                contentDescription = stringResource(R.string.app_name),
-                modifier = Modifier.size(28.dp),
-                contentScale = ContentScale.Fit
-            )
-            Text(
-                text = stringResource(HomeCategory.titleRes(selectedCategory)),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-            Icon(
-                imageVector = Icons.Rounded.KeyboardArrowDown,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier
-                    .size(18.dp)
-                    .graphicsLayer(rotationZ = arrowRotation)
-            )
-        }
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            containerColor = Color.Transparent,
-            shadowElevation = 0.dp,
-            tonalElevation = 0.dp,
-            border = null,
-            modifier = Modifier.background(Color.Transparent)
-        ) {
-            Column(
-                modifier = Modifier.padding(6.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                menuOptions.forEach { category ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(pillShape)
-                            .background(glassGradient)
-                            .border(1.dp, glassBorder, pillShape)
-                            .clickable {
-                                expanded = false
-                                onCategorySelected(category)
-                            }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = stringResource(HomeCategory.titleRes(category)),
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Icon(
-                            imageVector = Icons.Rounded.KeyboardArrowDown,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.55f),
-                            modifier = Modifier
-                                .size(16.dp)
-                                .graphicsLayer(rotationZ = -90f)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun FeatureHeroCard(

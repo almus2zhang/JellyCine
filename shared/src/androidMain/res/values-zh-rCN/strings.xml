@@ -69,7 +69,7 @@
     <string name="auth_error_server_generic">连接失败，请重试。</string>
 
     <!-- Navigation -->
-    <string name="home">首页</string>
+    <string name="home">主页</string>
     <string name="libraries">资料库</string>
     <string name="favorites">收藏</string>
     <string name="downloads">下载</string>
