@@ -1,5 +1,6 @@
 package com.jellycine.app.ui.screens.player
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -45,6 +47,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import java.util.Locale
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
@@ -94,17 +98,22 @@ fun SubtitleTrackSelectionDialog(
     isVisible: Boolean,
     subtitleTracks: List<SubtitleTrackInfo>,
     currentSubtitleTrack: SubtitleTrackInfo?,
+    subtitleDelay: Double = 0.0,
     onTrackSelected: (String) -> Unit,
+    onAdjustSubtitleDelay: ((Double) -> Unit)? = null,
+    onResetSubtitleDelay: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     if (!isVisible) return
+
+    val subtitleAccentColor = Color(0xFFFF6B3B)
 
     TrackSelectionDialog(
         title = stringResource(R.string.player_dialog_subtitles_title),
         helperText = stringResource(R.string.player_dialog_subtitles_summary),
         itemCountLabel = stringResource(R.string.player_dialog_tracks_count),
         icon = Icons.Rounded.ClosedCaption,
-        accentColor = Color(0xFFFF6B3B),
+        accentColor = subtitleAccentColor,
         tracks = subtitleTracks,
         currentTrack = currentSubtitleTrack,
         onTrackSelected = onTrackSelected,
@@ -117,7 +126,17 @@ fun SubtitleTrackSelectionDialog(
                 subtitle = buildSubtitleTrackSubtitle(track),
                 description = buildSubtitleTrackDescription(track)
             )
-        }
+        },
+        headerExtraContent = if (onAdjustSubtitleDelay != null) {
+            {
+                SubtitleDelaySection(
+                    subtitleDelay = subtitleDelay,
+                    onAdjustSubtitleDelay = onAdjustSubtitleDelay,
+                    onResetSubtitleDelay = onResetSubtitleDelay,
+                    accentColor = subtitleAccentColor
+                )
+            }
+        } else null
     )
 }
 
@@ -233,7 +252,8 @@ private fun <T> TrackSelectionDialog(
     onDismiss: () -> Unit,
     trackKey: (T) -> String,
     isTrackSelected: (T, T?) -> Boolean,
-    trackDisplayInfo: (T) -> TrackDisplayInfo
+    trackDisplayInfo: (T) -> TrackDisplayInfo,
+    headerExtraContent: (@Composable () -> Unit)? = null
 ) where T : Any {
     Dialog(
         onDismissRequest = onDismiss,
@@ -255,7 +275,11 @@ private fun <T> TrackSelectionDialog(
                 val isLandscape = maxWidth > maxHeight
                 val dialogWidthFraction = if (isLandscape) 0.68f else 0.84f
                 val dialogMaxWidth: Dp = if (isLandscape) 380.dp else 460.dp
-                val listMaxHeight: Dp = if (isLandscape) 220.dp else 300.dp
+                val listMaxHeight: Dp = if (isLandscape) {
+                    if (headerExtraContent != null) 140.dp else 220.dp
+                } else {
+                    300.dp
+                }
 
                 Surface(
                     modifier = Modifier
@@ -270,7 +294,7 @@ private fun <T> TrackSelectionDialog(
                     tonalElevation = 12.dp,
                     shadowElevation = 22.dp,
                     color = MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(
+                    border = BorderStroke(
                         width = 1.dp,
                         color = accentColor.copy(alpha = 0.25f)
                     )
@@ -290,6 +314,11 @@ private fun <T> TrackSelectionDialog(
                         )
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
+
+                        if (headerExtraContent != null) {
+                            headerExtraContent()
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
+                        }
 
                         if (tracks.isEmpty()) {
                             EmptyState()
@@ -658,4 +687,181 @@ private fun buildSubtitleTrackDescription(track: SubtitleTrackInfo): String {
         if (track.isForced) add("Forced subtitles")
         if (track.isDefault) add("Default track")
     }.joinToString(" | ")
+}
+
+@Composable
+private fun SubtitleDelaySection(
+    subtitleDelay: Double,
+    onAdjustSubtitleDelay: ((Double) -> Unit)?,
+    onResetSubtitleDelay: (() -> Unit)?,
+    accentColor: Color
+) {
+    val hasOffset = kotlin.math.abs(subtitleDelay) >= 0.05
+    val directionLabel = when {
+        subtitleDelay > 0.04 -> stringResource(R.string.player_dialog_subtitles_delay_later)
+        subtitleDelay < -0.04 -> stringResource(R.string.player_dialog_subtitles_delay_earlier)
+        else -> ""
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = accentColor
+                    )
+                    Text(
+                        text = stringResource(R.string.player_dialog_subtitles_delay_title),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (hasOffset) accentColor.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (hasOffset) accentColor.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                    ),
+                    modifier = Modifier.clickable(enabled = hasOffset) {
+                        onResetSubtitleDelay?.invoke()
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = if (hasOffset) {
+                                String.format(Locale.US, "%+.1fs", subtitleDelay)
+                            } else {
+                                "0.0s"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (hasOffset) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (directionLabel.isNotEmpty()) {
+                            Text(
+                                text = directionLabel,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = accentColor.copy(alpha = 0.9f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                DelayStepButton(
+                    label = "-0.5s",
+                    accentColor = accentColor,
+                    isHighlight = false,
+                    onClick = { onAdjustSubtitleDelay?.invoke(-0.5) },
+                    modifier = Modifier.weight(1f)
+                )
+                DelayStepButton(
+                    label = "-0.1s",
+                    accentColor = accentColor,
+                    isHighlight = false,
+                    onClick = { onAdjustSubtitleDelay?.invoke(-0.1) },
+                    modifier = Modifier.weight(1f)
+                )
+                DelayStepButton(
+                    label = stringResource(R.string.player_dialog_subtitles_delay_reset),
+                    accentColor = accentColor,
+                    isHighlight = hasOffset,
+                    onClick = { onResetSubtitleDelay?.invoke() },
+                    modifier = Modifier.weight(1.1f)
+                )
+                DelayStepButton(
+                    label = "+0.1s",
+                    accentColor = accentColor,
+                    isHighlight = false,
+                    onClick = { onAdjustSubtitleDelay?.invoke(0.1) },
+                    modifier = Modifier.weight(1f)
+                )
+                DelayStepButton(
+                    label = "+0.5s",
+                    accentColor = accentColor,
+                    isHighlight = false,
+                    onClick = { onAdjustSubtitleDelay?.invoke(0.5) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DelayStepButton(
+    label: String,
+    accentColor: Color,
+    isHighlight: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = if (isHighlight) {
+        accentColor.copy(alpha = 0.18f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    }
+    val borderColor = if (isHighlight) {
+        accentColor.copy(alpha = 0.5f)
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+    }
+    val textColor = if (isHighlight) {
+        accentColor
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Box(
+            modifier = Modifier.padding(vertical = 7.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = if (isHighlight) FontWeight.Bold else FontWeight.Medium,
+                color = textColor,
+                maxLines = 1
+            )
+        }
+    }
 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -83,6 +84,49 @@ fun WatchedActionButton(
                         if (isWatched) R.string.watched else R.string.unwatched
                     ),
                     tint = Color.White,
+                    modifier = Modifier.size(iconSize)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DeleteActionButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 28.dp
+) {
+    val visualSize = size
+    val iconSize = size * 0.54f
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.size(visualSize),
+            shape = RoundedCornerShape(visualSize / 2f),
+            color = Color(0xFFFF4D4D).copy(alpha = 0.16f),
+            border = BorderStroke(
+                1.dp,
+                Color(0xFFFF4D4D).copy(alpha = 0.35f)
+            )
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.DeleteOutline,
+                    contentDescription = stringResource(R.string.media_delete_title),
+                    tint = Color(0xFFFF6B6B),
                     modifier = Modifier.size(iconSize)
                 )
             }

@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -172,6 +173,8 @@ fun PlayerScreen(
     var showAudioTranscodingDialog by remember { mutableStateOf(false) }
     var pendingStreamingQualitySelection by remember { mutableStateOf<String?>(null) }
     var showMediaInfo by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var isDeletingMedia by remember { mutableStateOf(false) }
     val mediaInfoSnapshot = remember(showMediaInfo, viewModel) {
         if (showMediaInfo) viewModel.getMediaMetadataInfo() else null
     }
@@ -682,7 +685,8 @@ fun PlayerScreen(
             onShowSubtitleTrackDialog = { showSubtitleTrackDialog = true },
             onToggleOrientation = toggleOrientation,
             onToggleAutoRotation = toggleAutoRotation,
-            onEnterPip = enterPip
+            onEnterPip = enterPip,
+            onDeleteMedia = { showDeleteConfirmation = true }
         )
 
         PlayerDialogsHost(
@@ -704,6 +708,12 @@ fun PlayerScreen(
                 viewModel.selectSubtitleTrack(trackId)
                 showSubtitleTrackDialog = false
             },
+            onAdjustSubtitleDelay = { delta ->
+                viewModel.adjustSubtitleDelay(delta)
+            },
+            onResetSubtitleDelay = {
+                viewModel.resetSubtitleDelay()
+            },
             onStreamingQualitySelected = applyStreamingQualitySelection,
             onAudioTranscodingSelected = { selectedMode ->
                 val targetQuality = pendingStreamingQualitySelection ?: currentStreamingQuality
@@ -718,6 +728,85 @@ fun PlayerScreen(
             },
             onDismissMediaInfo = { showMediaInfo = false }
         )
+
+        if (showDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = {
+                    if (!isDeletingMedia) showDeleteConfirmation = false
+                },
+                title = {
+                    Text(
+                        text = stringResource(R.string.media_delete_title),
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
+                text = {
+                    Text(
+                        text = stringResource(
+                            R.string.media_delete_confirm_message,
+                            playerState.mediaTitle
+                        ),
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (!isDeletingMedia) {
+                                isDeletingMedia = true
+                                viewModel.deleteCurrentMedia(
+                                    onSuccess = {
+                                        isDeletingMedia = false
+                                        showDeleteConfirmation = false
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.media_delete_success),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        onBackPressed?.invoke()
+                                    },
+                                    onError = { errorMsg ->
+                                        isDeletingMedia = false
+                                        Toast.makeText(
+                                            context,
+                                            errorMsg,
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = Color(0xFFEF4444)
+                        )
+                    ) {
+                        if (isDeletingMedia) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFFEF4444)
+                            )
+                        } else {
+                            Text(stringResource(R.string.media_delete_confirm_button))
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showDeleteConfirmation = false },
+                        enabled = !isDeletingMedia,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = Color.White.copy(alpha = 0.7f)
+                        )
+                    ) {
+                        Text(stringResource(R.string.media_delete_cancel_button))
+                    }
+                },
+                containerColor = Color(0xFF1E1E22),
+                shape = RoundedCornerShape(16.dp)
+            )
+        }
     }
 }
 

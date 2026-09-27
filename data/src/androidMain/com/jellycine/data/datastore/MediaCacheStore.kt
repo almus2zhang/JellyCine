@@ -144,6 +144,18 @@ class MediaCacheStore(
         }
     }
 
+    suspend fun removeItem(itemId: String) {
+        if (itemId.isBlank()) return
+        withContext(Dispatchers.IO) {
+            itemMemoryCache.remove(itemId)
+            itemLock.withLock {
+                runCatching {
+                    File(itemsDir, "${hashKey(itemId)}.json").delete()
+                }
+            }
+        }
+    }
+
     suspend fun saveItem(item: BaseItemDto) {
         val itemId = item.id ?: return
         withContext(Dispatchers.IO) {

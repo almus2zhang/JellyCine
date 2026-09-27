@@ -53,6 +53,8 @@ data class PlayerState(
     val availableAudioTracks: List<AudioTrackInfo> = emptyList(),
     val currentSubtitleTrack: SubtitleTrackInfo? = null,
     val availableSubtitleTracks: List<SubtitleTrackInfo> = emptyList(),
+    val subtitleDelay: Double = 0.0,
+    val canDelete: Boolean = false,
     val currentVideoTrack: VideoTrackInfo? = null,
     val availableVideoTracks: List<VideoTrackInfo> = emptyList(),
     // Video scaling for aspect ratio control

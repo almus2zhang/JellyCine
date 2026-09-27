@@ -48,6 +48,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.jellycine.app.download.DownloadRepository
 import com.jellycine.app.download.DownloadRepositoryProvider
+import com.jellycine.shared.playback.UserDataRefreshSignals
 import java.io.File
 import javax.inject.Inject
 
@@ -189,6 +190,8 @@ class PlayerViewModel @Inject constructor(
                 hasHandledPlaybackCompletion = false
                 remotePlaybackRequestKey = null
                 val playerPreferences = PlayerPreferences(context)
+                val savedSubtitleDelay = playerPreferences.getSubtitleDelay(mediaId)
+                _playerState.value = _playerState.value.copy(subtitleDelay = savedSubtitleDelay)
                 activePlayerEngine = forcedPlayerEngine ?: playerPreferences.getPlayerEngine()
                 val resolvedPreferredAudioStreamIndex = preferredAudioStreamIndex
                     ?: playerPreferences.getPreferredAudioStreamIndex(mediaId)
@@ -470,6 +473,7 @@ class PlayerViewModel @Inject constructor(
                     val deviceHdrSupport = com.jellycine.player.video.HdrCapabilityManager.getDeviceHdrSupport(context)
 
                     mpvPlayer = createMpvPlayer(context).also { player ->
+                        player.setSubtitleDelay(savedSubtitleDelay)
                         val adaptation = player.applyPlaybackAdaptation(
                             isDolbyVision = isDv,
                             dvProfile = dvProfile,
@@ -557,7 +561,8 @@ class PlayerViewModel @Inject constructor(
                     isSpatialAudioEnabled = false,
                     spatialAudioFormat = "",
                     isHdrEnabled = isHdrPlayback,
-                    hdrFormat = hdrFormat
+                    hdrFormat = hdrFormat,
+                    canDelete = itemDetails?.canDelete == true
                 )
                 if (usesMpv) {
                     updateApiTrackInformation()
@@ -1449,6 +1454,50 @@ class PlayerViewModel @Inject constructor(
             viewModelScope.launch {
                 delay(500)
                 updateTrackInformation()
+            }
+        }
+    }
+
+    /**
+     * Adjust or set subtitle timing delay in seconds.
+     * Positive value displays subtitles later; negative value displays subtitles earlier.
+     */
+    fun setSubtitleDelay(seconds: Double) {
+        val rounded = (kotlin.math.round(seconds * 10.0) / 10.0).coerceIn(-60.0, 60.0)
+        Log.d(TAG, "Setting subtitle delay: ${rounded}s")
+        _playerState.value = _playerState.value.copy(subtitleDelay = rounded)
+        if (isMpvPlayback()) {
+            mpvPlayer?.setSubtitleDelay(rounded)
+        }
+        val (preferences, mediaId) = currentMediaPreferences() ?: return
+        preferences.setSubtitleDelay(mediaId, rounded)
+    }
+
+    fun adjustSubtitleDelay(delta: Double) {
+        setSubtitleDelay(_playerState.value.subtitleDelay + delta)
+    }
+
+    fun resetSubtitleDelay() {
+        setSubtitleDelay(0.0)
+    }
+
+    /**
+     * Delete currently playing media from the server.
+     */
+    fun deleteCurrentMedia(
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val mediaId = playbackSession.mediaId ?: return
+        viewModelScope.launch {
+            releasePlayer()
+            val result = mediaRepository.deleteItem(mediaId)
+            if (result.isSuccess) {
+                UserDataRefreshSignals.notifyUserDataChanged(mediaId)
+                onSuccess()
+            } else {
+                val errorMsg = result.exceptionOrNull()?.message ?: "Delete failed"
+                onError(errorMsg)
             }
         }
     }

@@ -64,6 +64,7 @@ class PlayerPreferences(context: Context) {
         private const val KEY_AUDIO_TRANSCODE_MODE = "audio_transcode_mode"
         private const val KEY_AUDIO_STREAM_INDEX_PREFIX = "audio_stream_index_"
         private const val KEY_SUBTITLE_STREAM_INDEX_PREFIX = "subtitle_stream_index_"
+        private const val KEY_SUBTITLE_DELAY_PREFIX = "subtitle_delay_"
         private const val KEY_STREAM_INDEX_UPDATED_AT_PREFIX = "stream_index_updated_at_"
         private const val MAX_PREFERRED_STREAM_ITEMS = 500
 
@@ -916,12 +917,32 @@ class PlayerPreferences(context: Context) {
         prunePreferredStreamIndexesIfNeeded()
     }
 
+    fun getSubtitleDelay(itemId: String): Double {
+        val key = subtitleDelayKey(itemId)
+        return if (prefs.contains(key)) prefs.getFloat(key, 0.0f).toDouble() else 0.0
+    }
+
+    fun setSubtitleDelay(itemId: String, delay: Double) {
+        val key = subtitleDelayKey(itemId)
+        prefs.edit().apply {
+            if (kotlin.math.abs(delay) < 0.05) {
+                remove(key)
+            } else {
+                putFloat(key, delay.toFloat())
+            }
+        }.apply()
+    }
+
     private fun audioStreamKey(itemId: String): String {
         return "$KEY_AUDIO_STREAM_INDEX_PREFIX$itemId"
     }
 
     private fun subtitleStreamKey(itemId: String): String {
         return "$KEY_SUBTITLE_STREAM_INDEX_PREFIX$itemId"
+    }
+
+    private fun subtitleDelayKey(itemId: String): String {
+        return "$KEY_SUBTITLE_DELAY_PREFIX$itemId"
     }
 
     private fun streamUpdatedAtKey(itemId: String): String {
@@ -955,6 +976,7 @@ class PlayerPreferences(context: Context) {
             oldestItems.forEach { (itemId, _) ->
                 remove(audioStreamKey(itemId))
                 remove(subtitleStreamKey(itemId))
+                remove(subtitleDelayKey(itemId))
                 remove(streamUpdatedAtKey(itemId))
             }
         }.apply()

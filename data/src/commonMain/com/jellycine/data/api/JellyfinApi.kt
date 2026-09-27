@@ -233,4 +233,6 @@ interface MediaServerApi {
         startIndex: Int? = null,
         limit: Int? = null
     ): ApiResponse<ActivityLogResult>
+
+    suspend fun deleteItem(itemId: String): ApiResponse<Unit>
 }

@@ -254,6 +254,16 @@
     <string name="player_dialog_audio_summary">选择首选音轨</string>
     <string name="player_dialog_subtitles_title">字幕</string>
     <string name="player_dialog_subtitles_summary">选择字幕轨</string>
+    <string name="player_dialog_subtitles_delay_title">字幕延迟</string>
+    <string name="player_dialog_subtitles_delay_reset">重置</string>
+    <string name="player_dialog_subtitles_delay_earlier">提前</string>
+    <string name="player_dialog_subtitles_delay_later">延后</string>
+    <string name="media_delete_title">删除媒体</string>
+    <string name="media_delete_confirm_message">确定要从服务器中删除“%1$s”吗？此操作将从磁盘永久删除该文件，不可恢复。</string>
+    <string name="media_delete_confirm_button">删除</string>
+    <string name="media_delete_cancel_button">取消</string>
+    <string name="media_delete_success">已从服务器删除</string>
+    <string name="media_delete_failed">删除失败: %1$s</string>
     <string name="player_dialog_tracks_count">条音轨</string>
     <string name="player_dialog_streaming_quality_title">串流画质</string>
     <string name="player_dialog_streaming_quality_summary">选择视频播放画质上限</string>

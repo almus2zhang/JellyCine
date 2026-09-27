@@ -38,6 +38,7 @@ class MpvPlayerController(
     private var playWhenReady = true
     private var pendingSubtitleUrls: List<String> = emptyList()
     private var pendingSelectedSubtitleUrl: String? = null
+    private var subtitleDelaySeconds: Double = 0.0
     private val playerPreferences = PlayerPreferences(context.applicationContext)
     @Volatile
     private var listener: Listener = listener
@@ -199,6 +200,7 @@ class MpvPlayerController(
             arrayOf("loadfile", url, "replace", "-1", loadOptions.joinToString(","))
         }
         mpv.command(loadCommand)
+        mpv.setPropertyDouble("sub-delay", subtitleDelaySeconds)
     }
 
     fun setListener(listener: Listener) {
@@ -341,6 +343,17 @@ class MpvPlayerController(
         }
     }
 
+    fun setSubtitleDelay(delaySeconds: Double) {
+        subtitleDelaySeconds = delaySeconds
+        if (released) return
+        mpv.setPropertyDouble("sub-delay", delaySeconds)
+    }
+
+    fun getSubtitleDelay(): Double {
+        if (released) return subtitleDelaySeconds
+        return mpv.getPropertyDouble("sub-delay") ?: subtitleDelaySeconds
+    }
+
     fun release() {
         if (released) return
         released = true
@@ -399,6 +412,9 @@ class MpvPlayerController(
                 }
                 pendingSubtitleUrls = emptyList()
                 pendingSelectedSubtitleUrl = null
+                if (subtitleDelaySeconds != 0.0) {
+                    mpv.setPropertyDouble("sub-delay", subtitleDelaySeconds)
+                }
             }
             MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
                 ready = true

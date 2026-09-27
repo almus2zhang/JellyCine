@@ -80,6 +80,8 @@ fun ControlsOverlay(
     isHdrEnabled: Boolean = false,
     hdrFormat: String = "",
     onShowMediaInfo: () -> Unit = {},
+    canDeleteMedia: Boolean = false,
+    onDeleteMedia: () -> Unit = {},
     isLocked: Boolean = false,
     onToggleLock: () -> Unit = {},
     currentStreamingQuality: String = "",
@@ -200,6 +202,16 @@ fun ControlsOverlay(
                             tint = Color(0xFF4CAF50),
                             modifier = Modifier.size(24.dp)
                         )
+                    }
+                    if (canDeleteMedia) {
+                        IconButton(onClick = onDeleteMedia) {
+                            Icon(
+                                imageVector = Icons.Outlined.Delete,
+                                contentDescription = stringResource(R.string.media_delete_title),
+                                tint = Color(0xFFFF6B6B),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                     IconButton(onClick = onCycleAspectRatio) {
                         Icon(

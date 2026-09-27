@@ -51,6 +51,8 @@ import com.jellycine.shared.ui.components.common.buildInlineText
 import com.jellycine.shared.ui.components.common.buildLocalVersionEntries
 import com.jellycine.shared.ui.components.common.OverviewSection
 import com.jellycine.shared.ui.components.common.SeerrRequestButtonRow
+import android.widget.Toast
+import com.jellycine.shared.ui.components.common.DeleteActionButton
 import com.jellycine.shared.ui.components.common.WatchedActionButton
 import com.jellycine.shared.ui.components.common.selectedVideoOption
 import com.jellycine.app.ui.components.common.BackButton
@@ -158,6 +160,9 @@ fun DetailContent(
     var logoResolved by remember { mutableStateOf(false) }
     var logoLookup by remember { mutableStateOf(true) }
     var logoLoadError by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var isDeletingMedia by remember { mutableStateOf(false) }
+    val canDeleteMedia = item.canDelete == true
     val activeMediaSources = remember(item.id, item.mediaSources) {
         item.activeDetailMediaSources()
     }
@@ -714,7 +719,9 @@ fun DetailContent(
                         showWatchedButton = true,
                         isWatched = isWatched,
                         onWatchedClick = ::toggleWatched,
-                        onCastButtonClick = onCastButtonClick
+                        onCastButtonClick = onCastButtonClick,
+                        canDelete = canDeleteMedia,
+                        onDeleteClick = { showDeleteConfirmation = true }
                     )
                 }
             }
@@ -745,7 +752,9 @@ fun DetailContent(
                                 showWatchedButton = true,
                                 isWatched = isWatched,
                                 onWatchedClick = ::toggleWatched,
-                                onCastButtonClick = onCastButtonClick
+                                onCastButtonClick = onCastButtonClick,
+                                canDelete = canDeleteMedia,
+                                onDeleteClick = { showDeleteConfirmation = true }
                             )
                         }
                     }
@@ -1384,9 +1393,93 @@ fun DetailContent(
                 isWatched = isWatched,
                 onWatchedClick = ::toggleWatched,
                 onCastButtonClick = onCastButtonClick,
+                canDelete = canDeleteMedia,
+                onDeleteClick = { showDeleteConfirmation = true },
                 modifier = Modifier.align(Alignment.TopEnd)
             )
         }
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDeletingMedia) showDeleteConfirmation = false
+            },
+            title = {
+                Text(
+                    text = stringResource(R.string.media_delete_title),
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.media_delete_confirm_message,
+                        item.name ?: ""
+                    ),
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (!isDeletingMedia) {
+                            isDeletingMedia = true
+                            coroutineScope.launch {
+                                val itemId = item.id ?: return@launch
+                                val result = mediaRepository.deleteItem(itemId)
+                                isDeletingMedia = false
+                                showDeleteConfirmation = false
+                                if (result.isSuccess) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.media_delete_success),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    UserDataRefreshSignals.notifyUserDataChanged(itemId)
+                                    onBackPressed()
+                                } else {
+                                    val err = result.exceptionOrNull()?.message
+                                        ?: context.getString(R.string.media_delete_failed)
+                                    Toast.makeText(
+                                        context,
+                                        err,
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Color(0xFFEF4444)
+                    )
+                ) {
+                    if (isDeletingMedia) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFFEF4444)
+                        )
+                    } else {
+                        Text(stringResource(R.string.media_delete_confirm_button))
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirmation = false },
+                    enabled = !isDeletingMedia,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Color.White.copy(alpha = 0.7f)
+                    )
+                ) {
+                    Text(stringResource(R.string.media_delete_cancel_button))
+                }
+            },
+            containerColor = Color(0xFF1E1E22),
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 
     Dialogs(
@@ -1488,6 +1581,8 @@ private fun DetailActionsOverlay(
     isWatched: Boolean,
     onWatchedClick: () -> Unit,
     onCastButtonClick: () -> Unit,
+    canDelete: Boolean = false,
+    onDeleteClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     CompactTopChip(
@@ -1509,6 +1604,12 @@ private fun DetailActionsOverlay(
                 onClick = onWatchedClick,
                 size = 30.dp
             )
+            if (canDelete) {
+                DeleteActionButton(
+                    onClick = onDeleteClick,
+                    size = 30.dp
+                )
+            }
             ScreenCastButton(
                 onConnectedClick = onCastButtonClick,
                 size = 30.dp

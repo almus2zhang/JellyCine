@@ -20,6 +20,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.jellycine.shared.ui.components.common.DeleteActionButton
 import com.jellycine.shared.ui.components.common.WatchedActionButton
 import com.jellycine.shared.util.image.JellyfinPosterImage
 
@@ -180,7 +181,9 @@ fun BoxScope.DetailHeroCastButtonOverlay(
     showWatchedButton: Boolean,
     isWatched: Boolean,
     onWatchedClick: () -> Unit,
-    onCastButtonClick: () -> Unit
+    onCastButtonClick: () -> Unit,
+    canDelete: Boolean = false,
+    onDeleteClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -194,6 +197,11 @@ fun BoxScope.DetailHeroCastButtonOverlay(
             WatchedActionButton(
                 isWatched = isWatched,
                 onClick = onWatchedClick
+            )
+        }
+        if (canDelete) {
+            DeleteActionButton(
+                onClick = onDeleteClick
             )
         }
         ScreenCastButton(onConnectedClick = onCastButtonClick)

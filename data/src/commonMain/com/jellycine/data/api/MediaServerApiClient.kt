@@ -461,6 +461,11 @@ internal class MediaServerApiClient(
         )
     )
 
+    override suspend fun deleteItem(itemId: String): ApiResponse<Unit> = execute(
+        method = HttpMethod.Delete,
+        endpoint = "Items/$itemId"
+    )
+
     private suspend inline fun <reified T> get(
         endpoint: String,
         queryParameters: List<Pair<String, Any?>> = emptyList()

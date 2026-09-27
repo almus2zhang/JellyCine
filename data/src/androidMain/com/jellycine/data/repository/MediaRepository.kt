@@ -468,7 +468,7 @@ class MediaRepository(private val context: Context) {
                 ?: Result.failure(Exception(string(R.string.data_error_api_not_available)))
             val userId = getUserId() ?: return mediaCacheStore.getItem(itemId)?.let { Result.success(it) }
                 ?: Result.failure(Exception(string(R.string.data_error_user_id_not_available)))
-            val detailFields = "People,Studios,Genres,Overview,ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,OfficialRating,UserData,Chapters,ProviderIds,IndexNumber,ParentIndexNumber,RemoteTrailers,MediaStreams,MediaSources"
+            val detailFields = "People,Studios,Genres,Overview,ChildCount,RecursiveItemCount,EpisodeCount,SeriesName,SeriesId,OfficialRating,UserData,Chapters,ProviderIds,IndexNumber,ParentIndexNumber,RemoteTrailers,MediaStreams,MediaSources,CanDelete"
             val response = api.getItemById(
                 userId = userId,
                 itemId = itemId,
@@ -903,6 +903,25 @@ class MediaRepository(private val context: Context) {
 
     suspend fun setSeriesPlayedStatus(seriesId: String, isPlayed: Boolean): Result<Unit> {
         return setPlayedStatus(itemId = seriesId, isPlayed = isPlayed)
+    }
+
+    suspend fun deleteItem(itemId: String): Result<Unit> {
+        return try {
+            val api = getApi() ?: return Result.failure(Exception(string(R.string.data_error_api_not_available)))
+            val response = api.deleteItem(itemId)
+            if (response.isSuccessful) {
+                mediaCacheStore.removeItem(itemId)
+                Result.success(Unit)
+            } else {
+                Result.failure(
+                    Exception(
+                        "Failed to delete item: ${response.code()} - ${response.message()}"
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun getUserViews(): Result<QueryResult<BaseItemDto>> {

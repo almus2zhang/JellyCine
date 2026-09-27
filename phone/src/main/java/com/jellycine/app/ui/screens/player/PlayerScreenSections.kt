@@ -405,7 +405,8 @@ internal fun BoxScope.PlayerOverlayHost(
     onShowSubtitleTrackDialog: () -> Unit,
     onToggleOrientation: () -> Unit = {},
     onToggleAutoRotation: (() -> Unit)? = null,
-    onEnterPip: () -> Unit = {}
+    onEnterPip: () -> Unit = {},
+    onDeleteMedia: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val activity = context as? Activity
@@ -560,6 +561,11 @@ internal fun BoxScope.PlayerOverlayHost(
             onEnterPip = {
                 resetAutoHideTimer()
                 onEnterPip()
+            },
+            canDeleteMedia = playerState.canDelete,
+            onDeleteMedia = {
+                resetAutoHideTimer()
+                onDeleteMedia()
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -810,6 +816,8 @@ internal fun PlayerDialogsHost(
     mediaInfoSnapshot: MediaMetadataInfo?,
     onAudioTrackSelected: (String) -> Unit,
     onSubtitleTrackSelected: (String) -> Unit,
+    onAdjustSubtitleDelay: (Double) -> Unit = {},
+    onResetSubtitleDelay: () -> Unit = {},
     onStreamingQualitySelected: (String) -> Unit,
     onAudioTranscodingSelected: (AudioTranscodeMode) -> Unit,
     onDismissAudioTrackDialog: () -> Unit,
@@ -830,7 +838,10 @@ internal fun PlayerDialogsHost(
         isVisible = showSubtitleTrackDialog,
         subtitleTracks = playerState.availableSubtitleTracks,
         currentSubtitleTrack = playerState.currentSubtitleTrack,
+        subtitleDelay = playerState.subtitleDelay,
         onTrackSelected = onSubtitleTrackSelected,
+        onAdjustSubtitleDelay = onAdjustSubtitleDelay,
+        onResetSubtitleDelay = onResetSubtitleDelay,
         onDismiss = onDismissSubtitleTrackDialog
     )
 
