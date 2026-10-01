@@ -56,6 +56,8 @@ import com.jellycine.player.core.findActiveSkippableSegment
 import com.jellycine.player.discord.NowPlayingInfo
 import com.jellycine.player.preferences.PlayerPreferences
 import com.jellycine.app.discord.DiscordRpcEffect
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 /**
  * Player state data class to group related states
@@ -175,8 +177,16 @@ fun PlayerScreen(
     var showMediaInfo by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var isDeletingMedia by remember { mutableStateOf(false) }
-    val mediaInfoSnapshot = remember(showMediaInfo, viewModel) {
-        if (showMediaInfo) viewModel.getMediaMetadataInfo() else null
+    var mediaInfoSnapshot by remember { mutableStateOf<MediaMetadataInfo?>(null) }
+    LaunchedEffect(showMediaInfo, viewModel) {
+        if (showMediaInfo) {
+            while (isActive) {
+                mediaInfoSnapshot = viewModel.getMediaMetadataInfo()
+                delay(1000)
+            }
+        } else {
+            mediaInfoSnapshot = null
+        }
     }
 
     // Player state from ViewModel

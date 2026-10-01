@@ -113,12 +113,14 @@ internal object PlaybackDeviceProfileFactory {
 
         return buildList {
             textFormats.forEach { format ->
-                add(SubtitleProfile(format = format, method = "External"))
                 add(SubtitleProfile(format = format, method = "Embed"))
+                add(SubtitleProfile(format = format, method = "External"))
+                add(SubtitleProfile(format = format, method = "Hls"))
             }
             imageFormats.forEach { format ->
                 add(SubtitleProfile(format = format, method = "Embed"))
                 add(SubtitleProfile(format = format, method = "External"))
+                add(SubtitleProfile(format = format, method = "Hls"))
             }
         }
     }

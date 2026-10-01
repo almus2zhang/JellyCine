@@ -73,7 +73,12 @@ internal object PlayerMetadata {
         mediaStreams: List<MediaStream>?,
         mediaSourceContainer: String?,
         mediaSourceBitrateKbps: Int?,
-        playMethodDisplayName: String
+        playMethodDisplayName: String,
+        playerEngine: String = "ExoPlayer",
+        streamUrl: String? = null,
+        transcodeReasons: List<String> = emptyList(),
+        cacheSpeedText: String? = null,
+        bufferedDurationText: String? = null
     ): MediaMetadataInfo {
         val hdrFormatInfo = context?.let { ctx ->
             val deviceHdrInfo = PlayerUtils.getHdrCapabilityInfo(ctx)
@@ -275,7 +280,12 @@ internal object PlayerMetadata {
             hardwareAcceleration = hardwareAccelerationInfo,
             streamContainer = mediaSourceContainer,
             streamBitrateKbps = mediaSourceBitrateKbps,
-            playMethod = playMethodDisplayName
+            playMethod = playMethodDisplayName,
+            playerEngine = playerEngine,
+            streamUrl = streamUrl,
+            transcodeReasons = transcodeReasons,
+            cacheSpeedText = cacheSpeedText,
+            bufferedDurationText = bufferedDurationText
         )
     }
 

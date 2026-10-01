@@ -1649,8 +1649,7 @@ class MediaRepository(private val context: Context) {
             val preferGetPlaybackInfo = (
                 serverType == ServerType.EMBY || serverType == ServerType.JELLYFIN
             ) &&
-                !forceTranscode && audioTranscodeMode == AudioTranscodeMode.AUTO &&
-                normalizedSubtitleStreamIndex == null
+                !forceTranscode && audioTranscodeMode == AudioTranscodeMode.AUTO
             val enableDirectPlay = if (forceTranscode) false else true
             val enableDirectStream = if (forceTranscode) false else true
             val enableTranscoding = true
@@ -1664,7 +1663,7 @@ class MediaRepository(private val context: Context) {
                     userId = userId,
                     maxStreamingBitrate = maxStreamingBitrate,
                     audioStreamIndex = audioStreamIndex,
-                    subtitleStreamIndex = normalizedSubtitleStreamIndex,
+                    subtitleStreamIndex = null,
                     enableDirectPlay = enableDirectPlay,
                     enableDirectStream = enableDirectStream,
                     enableTranscoding = enableTranscoding

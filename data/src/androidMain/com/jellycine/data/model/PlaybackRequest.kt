@@ -162,11 +162,13 @@ internal object PlaybackUrlBuilder {
                 selectedAudioStream = selectedAudioStream
             )
 
+            val canDirectPlayRaw = !hasQualityCap && !needsAudioTranscoding
             val serverTranscodingUrl = !mediaSource.transcodingUrl.isNullOrBlank() &&
                 (
                     hasQualityCap ||
                         needsAudioTranscoding ||
-                        (mediaSource.supportsDirectPlay != true &&
+                        (!canDirectPlayRaw &&
+                            mediaSource.supportsDirectPlay != true &&
                             mediaSource.supportsDirectStream != true)
                 )
             if (serverTranscodingUrl) {
@@ -196,11 +198,14 @@ internal object PlaybackUrlBuilder {
                 }
             }
 
+            val useStaticStream = canDirectPlayRaw || mediaSource.supportsDirectPlay == true
             val streamQueryParams = mutableListOf<Pair<String, String?>>()
             streamQueryParams.add("mediaSourceId" to mediaSource.id)
             options.audioStreamIndex?.let { streamQueryParams.add("audioStreamIndex" to it.toString()) }
-            normalizeSubtitleStreamIndex(options.subtitleStreamIndex)?.let {
-                streamQueryParams.add("subtitleStreamIndex" to it.toString())
+            if (!useStaticStream) {
+                normalizeSubtitleStreamIndex(options.subtitleStreamIndex)?.let {
+                    streamQueryParams.add("subtitleStreamIndex" to it.toString())
+                }
             }
             streamQueryParams.add("PlaySessionId" to playbackInfo.playSessionId)
             streamQueryParams.add("DeviceId" to authContext.deviceId)
@@ -220,7 +225,8 @@ internal object PlaybackUrlBuilder {
                 serverUrl = authContext.serverUrl,
                 itemId = itemId,
                 queryParams = streamQueryParams,
-                useStaticStream = mediaSource.supportsDirectPlay == true
+                useStaticStream = useStaticStream,
+                container = mediaSource.container
             )
 
             Result.success(streamingUrl)
@@ -264,7 +270,8 @@ internal object PlaybackUrlBuilder {
         serverUrl: String,
         itemId: String,
         queryParams: List<Pair<String, String?>>,
-        useStaticStream: Boolean
+        useStaticStream: Boolean,
+        container: String? = null
     ): String {
         val finalQueryParams = if (useStaticStream) {
             buildList {
@@ -274,9 +281,15 @@ internal object PlaybackUrlBuilder {
         } else {
             queryParams
         }
+        val cleanContainer = container?.trimStart('.')?.lowercase()?.takeIf { it.isNotBlank() }
+        val encodedPath = if (useStaticStream && cleanContainer != null) {
+            "Videos/$itemId/stream.$cleanContainer"
+        } else {
+            "Videos/$itemId/stream"
+        }
         return buildServerUrl(
             baseUrl = serverUrl,
-            encodedPath = "Videos/$itemId/stream",
+            encodedPath = encodedPath,
             queryParams = finalQueryParams
         )
     }

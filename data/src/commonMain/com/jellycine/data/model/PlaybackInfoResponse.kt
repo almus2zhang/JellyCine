@@ -94,7 +94,9 @@ data class MediaSource(
     @SerialName("DefaultAudioStreamIndex")
     val defaultAudioStreamIndex: Int? = null,
     @SerialName("DefaultSubtitleStreamIndex")
-    val defaultSubtitleStreamIndex: Int? = null
+    val defaultSubtitleStreamIndex: Int? = null,
+    @SerialName("TranscodingReasons")
+    val transcodingReasons: List<String>? = null
 )
 
 /**

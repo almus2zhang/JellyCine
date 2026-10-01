@@ -1,11 +1,16 @@
 package com.jellycine.app.ui.screens.player
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -23,8 +28,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,7 +46,12 @@ data class MediaMetadataInfo(
     val hardwareAcceleration: HardwareAccelerationInfo? = null,
     val streamContainer: String? = null,
     val streamBitrateKbps: Int? = null,
-    val playMethod: String = "Direct Play"
+    val playMethod: String = "Direct Play",
+    val playerEngine: String = "MPV",
+    val streamUrl: String? = null,
+    val transcodeReasons: List<String> = emptyList(),
+    val cacheSpeedText: String? = null,
+    val bufferedDurationText: String? = null
 )
 
 data class HdrFormatInfo(
@@ -84,11 +96,12 @@ fun MediaInfoDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val screenWidth = configuration.screenWidthDp.dp
     val compact = screenWidth < 700.dp
-    val panelWidth = (screenWidth * if (compact) 0.80f else 0.31f).coerceIn(240.dp, 390.dp)
+    val panelWidth = (screenWidth * if (compact) 0.85f else 0.38f).coerceIn(260.dp, 440.dp)
     val horizontalInset = if (compact) 14.dp else 34.dp
     val popupOffset = with(density) { IntOffset(horizontalInset.roundToPx(), 0) }
 
@@ -106,9 +119,9 @@ fun MediaInfoDialog(
         Card(
             modifier = modifier
                 .width(panelWidth)
-                .heightIn(max = if (compact) 170.dp else 190.dp),
+                .heightIn(max = if (compact) 240.dp else 280.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0x9916191F)),
+            colors = CardDefaults.cardColors(containerColor = Color(0xDD16191F)),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -116,18 +129,51 @@ fun MediaInfoDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
-                        .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
+                        .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)
                 ) {
                     SectionTitle("Stream")
                     PrimaryLine(buildStreamLine(mediaInfo))
-                    SecondaryLine("-> ${mediaInfo.playMethod}")
+                    MixedLine("Engine", mediaInfo.playerEngine)
+
+                    val isTranscoding = mediaInfo.playMethod.contains("Transcode", ignoreCase = true)
+                    val playMethodColor = if (isTranscoding) Color(0xFFFFB74D) else Color(0xFF81C784)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Play Method",
+                            color = Color(0xFFF3F3F3),
+                            fontSize = 10.sp,
+                            lineHeight = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = mediaInfo.playMethod,
+                            color = playMethodColor,
+                            fontSize = 10.sp,
+                            lineHeight = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    if (mediaInfo.transcodeReasons.isNotEmpty()) {
+                        Text(
+                            text = "Transcode: ${mediaInfo.transcodeReasons.joinToString(", ")}",
+                            color = Color(0xFFFFB74D),
+                            fontSize = 9.sp,
+                            lineHeight = 11.sp,
+                            fontWeight = FontWeight.Normal
+                        )
+                    }
+                    mediaInfo.cacheSpeedText?.let { speed ->
+                        MixedLine("Download Speed", speed)
+                    }
+                    mediaInfo.bufferedDurationText?.let { buf ->
+                        MixedLine("Buffer Ahead", buf)
+                    }
 
                     Spacer(modifier = Modifier.height(6.dp))
 
                     SectionTitle("Video")
                     PrimaryLine(buildVideoTitle(mediaInfo.videoFormat, mediaInfo.hdrFormat))
                     buildVideoDetails(mediaInfo.videoFormat)?.let { PrimaryLine(it) }
-                    SecondaryLine("-> ${mediaInfo.playMethod}")
                     mediaInfo.hardwareAcceleration?.let {
                         MixedLine("Renderer", if (it.isHardwareDecoding) "MediaCodec" else "Software")
                         buildDisplayMode(mediaInfo.videoFormat)?.let { mode ->
@@ -141,7 +187,39 @@ fun MediaInfoDialog(
                     PrimaryLine(buildAudioTitle(mediaInfo.audioFormat))
                     mediaInfo.audioFormat?.sampleRate?.let { PrimaryLine(it) }
                     mediaInfo.audioFormat?.bitrate?.let { PrimaryLine(it) }
-                    SecondaryLine("-> ${mediaInfo.playMethod}")
+
+                    if (!mediaInfo.streamUrl.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        SectionTitle("Stream URL")
+                        Text(
+                            text = mediaInfo.streamUrl,
+                            color = Color(0xFF9E9E9E),
+                            fontSize = 8.sp,
+                            lineHeight = 10.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+                            .clickable {
+                                copyDiagnosticsToClipboard(context, mediaInfo)
+                            }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "复制调试信息",
+                            color = Color(0xFFE0E0E0),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
 
                 Box(
@@ -163,6 +241,32 @@ fun MediaInfoDialog(
             }
         }
     }
+}
+
+private fun copyDiagnosticsToClipboard(context: Context, mediaInfo: MediaMetadataInfo) {
+    val text = buildString {
+        appendLine("=== JellyCine Diagnostics ===")
+        appendLine("Engine: ${mediaInfo.playerEngine}")
+        appendLine("Play Method: ${mediaInfo.playMethod}")
+        if (mediaInfo.transcodeReasons.isNotEmpty()) {
+            appendLine("Transcode Reasons: ${mediaInfo.transcodeReasons.joinToString(", ")}")
+        }
+        mediaInfo.cacheSpeedText?.let { appendLine("Speed: $it") }
+        mediaInfo.bufferedDurationText?.let { appendLine("Buffer: $it") }
+        mediaInfo.streamContainer?.let { appendLine("Container: $it") }
+        mediaInfo.videoFormat?.let {
+            appendLine("Video: ${it.resolution} ${it.codec} ${it.profile.orEmpty()} ${it.bitrateKbps?.let { b -> "${b}kbps" }.orEmpty()} ${it.frameRate?.let { f -> "${f}fps" }.orEmpty()}".trim())
+        }
+        mediaInfo.hdrFormat?.currentFormat?.let { appendLine("HDR: $it") }
+        mediaInfo.audioFormat?.let {
+            appendLine("Audio: ${it.codec} ${it.channels} ${it.sampleRate.orEmpty()} ${it.bitrate.orEmpty()}".trim())
+        }
+        mediaInfo.streamUrl?.let { appendLine("Stream URL: $it") }
+    }
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    val clip = ClipData.newPlainText("JellyCine Diagnostics", text)
+    clipboard?.setPrimaryClip(clip)
+    Toast.makeText(context, "调试信息已复制到剪贴板", Toast.LENGTH_SHORT).show()
 }
 
 @Composable

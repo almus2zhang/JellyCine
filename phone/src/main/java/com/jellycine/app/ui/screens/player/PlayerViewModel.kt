@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.delay
+import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -100,6 +101,7 @@ class PlayerViewModel @Inject constructor(
     private var spatialAudioAnalysisJob: Job? = null
     private var currentItemDetails: BaseItemDto? = null
     private var currentPlaybackMediaSource: MediaSource? = null
+    private var currentStreamingUrl: String? = null
     var discordPosterUrl: String? = null
         private set
     private var nextEpisodePrefetchJob: Job? = null
@@ -392,6 +394,7 @@ class PlayerViewModel @Inject constructor(
 
                     playbackRequest = playbackRequestResult.getOrNull()
                     val streamingUrl = playbackRequest?.url
+                    currentStreamingUrl = streamingUrl
                     if (streamingUrl.isNullOrEmpty()) {
                         _playerState.value = _playerState.value.copy(isLoading = false, error = "Failed to get playback URL")
                         return@launch
@@ -618,6 +621,7 @@ class PlayerViewModel @Inject constructor(
                 playbackReporter.updateSession(playbackSession)
 
                 val playbackStream = RemoteTrailerUrl.resolve(remoteUrl)
+                currentStreamingUrl = playbackStream.url
                 if (remotePlaybackRequestKey != mediaId) return@launch
                 fun mediaSource(url: String, mimeType: String?) =
                     PlayerUtils.createStreamingMediaSource(
@@ -1161,6 +1165,7 @@ class PlayerViewModel @Inject constructor(
         trackSelectionCoordinator.clear()
         apiMediaStreams = null
         currentPlaybackMediaSource = null
+        currentStreamingUrl = null
         defaultAudioStreamIndex = null
         defaultSubtitleStreamIndex = null
         mpvExternalSubtitleUrls = emptyMap()
@@ -1778,14 +1783,59 @@ class PlayerViewModel @Inject constructor(
      * Get unified media metadata information for the modern bubble dialog
      */
     fun getMediaMetadataInfo(): MediaMetadataInfo {
+        val speedBytes = if (isMpvPlayback()) mpvPlayer?.cacheSpeedBytes ?: 0L else 0L
+        val speedText = if (isMpvPlayback()) {
+            formatSpeed(speedBytes)
+        } else {
+            "N/A (ExoPlayer)"
+        }
+        val currentPos = getCurrentPosition()
+        val bufferedPos = getBufferedPosition()
+        val bufferSec = ((bufferedPos - currentPos).coerceAtLeast(0L) / 1000.0)
+        val bufferText = String.format(Locale.US, "%.1f s", bufferSec)
+
+        val serverReasons = currentPlaybackMediaSource?.transcodingReasons.orEmpty()
+        val reasons = if (serverReasons.isNotEmpty()) {
+            serverReasons
+        } else if (playbackSession.playMethod == PlayMethod.TRANSCODE) {
+            buildList {
+                val audioMode = _playerState.value.currentAudioTranscodeMode
+                if (audioMode != AudioTranscodeMode.AUTO) {
+                    add("AudioTranscodeMode: ${audioMode.name}")
+                }
+                if (currentPlaybackMediaSource?.supportsDirectPlay == false) {
+                    add("ServerDoesNotSupportDirectPlay")
+                }
+                if (isEmpty()) {
+                    add("ServerTranscode")
+                }
+            }
+        } else {
+            emptyList()
+        }
+
         return PlayerMetadata.buildMediaMetadataInfo(
             context = playerContext,
             exoPlayer = exoPlayer,
             mediaStreams = apiMediaStreams,
             mediaSourceContainer = playbackSession.mediaSourceContainer,
             mediaSourceBitrateKbps = playbackSession.mediaSourceBitrateKbps,
-            playMethodDisplayName = playbackSession.playMethod.displayName
+            playMethodDisplayName = playbackSession.playMethod.displayName,
+            playerEngine = if (isMpvPlayback()) "MPV" else "ExoPlayer",
+            streamUrl = currentStreamingUrl,
+            transcodeReasons = reasons,
+            cacheSpeedText = speedText,
+            bufferedDurationText = bufferText
         )
+    }
+
+    private fun formatSpeed(bytesPerSec: Long): String {
+        val kb = bytesPerSec / 1024.0
+        return if (kb >= 1024.0) {
+            String.format(Locale.US, "%.1f MB/s", kb / 1024.0)
+        } else {
+            String.format(Locale.US, "%.0f KB/s", kb)
+        }
     }
 
     fun getSourceVideoHeight(): Int? {
