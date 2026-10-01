@@ -171,6 +171,7 @@ fun PlayerScreen(
     // Dialog states
     var showAudioTrackDialog by remember { mutableStateOf(false) }
     var showSubtitleTrackDialog by remember { mutableStateOf(false) }
+    var showSubtitleSettingsDialog by remember { mutableStateOf(false) }
     var showStreamingQualityDialog by remember { mutableStateOf(false) }
     var showAudioTranscodingDialog by remember { mutableStateOf(false) }
     var pendingStreamingQualitySelection by remember { mutableStateOf<String?>(null) }
@@ -695,6 +696,7 @@ fun PlayerScreen(
             },
             onShowAudioTrackDialog = { showAudioTrackDialog = true },
             onShowSubtitleTrackDialog = { showSubtitleTrackDialog = true },
+            onShowSubtitleSettingsDialog = { showSubtitleSettingsDialog = true },
             onToggleOrientation = toggleOrientation,
             onToggleAutoRotation = toggleAutoRotation,
             onEnterPip = enterPip,
@@ -705,6 +707,7 @@ fun PlayerScreen(
             playerState = playerState,
             showAudioTrackDialog = showAudioTrackDialog,
             showSubtitleTrackDialog = showSubtitleTrackDialog,
+            showSubtitleSettingsDialog = showSubtitleSettingsDialog,
             showStreamingQualityDialog = showStreamingQualityDialog,
             showAudioTranscodingDialog = showAudioTranscodingDialog,
             showMediaInfo = showMediaInfo,
@@ -734,6 +737,11 @@ fun PlayerScreen(
             },
             onDismissAudioTrackDialog = { showAudioTrackDialog = false },
             onDismissSubtitleTrackDialog = { showSubtitleTrackDialog = false },
+            onDismissSubtitleSettingsDialog = { showSubtitleSettingsDialog = false },
+            onOpenSubtitleSettings = {
+                showSubtitleTrackDialog = false
+                showSubtitleSettingsDialog = true
+            },
             onDismissStreamingQualityDialog = { showStreamingQualityDialog = false },
             onDismissAudioTranscodingDialog = {
                 pendingStreamingQualitySelection = null

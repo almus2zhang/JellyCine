@@ -3,6 +3,7 @@ package com.jellycine.app.ui.screens.player
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.PixelCopy
 import android.view.SurfaceView
 
@@ -14,7 +15,9 @@ data class CropBoundaries(
 ) {
     val activeWidthFraction: Float get() = (1.0f - leftFraction - rightFraction).coerceIn(0.1f, 1.0f)
     val activeHeightFraction: Float get() = (1.0f - topFraction - bottomFraction).coerceIn(0.1f, 1.0f)
-    val hasCrop: Boolean get() = topFraction > 0.02f || bottomFraction > 0.02f || leftFraction > 0.02f || rightFraction > 0.02f
+    val hasCrop: Boolean get() = topFraction > 0.015f || bottomFraction > 0.015f || leftFraction > 0.015f || rightFraction > 0.015f
+    val hasHorizontalCrop: Boolean get() = topFraction > 0.015f || bottomFraction > 0.015f
+    val hasVerticalCrop: Boolean get() = leftFraction > 0.015f || rightFraction > 0.015f
 }
 
 data class ScalingTransform(
@@ -25,19 +28,26 @@ data class ScalingTransform(
 
 object BlackBarDetector {
 
+    private const val TAG = "BlackBarDetector"
+    private const val BLACK_LUMA_THRESHOLD = 36.0
+
     /**
-     * Captures a lightweight snapshot from the SurfaceView and detects black bars
-     * while excluding subtitles from the analysis.
+     * Captures a snapshot from the SurfaceView with matching aspect ratio
+     * and detects black bars while excluding subtitles from the analysis.
      */
     fun detect(
         surfaceView: SurfaceView,
         onResult: (CropBoundaries) -> Unit
     ) {
-        val width = 160
-        val height = 90
+        val sW = surfaceView.width.coerceAtLeast(1)
+        val sH = surfaceView.height.coerceAtLeast(1)
+        val bmpW = 240
+        val bmpH = ((bmpW.toFloat() * sH) / sW).toInt().coerceIn(60, 240)
+
         val bitmap = try {
-            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            Bitmap.createBitmap(bmpW, bmpH, Bitmap.Config.ARGB_8888)
         } catch (e: Exception) {
+            Log.w(TAG, "Failed to create bitmap for PixelCopy", e)
             onResult(CropBoundaries())
             return
         }
@@ -50,8 +60,10 @@ object BlackBarDetector {
                     if (copyResult == PixelCopy.SUCCESS) {
                         val boundaries = analyzeBitmap(bitmap)
                         bitmap.recycle()
+                        Log.d(TAG, "PixelCopy success, detected boundaries: $boundaries")
                         onResult(boundaries)
                     } else {
+                        Log.w(TAG, "PixelCopy returned status: $copyResult")
                         bitmap.recycle()
                         onResult(CropBoundaries())
                     }
@@ -59,15 +71,16 @@ object BlackBarDetector {
                 Handler(Looper.getMainLooper())
             )
         } catch (e: Exception) {
+            Log.w(TAG, "PixelCopy request failed", e)
             bitmap.recycle()
             onResult(CropBoundaries())
         }
     }
 
     /**
-     * Intelligently analyzes a bitmap to find letterbox and pillarbox black bars.
-     * Crucially excludes the subtitle area (center bottom 25%) to prevent subtitles
-     * from interfering with the black bar boundary detection.
+     * Analyzes a bitmap to find letterbox (top/bottom) and pillarbox (left/right) black bars.
+     * Crucially excludes the subtitle area (center bottom 25%~75%) to prevent subtitles
+     * from interfering with black bar detection.
      */
     fun analyzeBitmap(bitmap: Bitmap): CropBoundaries {
         val w = bitmap.width
@@ -77,118 +90,140 @@ object BlackBarDetector {
         val pixels = IntArray(w * h)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        fun isPixelBlack(x: Int, y: Int): Boolean {
+        fun isBlack(x: Int, y: Int): Boolean {
             val pixel = pixels[y * w + x]
             val r = (pixel shr 16) and 0xFF
             val g = (pixel shr 8) and 0xFF
             val b = pixel and 0xFF
             val luma = 0.299 * r + 0.587 * g + 0.114 * b
-            return luma < 24.0
+            return luma < BLACK_LUMA_THRESHOLD
         }
 
-        // 1. Detect Top Black Bar (top never has subtitles in standard layout)
-        val sampleCols = listOf(
-            (w * 0.10f).toInt(),
-            (w * 0.25f).toInt(),
-            (w * 0.50f).toInt(),
-            (w * 0.75f).toInt(),
-            (w * 0.90f).toInt()
-        )
+        // 1. Detect Top Black Bar (top never has subtitles)
+        // Scan middle 70% width: x from 15% to 85%
+        val xStart = (w * 0.15f).toInt()
+        val xEnd = (w * 0.85f).toInt().coerceAtMost(w - 1)
+        val xCount = (xEnd - xStart + 1).coerceAtLeast(1)
 
-        var topBlackBarHeight = 0
+        var topBlackBar = 0
+        var consecutiveContentRows = 0
         for (y in 0 until (h * 0.45f).toInt()) {
-            val isRowBlack = sampleCols.all { x -> isPixelBlack(x, y) }
-            if (isRowBlack) {
-                topBlackBarHeight = y + 1
+            var blackCount = 0
+            for (x in xStart..xEnd) {
+                if (isBlack(x, y)) blackCount++
+            }
+            val blackRatio = blackCount.toFloat() / xCount
+            if (blackRatio >= 0.88f) {
+                topBlackBar = y + 1
+                consecutiveContentRows = 0
             } else {
-                break
+                consecutiveContentRows++
+                if (consecutiveContentRows >= 2) break
             }
         }
 
         // 2. Detect Bottom Black Bar, EXCLUDING SUBTITLES:
-        // Subtitles are located in the horizontal center (25% to 75% width) and bottom 25% height.
-        // Therefore, we ONLY check the side columns (8% and 92% width) from the bottom up!
-        // The side columns never contain subtitles, so subtitles cannot disguise black bars as content!
-        val sideCols = listOf(
-            (w * 0.08f).toInt(),
-            (w * 0.15f).toInt(),
-            (w * 0.85f).toInt(),
-            (w * 0.92f).toInt()
-        )
+        // Subtitles are centered (25% to 75% width).
+        // Check only the two outer bands: 10%~24% and 76%~90%
+        val leftBandStart = (w * 0.10f).toInt()
+        val leftBandEnd = (w * 0.24f).toInt()
+        val rightBandStart = (w * 0.76f).toInt()
+        val rightBandEnd = (w * 0.90f).toInt().coerceAtMost(w - 1)
+        val sideCount = ((leftBandEnd - leftBandStart + 1) + (rightBandEnd - rightBandStart + 1)).coerceAtLeast(1)
 
-        var bottomBlackBarHeight = 0
+        var bottomBlackBar = 0
+        consecutiveContentRows = 0
         for (y in (h - 1) downTo (h * 0.55f).toInt()) {
-            val isRowBlackAtSides = sideCols.all { x -> isPixelBlack(x, y) }
-            if (isRowBlackAtSides) {
-                bottomBlackBarHeight = h - y
+            var blackCount = 0
+            for (x in leftBandStart..leftBandEnd) {
+                if (isBlack(x, y)) blackCount++
+            }
+            for (x in rightBandStart..rightBandEnd) {
+                if (isBlack(x, y)) blackCount++
+            }
+            val blackRatio = blackCount.toFloat() / sideCount
+            if (blackRatio >= 0.88f) {
+                bottomBlackBar = h - y
+                consecutiveContentRows = 0
             } else {
-                break
+                consecutiveContentRows++
+                if (consecutiveContentRows >= 2) break
             }
         }
 
         // Letterbox bars in movie rips are almost always symmetric.
         // Reconcile bottom bar with top bar symmetry:
-        val finalTopBar = if (topBlackBarHeight >= (h * 0.03f)) topBlackBarHeight else 0
-        val finalBottomBar = if (bottomBlackBarHeight >= (h * 0.03f)) {
-            if (finalTopBar > 0 && kotlin.math.abs(bottomBlackBarHeight - finalTopBar) <= 4) {
-                finalTopBar
+        val maxHorizontalBar = maxOf(topBlackBar, bottomBlackBar)
+        val finalTop = if (topBlackBar >= (h * 0.02f) || bottomBlackBar >= (h * 0.02f)) {
+            if (kotlin.math.abs(topBlackBar - bottomBlackBar) <= (h * 0.06f)) {
+                maxHorizontalBar
             } else {
-                bottomBlackBarHeight
+                topBlackBar
             }
-        } else if (finalTopBar > 0) {
-            // If bottom had subtitles spanning wide, rely on top symmetry
-            finalTopBar
-        } else {
-            0
-        }
+        } else 0
+
+        val finalBottom = if (topBlackBar >= (h * 0.02f) || bottomBlackBar >= (h * 0.02f)) {
+            if (kotlin.math.abs(topBlackBar - bottomBlackBar) <= (h * 0.06f)) {
+                maxHorizontalBar
+            } else {
+                if (bottomBlackBar > 0) bottomBlackBar else finalTop
+            }
+        } else 0
 
         // 3. Detect Left & Right Pillarbox Bars
-        // Check rows in the vertical center: 30%, 40%, 50%, 60% (never containing subtitles)
-        val middleRows = listOf(
-            (h * 0.30f).toInt(),
-            (h * 0.40f).toInt(),
-            (h * 0.50f).toInt(),
-            (h * 0.60f).toInt()
-        )
+        // Check rows in vertical center: 25% to 75%
+        val yStart = (h * 0.25f).toInt()
+        val yEnd = (h * 0.75f).toInt().coerceAtMost(h - 1)
+        val yCount = (yEnd - yStart + 1).coerceAtLeast(1)
 
-        var leftBarWidth = 0
+        var leftBar = 0
+        var consecutiveContentCols = 0
         for (x in 0 until (w * 0.40f).toInt()) {
-            val isColBlack = middleRows.all { y -> isPixelBlack(x, y) }
-            if (isColBlack) {
-                leftBarWidth = x + 1
+            var blackCount = 0
+            for (y in yStart..yEnd) {
+                if (isBlack(x, y)) blackCount++
+            }
+            val blackRatio = blackCount.toFloat() / yCount
+            if (blackRatio >= 0.88f) {
+                leftBar = x + 1
+                consecutiveContentCols = 0
             } else {
-                break
+                consecutiveContentCols++
+                if (consecutiveContentCols >= 2) break
             }
         }
 
-        var rightBarWidth = 0
+        var rightBar = 0
+        consecutiveContentCols = 0
         for (x in (w - 1) downTo (w * 0.60f).toInt()) {
-            val isColBlack = middleRows.all { y -> isPixelBlack(x, y) }
-            if (isColBlack) {
-                rightBarWidth = w - x
+            var blackCount = 0
+            for (y in yStart..yEnd) {
+                if (isBlack(x, y)) blackCount++
+            }
+            val blackRatio = blackCount.toFloat() / yCount
+            if (blackRatio >= 0.88f) {
+                rightBar = w - x
+                consecutiveContentCols = 0
             } else {
-                break
+                consecutiveContentCols++
+                if (consecutiveContentCols >= 2) break
             }
         }
 
-        val finalLeftBar = if (leftBarWidth >= (w * 0.03f)) leftBarWidth else 0
-        val finalRightBar = if (rightBarWidth >= (w * 0.03f)) {
-            if (finalLeftBar > 0 && kotlin.math.abs(rightBarWidth - finalLeftBar) <= 4) {
-                finalLeftBar
-            } else {
-                rightBarWidth
-            }
-        } else if (finalLeftBar > 0) {
-            finalLeftBar
-        } else {
-            0
-        }
+        val maxVerticalBar = maxOf(leftBar, rightBar)
+        val finalLeft = if (leftBar >= (w * 0.02f) || rightBar >= (w * 0.02f)) {
+            if (kotlin.math.abs(leftBar - rightBar) <= (w * 0.06f)) maxVerticalBar else leftBar
+        } else 0
+
+        val finalRight = if (leftBar >= (w * 0.02f) || rightBar >= (w * 0.02f)) {
+            if (kotlin.math.abs(leftBar - rightBar) <= (w * 0.06f)) maxVerticalBar else rightBar
+        } else 0
 
         return CropBoundaries(
-            topFraction = finalTopBar.toFloat() / h,
-            bottomFraction = finalBottomBar.toFloat() / h,
-            leftFraction = finalLeftBar.toFloat() / w,
-            rightFraction = finalRightBar.toFloat() / w
+            topFraction = finalTop.toFloat() / h,
+            bottomFraction = finalBottom.toFloat() / h,
+            leftFraction = finalLeft.toFloat() / w,
+            rightFraction = finalRight.toFloat() / w
         )
     }
 
@@ -197,7 +232,7 @@ object BlackBarDetector {
      * horizontally or vertically after removing the detected black bars.
      */
     fun calculateScaling(
-        modeIndex: Int, // 0: 横向全屏, 1: 纵向全屏, 2: 默认全屏
+        modeIndex: Int, // 0: 横向全屏 (去除横向黑边), 1: 纵向全屏 (去除纵向黑边), 2: 默认全屏
         boundaries: CropBoundaries,
         screenWidth: Float,
         screenHeight: Float,
@@ -208,29 +243,43 @@ object BlackBarDetector {
         }
 
         val screenAspect = screenWidth / screenHeight
-        val activeWidthFrac = boundaries.activeWidthFraction
-        val activeHeightFrac = boundaries.activeHeightFraction
+        val activeWFrac = boundaries.activeWidthFraction
+        val activeHFrac = boundaries.activeHeightFraction
 
         val centerOffsetY = (boundaries.topFraction - boundaries.bottomFraction) / 2f
         val centerOffsetX = (boundaries.leftFraction - boundaries.rightFraction) / 2f
 
         val scale = when (modeIndex) {
-            0 -> { // 横向全屏 (Fill Width)
-                if (videoAspect >= screenAspect) {
-                    (1.0f / activeWidthFrac).coerceIn(1.0f, 4.0f)
+            0 -> {
+                // 横向全屏 (Horizontal Fullscreen):
+                // 核心目标：彻底去除画面内上下横向黑边 (Letterbox)，并将画面完整撑满屏幕！
+                if (boundaries.hasHorizontalCrop) {
+                    val fillHeightWithoutBars = 1.0f / activeHFrac
+                    val fillWidthWithoutBars = 1.0f / activeWFrac
+                    maxOf(fillHeightWithoutBars, fillWidthWithoutBars).coerceIn(1.0f, 3.5f)
+                } else if (boundaries.hasVerticalCrop) {
+                    (1.0f / activeWFrac).coerceIn(1.0f, 3.5f)
                 } else {
-                    val containerWidthInFit = screenHeight * videoAspect
-                    val activeWidthInFit = containerWidthInFit * activeWidthFrac
-                    (screenWidth / activeWidthInFit).coerceIn(1.0f, 4.0f)
+                    if (videoAspect < screenAspect) {
+                        (screenAspect / videoAspect).coerceIn(1.0f, 3.5f)
+                    } else {
+                        1.0f
+                    }
                 }
             }
-            1 -> { // 纵向全屏 (Fill Height)
-                if (videoAspect <= screenAspect) {
-                    (1.0f / activeHeightFrac).coerceIn(1.0f, 4.0f)
+            1 -> {
+                // 纵向全屏 (Vertical Fullscreen):
+                // 核心目标：切除左右黑边，画面纵向等比撑满！
+                if (boundaries.hasVerticalCrop) {
+                    (1.0f / activeWFrac).coerceIn(1.0f, 3.5f)
+                } else if (boundaries.hasHorizontalCrop) {
+                    (1.0f / activeHFrac).coerceIn(1.0f, 3.5f)
                 } else {
-                    val containerHeightInFit = screenWidth / videoAspect
-                    val activeHeightInFit = containerHeightInFit * activeHeightFrac
-                    (screenHeight / activeHeightInFit).coerceIn(1.0f, 4.0f)
+                    if (videoAspect > screenAspect) {
+                        (videoAspect / screenAspect).coerceIn(1.0f, 3.5f)
+                    } else {
+                        1.0f
+                    }
                 }
             }
             else -> 1.0f

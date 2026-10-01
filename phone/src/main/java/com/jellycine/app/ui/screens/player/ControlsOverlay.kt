@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -89,6 +90,7 @@ fun ControlsOverlay(
     onShowPlaybackSettings: () -> Unit = {},
     onShowAudioTrackSelection: () -> Unit = {},
     onShowSubtitleTrackSelection: () -> Unit = {},
+    onShowSubtitleSettings: () -> Unit = {},
     onCycleAspectRatio: () -> Unit = {},
     onSeekBackward: () -> Unit = {},
     onSeekForward: () -> Unit = {},
@@ -266,8 +268,16 @@ fun ControlsOverlay(
                     }
                     IconButton(onClick = onShowSubtitleTrackSelection) {
                         Icon(
+                            imageVector = Icons.Rounded.ClosedCaption,
+                            contentDescription = "Subtitle Track Selection (CC)",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = onShowSubtitleSettings) {
+                        Icon(
                             imageVector = Icons.Outlined.Subtitles,
-                            contentDescription = "Subtitles",
+                            contentDescription = "Subtitle Settings",
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )

@@ -254,6 +254,20 @@ class MpvPlayerController(
         mpv.setPropertyDouble("video-pan-y", panY)
     }
 
+    /**
+     * Captures a raw video snapshot (without OSD and without subtitles) directly from MPV.
+     */
+    fun takeVideoSnapshot(targetFile: java.io.File): Boolean {
+        if (released) return false
+        return try {
+            if (targetFile.exists()) targetFile.delete()
+            mpv.command(arrayOf("screenshot-to-file", targetFile.absolutePath, "video"))
+            targetFile.exists() && targetFile.length() > 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun applySubtitlePreferences() {
         if (released) return
         val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()

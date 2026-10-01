@@ -1690,12 +1690,39 @@ class PlayerViewModel @Inject constructor(
             onToast?.invoke(modeTitle)
         }
 
-        if (surfaceView != null && surfaceView.width > 0 && surfaceView.height > 0) {
-            BlackBarDetector.detect(surfaceView) { boundaries ->
-                applyTransform(boundaries)
+        // Try MPV snapshot first to analyze the pure video frame without subtitles
+        val mpv = mpvPlayer
+        val ctx = playerContext
+        var mpvCropped = false
+        if (mpv != null && ctx != null) {
+            try {
+                val tempFile = File(ctx.cacheDir, "crop_detect.jpg")
+                if (mpv.takeVideoSnapshot(tempFile)) {
+                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                    val bmp = android.graphics.BitmapFactory.decodeFile(tempFile.absolutePath, opts)
+                    if (bmp != null) {
+                        val boundaries = BlackBarDetector.analyzeBitmap(bmp)
+                        bmp.recycle()
+                        tempFile.delete()
+                        if (boundaries.hasCrop) {
+                            applyTransform(boundaries)
+                            mpvCropped = true
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed MPV snapshot crop analysis", e)
             }
-        } else {
-            applyTransform(CropBoundaries())
+        }
+
+        if (!mpvCropped) {
+            if (surfaceView != null && surfaceView.width > 0 && surfaceView.height > 0) {
+                BlackBarDetector.detect(surfaceView) { boundaries ->
+                    applyTransform(boundaries)
+                }
+            } else {
+                applyTransform(CropBoundaries())
+            }
         }
     }
 

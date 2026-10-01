@@ -403,6 +403,7 @@ internal fun BoxScope.PlayerOverlayHost(
     onShowAudioTranscodingDialog: () -> Unit,
     onShowAudioTrackDialog: () -> Unit,
     onShowSubtitleTrackDialog: () -> Unit,
+    onShowSubtitleSettingsDialog: () -> Unit = {},
     onToggleOrientation: () -> Unit = {},
     onToggleAutoRotation: (() -> Unit)? = null,
     onEnterPip: () -> Unit = {},
@@ -523,6 +524,10 @@ internal fun BoxScope.PlayerOverlayHost(
             onShowSubtitleTrackSelection = {
                 resetAutoHideTimer()
                 onShowSubtitleTrackDialog()
+            },
+            onShowSubtitleSettings = {
+                resetAutoHideTimer()
+                onShowSubtitleSettingsDialog()
             },
             onCycleAspectRatio = {
                 resetAutoHideTimer()
@@ -814,6 +819,7 @@ internal fun PlayerDialogsHost(
     playerState: PlayerState,
     showAudioTrackDialog: Boolean,
     showSubtitleTrackDialog: Boolean,
+    showSubtitleSettingsDialog: Boolean = false,
     showStreamingQualityDialog: Boolean,
     showAudioTranscodingDialog: Boolean,
     showMediaInfo: Boolean,
@@ -830,6 +836,8 @@ internal fun PlayerDialogsHost(
     onAudioTranscodingSelected: (AudioTranscodeMode) -> Unit,
     onDismissAudioTrackDialog: () -> Unit,
     onDismissSubtitleTrackDialog: () -> Unit,
+    onDismissSubtitleSettingsDialog: () -> Unit = {},
+    onOpenSubtitleSettings: () -> Unit = {},
     onDismissStreamingQualityDialog: () -> Unit,
     onDismissAudioTranscodingDialog: () -> Unit,
     onDismissMediaInfo: () -> Unit
@@ -846,15 +854,21 @@ internal fun PlayerDialogsHost(
         isVisible = showSubtitleTrackDialog,
         subtitleTracks = playerState.availableSubtitleTracks,
         currentSubtitleTrack = playerState.currentSubtitleTrack,
+        onTrackSelected = onSubtitleTrackSelected,
+        onOpenSubtitleSettings = onOpenSubtitleSettings,
+        onDismiss = onDismissSubtitleTrackDialog
+    )
+
+    SubtitleSettingsDialog(
+        isVisible = showSubtitleSettingsDialog,
         subtitleDelay = playerState.subtitleDelay,
         fontSizeScale = playerState.subtitleFontSizeScale,
         textColor = playerState.subtitleTextColor,
         bottomPositionPercent = playerState.subtitleBottomPositionPercent,
-        onTrackSelected = onSubtitleTrackSelected,
         onAdjustSubtitleDelay = onAdjustSubtitleDelay,
         onResetSubtitleDelay = onResetSubtitleDelay,
         onUpdateSubtitleStyle = onUpdateSubtitleStyle,
-        onDismiss = onDismissSubtitleTrackDialog
+        onDismiss = onDismissSubtitleSettingsDialog
     )
 
     StreamingQualitySelectionDialog(

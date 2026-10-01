@@ -21,9 +21,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Subtitles
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Schedule
@@ -99,14 +102,8 @@ fun SubtitleTrackSelectionDialog(
     isVisible: Boolean,
     subtitleTracks: List<SubtitleTrackInfo>,
     currentSubtitleTrack: SubtitleTrackInfo?,
-    subtitleDelay: Double = 0.0,
-    fontSizeScale: Int = 10,
-    textColor: String = "White",
-    bottomPositionPercent: Int = 6,
     onTrackSelected: (String) -> Unit,
-    onAdjustSubtitleDelay: ((Double) -> Unit)? = null,
-    onResetSubtitleDelay: (() -> Unit)? = null,
-    onUpdateSubtitleStyle: ((fontSizeScale: Int?, textColor: String?, positionPercent: Int?) -> Unit)? = null,
+    onOpenSubtitleSettings: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     if (!isVisible) return
@@ -132,28 +129,144 @@ fun SubtitleTrackSelectionDialog(
                 description = buildSubtitleTrackDescription(track)
             )
         },
-        headerExtraContent = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (onAdjustSubtitleDelay != null) {
-                    SubtitleDelaySection(
-                        subtitleDelay = subtitleDelay,
-                        onAdjustSubtitleDelay = onAdjustSubtitleDelay,
-                        onResetSubtitleDelay = onResetSubtitleDelay,
-                        accentColor = subtitleAccentColor
-                    )
-                }
-                if (onUpdateSubtitleStyle != null) {
-                    SubtitleStyleSection(
-                        fontSizeScale = fontSizeScale,
-                        textColor = textColor,
-                        bottomPositionPercent = bottomPositionPercent,
-                        onUpdateSubtitleStyle = onUpdateSubtitleStyle,
-                        accentColor = subtitleAccentColor
+        headerExtraContent = if (onOpenSubtitleSettings != null) {
+            {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(subtitleAccentColor.copy(alpha = 0.12f))
+                        .border(1.dp, subtitleAccentColor.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .clickable { onOpenSubtitleSettings() }
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Subtitles,
+                            contentDescription = null,
+                            tint = subtitleAccentColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "字幕样式与位置设置",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Text(
+                        text = "设置 >",
+                        fontSize = 12.sp,
+                        color = subtitleAccentColor,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
-        }
+        } else null
     )
+}
+
+@Composable
+fun SubtitleSettingsDialog(
+    isVisible: Boolean,
+    subtitleDelay: Double = 0.0,
+    fontSizeScale: Int = 10,
+    textColor: String = "White",
+    bottomPositionPercent: Int = 6,
+    onAdjustSubtitleDelay: ((Double) -> Unit)? = null,
+    onResetSubtitleDelay: (() -> Unit)? = null,
+    onUpdateSubtitleStyle: ((fontSizeScale: Int?, textColor: String?, positionPercent: Int?) -> Unit)? = null,
+    onDismiss: () -> Unit
+) {
+    if (!isVisible) return
+
+    val subtitleAccentColor = Color(0xFFFF6B3B)
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        HideSystemBarsForDialogWindow()
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.64f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
+            BoxWithConstraints {
+                val isLandscape = maxWidth > maxHeight
+                val dialogWidthFraction = if (isLandscape) 0.62f else 0.88f
+                val dialogMaxWidth: Dp = if (isLandscape) 420.dp else 460.dp
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth(dialogWidthFraction)
+                        .widthIn(max = dialogMaxWidth)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {}
+                        ),
+                    shape = RoundedCornerShape(24.dp),
+                    tonalElevation = 12.dp,
+                    shadowElevation = 22.dp,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = subtitleAccentColor.copy(alpha = 0.25f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DialogHeader(
+                            title = "字幕样式与设置",
+                            helperText = "调节字幕位置、大小、颜色及同步延迟",
+                            itemCountLabel = "",
+                            icon = Icons.Outlined.Subtitles,
+                            accentColor = subtitleAccentColor,
+                            trackCount = 0,
+                            onClose = onDismiss
+                        )
+
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
+
+                        if (onAdjustSubtitleDelay != null) {
+                            SubtitleDelaySection(
+                                subtitleDelay = subtitleDelay,
+                                onAdjustSubtitleDelay = onAdjustSubtitleDelay,
+                                onResetSubtitleDelay = onResetSubtitleDelay,
+                                accentColor = subtitleAccentColor
+                            )
+                        }
+
+                        if (onUpdateSubtitleStyle != null) {
+                            SubtitleStyleSection(
+                                fontSizeScale = fontSizeScale,
+                                textColor = textColor,
+                                bottomPositionPercent = bottomPositionPercent,
+                                onUpdateSubtitleStyle = onUpdateSubtitleStyle,
+                                accentColor = subtitleAccentColor
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -289,12 +402,12 @@ private fun <T> TrackSelectionDialog(
         ) {
             BoxWithConstraints {
                 val isLandscape = maxWidth > maxHeight
-                val dialogWidthFraction = if (isLandscape) 0.68f else 0.84f
-                val dialogMaxWidth: Dp = if (isLandscape) 380.dp else 460.dp
+                val dialogWidthFraction = if (isLandscape) 0.65f else 0.86f
+                val dialogMaxWidth: Dp = if (isLandscape) 440.dp else 460.dp
                 val listMaxHeight: Dp = if (isLandscape) {
-                    if (headerExtraContent != null) 140.dp else 220.dp
+                    if (headerExtraContent != null) 190.dp else 250.dp
                 } else {
-                    300.dp
+                    340.dp
                 }
 
                 Surface(
