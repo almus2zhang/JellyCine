@@ -232,7 +232,7 @@ object BlackBarDetector {
      * horizontally or vertically after removing the detected black bars.
      */
     fun calculateScaling(
-        modeIndex: Int, // 0: 横向全屏 (去除横向黑边), 1: 纵向全屏 (去除纵向黑边), 2: 默认全屏
+        modeIndex: Int, // 0: 横向全屏 (切除左右黑边，横向画面到最大), 1: 纵向全屏 (切除上下黑边，纵向画面到最大), 2: 默认全屏
         boundaries: CropBoundaries,
         screenWidth: Float,
         screenHeight: Float,
@@ -252,35 +252,37 @@ object BlackBarDetector {
         val scale = when (modeIndex) {
             0 -> {
                 // 横向全屏 (Horizontal Fullscreen):
-                // 核心目标：彻底去除画面内上下横向黑边 (Letterbox)，并将画面完整撑满屏幕！
-                if (boundaries.hasHorizontalCrop) {
-                    val fillHeightWithoutBars = 1.0f / activeHFrac
-                    val fillWidthWithoutBars = 1.0f / activeWFrac
-                    maxOf(fillHeightWithoutBars, fillWidthWithoutBars).coerceIn(1.0f, 3.5f)
-                } else if (boundaries.hasVerticalCrop) {
-                    (1.0f / activeWFrac).coerceIn(1.0f, 3.5f)
+                // 核心目标：横向画面撑满屏幕宽度，切除所有左右黑边，让横向画面达到最大！
+                val fillWidthScale = if (videoAspect <= screenAspect) {
+                    // 视频比屏幕窄（如 16:9 在 20:9 屏幕），左右有黑边：放大直至撑满屏幕宽度
+                    (screenAspect / videoAspect) / activeWFrac
                 } else {
-                    if (videoAspect < screenAspect) {
-                        (screenAspect / videoAspect).coerceIn(1.0f, 3.5f)
-                    } else {
-                        1.0f
-                    }
+                    // 视频比屏幕更宽（如 2.35:1 在 16:9 屏幕），宽度已占满屏幕，若画面内部有黑边则切除
+                    1.0f / activeWFrac
                 }
+                // 若画面内部还带有上下横向黑边，去黑边全屏时同时兼顾消除
+                if (boundaries.hasHorizontalCrop) {
+                    maxOf(fillWidthScale, 1.0f / activeHFrac)
+                } else {
+                    fillWidthScale
+                }.coerceIn(1.0f, 3.5f)
             }
             1 -> {
                 // 纵向全屏 (Vertical Fullscreen):
-                // 核心目标：切除左右黑边，画面纵向等比撑满！
-                if (boundaries.hasVerticalCrop) {
-                    (1.0f / activeWFrac).coerceIn(1.0f, 3.5f)
-                } else if (boundaries.hasHorizontalCrop) {
-                    (1.0f / activeHFrac).coerceIn(1.0f, 3.5f)
+                // 核心目标：纵向画面撑满屏幕高度，切除所有上下黑边！
+                val fillHeightScale = if (videoAspect >= screenAspect) {
+                    // 视频比屏幕宽（如 2.35:1 在 16:9 屏幕），上下有黑边：放大直至撑满屏幕高度
+                    (videoAspect / screenAspect) / activeHFrac
                 } else {
-                    if (videoAspect > screenAspect) {
-                        (videoAspect / screenAspect).coerceIn(1.0f, 3.5f)
-                    } else {
-                        1.0f
-                    }
+                    // 视频高度已撑满屏幕高度，若画面内部有上下黑边则切除
+                    1.0f / activeHFrac
                 }
+                // 若画面内部还带有左右黑边，去黑边全屏时同时兼顾消除
+                if (boundaries.hasVerticalCrop) {
+                    maxOf(fillHeightScale, 1.0f / activeWFrac)
+                } else {
+                    fillHeightScale
+                }.coerceIn(1.0f, 3.5f)
             }
             else -> 1.0f
         }

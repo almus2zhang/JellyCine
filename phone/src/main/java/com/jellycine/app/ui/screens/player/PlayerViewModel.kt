@@ -1266,6 +1266,7 @@ class PlayerViewModel @Inject constructor(
                     availableSubtitleTracks = resolvedTracks.availableSubtitleTracks,
                     currentSubtitleTrack = resolvedTracks.currentSubtitleTrack,
                     availableVideoTracks = resolvedTracks.availableVideoTracks,
+                    currentVideoTrack = resolvedTracks.availableVideoTracks.firstOrNull(),
                     isHdrEnabled = isHdrPlayback,
                     hdrFormat = hdrFormat
                 )
@@ -1313,12 +1314,24 @@ class PlayerViewModel @Inject constructor(
         )
         val hdrFormat = resolveMpvHdrFormatLabel()
 
+        val videoStream = apiMediaStreams?.firstOrNull { it.type?.equals("Video", ignoreCase = true) == true }
+        val currentVideo = trackState.availableVideoTracks.firstOrNull() ?: videoStream?.let {
+            com.jellycine.player.core.VideoTrackInfo(
+                id = it.index?.toString() ?: "0",
+                label = "Video",
+                width = it.width ?: 0,
+                height = it.height ?: 0,
+                codec = it.codec
+            )
+        }
+
         _playerState.value = _playerState.value.copy(
             availableAudioTracks = trackState.availableAudioTracks,
             currentAudioTrack = trackState.currentAudioTrack,
             availableSubtitleTracks = trackState.availableSubtitleTracks,
             currentSubtitleTrack = trackState.currentSubtitleTrack,
             availableVideoTracks = trackState.availableVideoTracks,
+            currentVideoTrack = currentVideo,
             isHdrEnabled = hdrFormat.isNotBlank(),
             hdrFormat = hdrFormat
         )
@@ -1596,6 +1609,7 @@ class PlayerViewModel @Inject constructor(
             videoOffsetX = newOffsetX,
             videoOffsetY = newOffsetY
         )
+        mpvPlayer?.setVideoTransform(newScale, newOffsetX, newOffsetY)
     }
 
     /**
@@ -1619,6 +1633,7 @@ class PlayerViewModel @Inject constructor(
             videoOffsetX = 0f,
             videoOffsetY = 0f
         )
+        mpvPlayer?.setVideoTransform(1f, 0f, 0f)
     }
 
     /**
@@ -1629,6 +1644,50 @@ class PlayerViewModel @Inject constructor(
         val startMaximized = playerPreferences.isStartMaximizedEnabled()
         
         setAspectRatioMode(if (startMaximized) 0 else 2)
+    }
+
+    /**
+     * Accurately resolve actual video aspect ratio from MPV, ExoPlayer, or stream metadata.
+     */
+    fun getVideoAspect(): Float {
+        // 1. MPV player runtime video aspect
+        mpvPlayer?.videoAspectRatio?.takeIf { it > 0.1f }?.let { return it }
+
+        // 2. ExoPlayer runtime video size
+        exoPlayer?.videoSize?.let {
+            if (it.width > 0 && it.height > 0) {
+                return it.width.toFloat() / it.height.toFloat()
+            }
+        }
+
+        // 3. Current video track in state
+        _playerState.value.currentVideoTrack?.let {
+            if (it.width > 0 && it.height > 0) {
+                return it.width.toFloat() / it.height.toFloat()
+            }
+        }
+
+        // 4. API media stream metadata
+        apiMediaStreams?.firstOrNull { it.type?.equals("Video", ignoreCase = true) == true }?.let { stream ->
+            val w = stream.width ?: 0
+            val h = stream.height ?: 0
+            if (w > 0 && h > 0) {
+                return w.toFloat() / h.toFloat()
+            }
+            stream.aspectRatio?.let { aspectStr ->
+                val parts = aspectStr.split(":")
+                if (parts.size == 2) {
+                    val num = parts[0].toFloatOrNull()
+                    val den = parts[1].toFloatOrNull()
+                    if (num != null && den != null && den > 0f) {
+                        return num / den
+                    }
+                }
+            }
+        }
+
+        // 5. Default fallback to 16:9 standard video
+        return 16f / 9f
     }
 
     fun setAspectRatioMode(
@@ -1660,17 +1719,16 @@ class PlayerViewModel @Inject constructor(
         currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         val surfaceView = activeSurfaceView?.get()
 
-        val videoTrack = _playerState.value.currentVideoTrack
-        val videoAspect = if (videoTrack != null && videoTrack.width > 0 && videoTrack.height > 0) {
-            videoTrack.width.toFloat() / videoTrack.height.toFloat()
-        } else if (screenWidth > 0f && screenHeight > 0f) {
-            screenWidth / screenHeight
+        val rawW = if (screenWidth > 0f) screenWidth else surfaceView?.width?.toFloat() ?: 1920f
+        val rawH = if (screenHeight > 0f) screenHeight else surfaceView?.height?.toFloat() ?: 1080f
+        // Ensure orientation of dimensions matches landscape orientation
+        val (sWidth, sHeight) = if (rawW < rawH && (surfaceView == null || surfaceView.width >= surfaceView.height)) {
+            rawH to rawW
         } else {
-            16f / 9f
+            rawW to rawH
         }
 
-        val sWidth = if (screenWidth > 0f) screenWidth else surfaceView?.width?.toFloat() ?: 1920f
-        val sHeight = if (screenHeight > 0f) screenHeight else surfaceView?.height?.toFloat() ?: 1080f
+        val videoAspect = getVideoAspect()
 
         fun applyTransform(boundaries: CropBoundaries) {
             val transform = BlackBarDetector.calculateScaling(
@@ -1687,41 +1745,54 @@ class PlayerViewModel @Inject constructor(
                 videoOffsetY = transform.offsetY
             )
             mpvPlayer?.setVideoTransform(transform.scale, transform.offsetX, transform.offsetY)
-            onToast?.invoke(modeTitle)
         }
 
-        // Try MPV snapshot first to analyze the pure video frame without subtitles
+        // 1. Immediately apply geometric transform so UI reacts instantly with toast
+        applyTransform(CropBoundaries())
+        onToast?.invoke(modeTitle)
+
+        // 2. Asynchronously analyze pure video frame in background to eliminate in-frame black bars
         val mpv = mpvPlayer
         val ctx = playerContext
-        var mpvCropped = false
-        if (mpv != null && ctx != null) {
-            try {
-                val tempFile = File(ctx.cacheDir, "crop_detect.jpg")
-                if (mpv.takeVideoSnapshot(tempFile)) {
-                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
-                    val bmp = android.graphics.BitmapFactory.decodeFile(tempFile.absolutePath, opts)
-                    if (bmp != null) {
-                        val boundaries = BlackBarDetector.analyzeBitmap(bmp)
-                        bmp.recycle()
-                        tempFile.delete()
-                        if (boundaries.hasCrop) {
+        viewModelScope.launch(Dispatchers.Default) {
+            var detectedBoundaries: CropBoundaries? = null
+            if (mpv != null && ctx != null) {
+                try {
+                    val tempFile = File(ctx.cacheDir, "crop_detect.jpg")
+                    if (mpv.takeVideoSnapshot(tempFile)) {
+                        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                        val bmp = android.graphics.BitmapFactory.decodeFile(tempFile.absolutePath, opts)
+                        if (bmp != null) {
+                            val b = BlackBarDetector.analyzeBitmap(bmp)
+                            bmp.recycle()
+                            tempFile.delete()
+                            if (b.hasCrop) {
+                                detectedBoundaries = b
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed MPV snapshot crop analysis", e)
+                }
+            }
+
+            if (detectedBoundaries == null && surfaceView != null && surfaceView.width > 0 && surfaceView.height > 0) {
+                withContext(Dispatchers.Main) {
+                    BlackBarDetector.detect(surfaceView) { boundaries ->
+                        if (boundaries.hasCrop && currentAspectRatio == nextMode) {
                             applyTransform(boundaries)
-                            mpvCropped = true
                         }
                     }
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed MPV snapshot crop analysis", e)
+                return@launch
             }
-        }
 
-        if (!mpvCropped) {
-            if (surfaceView != null && surfaceView.width > 0 && surfaceView.height > 0) {
-                BlackBarDetector.detect(surfaceView) { boundaries ->
-                    applyTransform(boundaries)
+            if (detectedBoundaries != null && detectedBoundaries.hasCrop) {
+                withContext(Dispatchers.Main) {
+                    if (currentAspectRatio == nextMode) {
+                        applyTransform(detectedBoundaries)
+                    }
                 }
-            } else {
-                applyTransform(CropBoundaries())
             }
         }
     }

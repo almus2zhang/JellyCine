@@ -3,6 +3,9 @@ package com.jellycine.app.player.mpv
 import android.content.Context
 import android.view.Surface
 import com.jellycine.player.preferences.PlayerPreferences
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import org.jellycine.mpv.MPVLib
 import org.jellycine.mpv.MPVLib.MpvEvent
 import org.jellycine.mpv.MPVLib.MpvFormat
@@ -257,11 +260,17 @@ class MpvPlayerController(
     /**
      * Captures a raw video snapshot (without OSD and without subtitles) directly from MPV.
      */
-    fun takeVideoSnapshot(targetFile: java.io.File): Boolean {
-        if (released) return false
-        return try {
+    suspend fun takeVideoSnapshot(targetFile: java.io.File): Boolean = withContext(Dispatchers.IO) {
+        if (released) return@withContext false
+        try {
             if (targetFile.exists()) targetFile.delete()
             mpv.command(arrayOf("screenshot-to-file", targetFile.absolutePath, "video"))
+            for (i in 0 until 14) {
+                if (targetFile.exists() && targetFile.length() > 0) {
+                    return@withContext true
+                }
+                delay(25)
+            }
             targetFile.exists() && targetFile.length() > 0
         } catch (e: Exception) {
             false
