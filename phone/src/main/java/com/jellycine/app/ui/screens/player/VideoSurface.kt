@@ -3,6 +3,7 @@ package com.jellycine.app.ui.screens.player
 import android.annotation.SuppressLint
 import android.content.Context
 import android.media.AudioManager
+import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.animation.core.animateFloatAsState
@@ -58,6 +59,8 @@ fun VideoSurface(
     onSlideSeekCancel: () -> Unit = {},
     onLongPressSpeedStart: (speed: Float) -> Unit = {},
     onLongPressSpeedEnd: () -> Unit = {},
+    onSurfaceViewAvailable: (SurfaceView) -> Unit = {},
+    subtitleConfigVersion: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -111,6 +114,8 @@ fun VideoSurface(
                 onSlideSeekCancel = onSlideSeekCancel,
                 onLongPressSpeedStart = onLongPressSpeedStart,
                 onLongPressSpeedEnd = onLongPressSpeedEnd,
+                onSurfaceViewAvailable = onSurfaceViewAvailable,
+                subtitleConfigVersion = subtitleConfigVersion,
                 modifier = surfaceModifier
             )
         } else if (player != null) {
@@ -140,6 +145,8 @@ fun VideoSurface(
                 onSlideSeekCancel = onSlideSeekCancel,
                 onLongPressSpeedStart = onLongPressSpeedStart,
                 onLongPressSpeedEnd = onLongPressSpeedEnd,
+                onSurfaceViewAvailable = onSurfaceViewAvailable,
+                subtitleConfigVersion = subtitleConfigVersion,
                 modifier = surfaceModifier
             )
         }
@@ -175,6 +182,8 @@ private fun ExoPlayerView(
     onSlideSeekCancel: () -> Unit = {},
     onLongPressSpeedStart: (speed: Float) -> Unit = {},
     onLongPressSpeedEnd: () -> Unit = {},
+    onSurfaceViewAvailable: (SurfaceView) -> Unit = {},
+    subtitleConfigVersion: Int = 0,
     modifier: Modifier
 ) {
     val context = LocalContext.current
@@ -225,9 +234,12 @@ private fun ExoPlayerView(
             }
         },
         update = { playerView ->
+            (playerView.videoSurfaceView as? SurfaceView)?.let(onSurfaceViewAvailable)
             playerView.player = player
             playerView.resizeMode = resizeMode
-            playerView.applySubtitlePreferences(playerPreferences)
+            if (subtitleConfigVersion >= 0) {
+                playerView.applySubtitlePreferences(playerPreferences)
+            }
 
             val contentFrame = playerView.findViewById<View>(androidx.media3.ui.R.id.exo_content_frame)
                 ?: (playerView.videoSurfaceView?.parent as? View)

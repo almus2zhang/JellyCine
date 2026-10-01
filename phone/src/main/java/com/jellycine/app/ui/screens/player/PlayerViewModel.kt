@@ -3,6 +3,8 @@ package com.jellycine.app.ui.screens.player
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import android.view.SurfaceView
+import java.lang.ref.WeakReference
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -110,6 +112,11 @@ class PlayerViewModel @Inject constructor(
     private var hasRenderedFirstFrame = false
     private var mpvExternalSubtitleUrls: Map<Int, String> = emptyMap()
     private var remotePlaybackRequestKey: String? = null
+    private var activeSurfaceView: WeakReference<SurfaceView>? = null
+
+    fun setSurfaceView(surfaceView: SurfaceView) {
+        activeSurfaceView = WeakReference(surfaceView)
+    }
 
     private fun isMpvPlayback(): Boolean {
         return activePlayerEngine == PlayerPreferences.PLAYER_ENGINE_MPV
@@ -565,7 +572,10 @@ class PlayerViewModel @Inject constructor(
                     spatialAudioFormat = "",
                     isHdrEnabled = isHdrPlayback,
                     hdrFormat = hdrFormat,
-                    canDelete = itemDetails?.canDelete == true
+                    canDelete = itemDetails?.canDelete == true,
+                    subtitleFontSizeScale = PlayerPreferences(context).getSubtitleFontSizeScale(),
+                    subtitleTextColor = PlayerPreferences(context).getSubtitleTextColor(),
+                    subtitleBottomPositionPercent = PlayerPreferences(context).getSubtitleBottomEdgePositionPercent()
                 )
                 if (usesMpv) {
                     updateApiTrackInformation()
@@ -1539,17 +1549,22 @@ class PlayerViewModel @Inject constructor(
         )
     }
 
-    private var currentAspectRatio by mutableIntStateOf(0)
-    private val aspectRatioModes = listOf("Fit", "Zoom")
+    private var currentAspectRatio by mutableIntStateOf(2)
+    private val aspectRatioModes = listOf("横向全屏", "纵向全屏", "默认全屏")
 
     private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
 
     /**
-     * Toggle between fit and zoom modes
-     * Uses ExoPlayer's native AspectRatioFrameLayout resize modes for proper aspect ratio handling
+     * Toggle between horizontal fullscreen, vertical fullscreen, and default fullscreen modes.
+     * Uses BlackBarDetector to detect black bars excluding subtitles and scales accordingly.
      */
-    fun cycleAspectRatio() {
-        setAspectRatioMode((currentAspectRatio + 1) % aspectRatioModes.size)
+    fun cycleAspectRatio(
+        screenWidth: Float = 0f,
+        screenHeight: Float = 0f,
+        onToast: ((String) -> Unit)? = null
+    ) {
+        val nextMode = (currentAspectRatio + 1) % aspectRatioModes.size
+        setAspectRatioMode(nextMode, screenWidth, screenHeight, onToast)
     }
     
     /**
@@ -1561,10 +1576,10 @@ class PlayerViewModel @Inject constructor(
      * Handle pinch-to-zoom gesture to set appropriate resize mode
      */
     fun handlePinchZoom(isZooming: Boolean) {
-        if (isZooming && currentAspectRatio == 0) {
-            setAspectRatioMode(1)
-        } else if (!isZooming && currentAspectRatio == 1) {
+        if (isZooming && currentAspectRatio == 2) {
             setAspectRatioMode(0)
+        } else if (!isZooming && currentAspectRatio != 2) {
+            setAspectRatioMode(2)
         }
     }
 
@@ -1608,26 +1623,113 @@ class PlayerViewModel @Inject constructor(
 
     /**
      * Apply start maximized setting based on user preference
-     * Uses ExoPlayer's native resize modes for proper aspect ratio handling
      */
     private fun applyStartMaximizedSetting(context: Context) {
         val playerPreferences = PlayerPreferences(context)
         val startMaximized = playerPreferences.isStartMaximizedEnabled()
         
-        setAspectRatioMode(if (startMaximized) 1 else 0)
+        setAspectRatioMode(if (startMaximized) 0 else 2)
     }
 
-    private fun setAspectRatioMode(modeIndex: Int) {
-        currentAspectRatio = modeIndex.coerceIn(0, aspectRatioModes.lastIndex)
-        currentResizeMode = when (currentAspectRatio) {
-            1 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+    fun setAspectRatioMode(
+        modeIndex: Int,
+        screenWidth: Float = 0f,
+        screenHeight: Float = 0f,
+        onToast: ((String) -> Unit)? = null
+    ) {
+        val nextMode = modeIndex.coerceIn(0, aspectRatioModes.lastIndex)
+        currentAspectRatio = nextMode
+        val modeTitle = aspectRatioModes[nextMode]
+
+        if (nextMode == 2) {
+            // 默认全屏
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            _playerState.value = _playerState.value.copy(
+                aspectRatioMode = modeTitle,
+                videoScale = 1f,
+                videoOffsetX = 0f,
+                videoOffsetY = 0f
+            )
+            mpvPlayer?.setVideoTransform(1f, 0f, 0f)
+            mpvPlayer?.setZoomMode(false)
+            onToast?.invoke(modeTitle)
+            return
         }
-        _playerState.value = _playerState.value.copy(
-            aspectRatioMode = aspectRatioModes[currentAspectRatio],
-            videoScale = 1f,
-            videoOffsetX = 0f,
-            videoOffsetY = 0f
+
+        // 横向全屏 (0) 或 纵向全屏 (1)
+        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        val surfaceView = activeSurfaceView?.get()
+
+        val videoTrack = _playerState.value.currentVideoTrack
+        val videoAspect = if (videoTrack != null && videoTrack.width > 0 && videoTrack.height > 0) {
+            videoTrack.width.toFloat() / videoTrack.height.toFloat()
+        } else if (screenWidth > 0f && screenHeight > 0f) {
+            screenWidth / screenHeight
+        } else {
+            16f / 9f
+        }
+
+        val sWidth = if (screenWidth > 0f) screenWidth else surfaceView?.width?.toFloat() ?: 1920f
+        val sHeight = if (screenHeight > 0f) screenHeight else surfaceView?.height?.toFloat() ?: 1080f
+
+        fun applyTransform(boundaries: CropBoundaries) {
+            val transform = BlackBarDetector.calculateScaling(
+                modeIndex = nextMode,
+                boundaries = boundaries,
+                screenWidth = sWidth,
+                screenHeight = sHeight,
+                videoAspect = videoAspect
+            )
+            _playerState.value = _playerState.value.copy(
+                aspectRatioMode = modeTitle,
+                videoScale = transform.scale,
+                videoOffsetX = transform.offsetX,
+                videoOffsetY = transform.offsetY
+            )
+            mpvPlayer?.setVideoTransform(transform.scale, transform.offsetX, transform.offsetY)
+            onToast?.invoke(modeTitle)
+        }
+
+        if (surfaceView != null && surfaceView.width > 0 && surfaceView.height > 0) {
+            BlackBarDetector.detect(surfaceView) { boundaries ->
+                applyTransform(boundaries)
+            }
+        } else {
+            applyTransform(CropBoundaries())
+        }
+    }
+
+    /**
+     * Update subtitle styling (font size, color, position) in real-time
+     */
+    fun updateSubtitleStyle(
+        fontSizeScale: Int? = null,
+        textColor: String? = null,
+        positionPercent: Int? = null
+    ) {
+        val context = playerContext ?: return
+        val prefs = PlayerPreferences(context)
+        val current = _playerState.value
+
+        val newScale = fontSizeScale ?: current.subtitleFontSizeScale
+        val newColor = textColor ?: current.subtitleTextColor
+        val newPos = positionPercent ?: current.subtitleBottomPositionPercent
+
+        if (fontSizeScale != null) prefs.setSubtitleFontSizeScale(fontSizeScale)
+        if (textColor != null) prefs.setSubtitleTextColor(textColor)
+        if (positionPercent != null) prefs.setSubtitleBottomEdgePositionPercent(positionPercent)
+
+        _playerState.value = current.copy(
+            subtitleFontSizeScale = newScale,
+            subtitleTextColor = newColor,
+            subtitleBottomPositionPercent = newPos,
+            subtitleConfigVersion = current.subtitleConfigVersion + 1
+        )
+
+        mpvPlayer?.updateSubtitleStyle(
+            fontSizeScale = newScale,
+            textColor = newColor,
+            positionPercent = newPos
         )
     }
 

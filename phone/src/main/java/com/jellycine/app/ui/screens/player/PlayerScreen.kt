@@ -651,6 +651,8 @@ fun PlayerScreen(
                 viewModel.endLongPressSpeed()
                 uiState = uiState.copy(longPressSpeed = null)
             },
+            onSurfaceViewAvailable = viewModel::setSurfaceView,
+            subtitleConfigVersion = playerState.subtitleConfigVersion,
             modifier = Modifier.fillMaxSize()
         )
 
@@ -724,6 +726,7 @@ fun PlayerScreen(
             onResetSubtitleDelay = {
                 viewModel.resetSubtitleDelay()
             },
+            onUpdateSubtitleStyle = viewModel::updateSubtitleStyle,
             onStreamingQualitySelected = applyStreamingQualitySelection,
             onAudioTranscodingSelected = { selectedMode ->
                 val targetQuality = pendingStreamingQualitySelection ?: currentStreamingQuality

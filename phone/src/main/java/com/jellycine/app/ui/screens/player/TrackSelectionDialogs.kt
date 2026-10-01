@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -99,9 +100,13 @@ fun SubtitleTrackSelectionDialog(
     subtitleTracks: List<SubtitleTrackInfo>,
     currentSubtitleTrack: SubtitleTrackInfo?,
     subtitleDelay: Double = 0.0,
+    fontSizeScale: Int = 10,
+    textColor: String = "White",
+    bottomPositionPercent: Int = 6,
     onTrackSelected: (String) -> Unit,
     onAdjustSubtitleDelay: ((Double) -> Unit)? = null,
     onResetSubtitleDelay: (() -> Unit)? = null,
+    onUpdateSubtitleStyle: ((fontSizeScale: Int?, textColor: String?, positionPercent: Int?) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     if (!isVisible) return
@@ -127,16 +132,27 @@ fun SubtitleTrackSelectionDialog(
                 description = buildSubtitleTrackDescription(track)
             )
         },
-        headerExtraContent = if (onAdjustSubtitleDelay != null) {
-            {
-                SubtitleDelaySection(
-                    subtitleDelay = subtitleDelay,
-                    onAdjustSubtitleDelay = onAdjustSubtitleDelay,
-                    onResetSubtitleDelay = onResetSubtitleDelay,
-                    accentColor = subtitleAccentColor
-                )
+        headerExtraContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (onAdjustSubtitleDelay != null) {
+                    SubtitleDelaySection(
+                        subtitleDelay = subtitleDelay,
+                        onAdjustSubtitleDelay = onAdjustSubtitleDelay,
+                        onResetSubtitleDelay = onResetSubtitleDelay,
+                        accentColor = subtitleAccentColor
+                    )
+                }
+                if (onUpdateSubtitleStyle != null) {
+                    SubtitleStyleSection(
+                        fontSizeScale = fontSizeScale,
+                        textColor = textColor,
+                        bottomPositionPercent = bottomPositionPercent,
+                        onUpdateSubtitleStyle = onUpdateSubtitleStyle,
+                        accentColor = subtitleAccentColor
+                    )
+                }
             }
-        } else null
+        }
     )
 }
 
@@ -865,3 +881,235 @@ private fun DelayStepButton(
         }
     }
 }
+
+@Composable
+private fun SubtitleStyleSection(
+    fontSizeScale: Int,
+    textColor: String,
+    bottomPositionPercent: Int,
+    onUpdateSubtitleStyle: (fontSizeScale: Int?, textColor: String?, positionPercent: Int?) -> Unit,
+    accentColor: Color
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Tune,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = accentColor
+                )
+                Text(
+                    text = "字幕样式与位置",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "字号",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(28.dp)
+                )
+                val sizes = listOf(
+                    "小" to 8,
+                    "标准" to 10,
+                    "大" to 13,
+                    "特大" to 16
+                )
+                sizes.forEach { (label, scale) ->
+                    val isSelected = fontSizeScale == scale
+                    StyleChip(
+                        label = label,
+                        isSelected = isSelected,
+                        accentColor = accentColor,
+                        onClick = { onUpdateSubtitleStyle(scale, null, null) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "颜色",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(28.dp)
+                )
+                val colors = listOf(
+                    Triple("白色", PlayerPreferences.SUBTITLE_TEXT_COLOR_WHITE, Color(0xFFFFFFFF)),
+                    Triple("黄色", PlayerPreferences.SUBTITLE_TEXT_COLOR_YELLOW, Color(0xFFFFEB3B)),
+                    Triple("浅蓝", PlayerPreferences.SUBTITLE_TEXT_COLOR_CYAN, Color(0xFF00E5FF)),
+                    Triple("浅绿", PlayerPreferences.SUBTITLE_TEXT_COLOR_GREEN, Color(0xFF69F0AE))
+                )
+                colors.forEach { (label, colorKey, dotColor) ->
+                    val isSelected = textColor.equals(colorKey, ignoreCase = true)
+                    ColorChip(
+                        label = label,
+                        dotColor = dotColor,
+                        isSelected = isSelected,
+                        accentColor = accentColor,
+                        onClick = { onUpdateSubtitleStyle(null, colorKey, null) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "位置",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(28.dp)
+                )
+                val positions = listOf(
+                    "靠底" to 3,
+                    "默认" to 6,
+                    "稍高" to 12,
+                    "居中" to 22
+                )
+                positions.forEach { (label, pos) ->
+                    val isSelected = bottomPositionPercent == pos
+                    StyleChip(
+                        label = label,
+                        isSelected = isSelected,
+                        accentColor = accentColor,
+                        onClick = { onUpdateSubtitleStyle(null, null, pos) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StyleChip(
+    label: String,
+    isSelected: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = if (isSelected) {
+        accentColor.copy(alpha = 0.22f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    }
+    val borderColor = if (isSelected) {
+        accentColor.copy(alpha = 0.7f)
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+    }
+    val textColor = if (isSelected) {
+        accentColor
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Box(
+            modifier = Modifier.padding(vertical = 6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = textColor,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun ColorChip(
+    label: String,
+    dotColor: Color,
+    isSelected: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = if (isSelected) {
+        accentColor.copy(alpha = 0.22f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    }
+    val borderColor = if (isSelected) {
+        accentColor.copy(alpha = 0.7f)
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+    }
+    val textColor = if (isSelected) {
+        accentColor
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(dotColor, CircleShape)
+                    .border(0.5.dp, Color.Black.copy(alpha = 0.3f), CircleShape)
+            )
+            androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = textColor,
+                maxLines = 1
+            )
+        }
+    }
+}
+

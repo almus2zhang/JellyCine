@@ -43,6 +43,8 @@ fun MpvVideoSurface(
     onSlideSeekCancel: () -> Unit = {},
     onLongPressSpeedStart: (speed: Float) -> Unit = {},
     onLongPressSpeedEnd: () -> Unit = {},
+    onSurfaceViewAvailable: (SurfaceView) -> Unit = {},
+    subtitleConfigVersion: Int = 0,
     modifier: Modifier
 ) {
     AndroidView(
@@ -52,6 +54,7 @@ fun MpvVideoSurface(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
+                onSurfaceViewAvailable(this)
                 val gestureHelper = GestureHelper(
                     context = context,
                     touchView = this,
@@ -109,6 +112,7 @@ fun MpvVideoSurface(
             }
         },
         update = {
+            onSurfaceViewAvailable(it)
             player.applySubtitlePreferences()
             player.setZoomMode(resizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM)
             player.setVideoTransform(scale, offsetX, offsetY)

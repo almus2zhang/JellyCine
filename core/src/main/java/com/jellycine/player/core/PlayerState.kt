@@ -54,6 +54,10 @@ data class PlayerState(
     val currentSubtitleTrack: SubtitleTrackInfo? = null,
     val availableSubtitleTracks: List<SubtitleTrackInfo> = emptyList(),
     val subtitleDelay: Double = 0.0,
+    val subtitleFontSizeScale: Int = 10,
+    val subtitleTextColor: String = "White",
+    val subtitleBottomPositionPercent: Int = 6,
+    val subtitleConfigVersion: Int = 0,
     val canDelete: Boolean = false,
     val currentVideoTrack: VideoTrackInfo? = null,
     val availableVideoTracks: List<VideoTrackInfo> = emptyList(),
@@ -61,7 +65,7 @@ data class PlayerState(
     val videoScale: Float = 1f,
     val videoOffsetX: Float = 0f,
     val videoOffsetY: Float = 0f,
-    val aspectRatioMode: String = "Fit"
+    val aspectRatioMode: String = "默认全屏"
 )
 
 data class ChapterMarker(

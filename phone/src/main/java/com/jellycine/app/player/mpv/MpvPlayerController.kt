@@ -260,27 +260,59 @@ class MpvPlayerController(
         mpv.setOptionString("sub-use-margins", "yes")
         mpv.setOptionString("sub-ass-force-margins", "yes")
         mpv.setOptionString("sub-ass-override", if (preserveStyles) "no" else "strip")
+        mpv.setPropertyString("sub-use-margins", "yes")
+        mpv.setPropertyString("sub-ass-force-margins", "yes")
+        mpv.setPropertyString("sub-ass-override", if (preserveStyles) "no" else "strip")
         val scaleFactor = (playerPreferences.getSubtitleFontSizeScale() * 0.1f).coerceIn(0.4f, 2.0f)
-        mpv.setOptionString("sub-scale", String.format(java.util.Locale.US, "%.2f", scaleFactor))
-        mpv.setOptionString(
-            "sub-color",
-            mpvColor(
-                color = playerPreferences.getSubtitleTextColor(),
-                opacityPercent = playerPreferences.getSubtitleTextOpacityPercent()
-            )
+        val scaleStr = String.format(java.util.Locale.US, "%.2f", scaleFactor)
+        mpv.setOptionString("sub-scale", scaleStr)
+        mpv.setPropertyString("sub-scale", scaleStr)
+        val colorStr = mpvColor(
+            color = playerPreferences.getSubtitleTextColor(),
+            opacityPercent = playerPreferences.getSubtitleTextOpacityPercent()
         )
-        mpv.setOptionString(
-            "sub-back-color",
-            mpvBackgroundColor(playerPreferences.getSubtitleBackgroundColor())
-        )
-        mpv.setOptionString(
-            "sub-pos",
-            (100 - playerPreferences.getSubtitlePosition().coerceIn(0, 50)).toString()
-        )
+        mpv.setOptionString("sub-color", colorStr)
+        mpv.setPropertyString("sub-color", colorStr)
+        val backColorStr = mpvBackgroundColor(playerPreferences.getSubtitleBackgroundColor())
+        mpv.setOptionString("sub-back-color", backColorStr)
+        mpv.setPropertyString("sub-back-color", backColorStr)
+        val posStr = (100 - playerPreferences.getSubtitlePosition().coerceIn(0, 50)).toString()
+        mpv.setOptionString("sub-pos", posStr)
+        mpv.setPropertyString("sub-pos", posStr)
         applySubtitleEdge(
             edgeType = playerPreferences.getSubtitleEdgeType(),
             textColor = playerPreferences.getSubtitleTextColor()
         )
+    }
+
+    fun updateSubtitleStyle(
+        fontSizeScale: Int? = null,
+        textColor: String? = null,
+        positionPercent: Int? = null
+    ) {
+        if (released) return
+        val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
+        mpv.setPropertyString("sub-use-margins", "yes")
+        mpv.setPropertyString("sub-ass-force-margins", "yes")
+        mpv.setPropertyString("sub-ass-override", if (preserveStyles) "no" else "strip")
+
+        if (fontSizeScale != null) {
+            val scaleFactor = (fontSizeScale * 0.1f).coerceIn(0.4f, 2.0f)
+            val scaleStr = String.format(java.util.Locale.US, "%.2f", scaleFactor)
+            mpv.setPropertyString("sub-scale", scaleStr)
+            mpv.setOptionString("sub-scale", scaleStr)
+        }
+        if (textColor != null) {
+            val colorStr = mpvColor(textColor, playerPreferences.getSubtitleTextOpacityPercent())
+            mpv.setPropertyString("sub-color", colorStr)
+            mpv.setOptionString("sub-color", colorStr)
+            applySubtitleEdge(playerPreferences.getSubtitleEdgeType(), textColor)
+        }
+        if (positionPercent != null) {
+            val subPos = (100 - positionPercent.coerceIn(0, 50)).toString()
+            mpv.setPropertyString("sub-pos", subPos)
+            mpv.setOptionString("sub-pos", subPos)
+        }
     }
 
     fun detachSurface() {
@@ -552,30 +584,38 @@ class MpvPlayerController(
         val shadowColor = if (textColor == PlayerPreferences.SUBTITLE_TEXT_COLOR_BLACK) "#CCFFFFFF" else "#CC000000"
         val edgeWidth = playerPreferences.getSubtitleEdgeWidth()
         val borderSizeStr = String.format(java.util.Locale.US, "%.1f", edgeWidth)
+        var borderSize = "0"
+        var shadowOffset = "0"
         when (edgeType) {
             PlayerPreferences.SUBTITLE_EDGE_TYPE_OUTLINE -> {
-                mpv.setOptionString("sub-border-size", borderSizeStr)
-                mpv.setOptionString("sub-shadow-offset", "0")
+                borderSize = borderSizeStr
+                shadowOffset = "0"
             }
             PlayerPreferences.SUBTITLE_EDGE_TYPE_DROP_SHADOW -> {
-                mpv.setOptionString("sub-border-size", "0")
-                mpv.setOptionString("sub-shadow-offset", String.format(java.util.Locale.US, "%.1f", edgeWidth.coerceAtLeast(1.0f)))
+                borderSize = "0"
+                shadowOffset = String.format(java.util.Locale.US, "%.1f", edgeWidth.coerceAtLeast(1.0f))
             }
             PlayerPreferences.SUBTITLE_EDGE_TYPE_RAISED -> {
-                mpv.setOptionString("sub-border-size", "1")
-                mpv.setOptionString("sub-shadow-offset", "1")
+                borderSize = "1"
+                shadowOffset = "1"
             }
             PlayerPreferences.SUBTITLE_EDGE_TYPE_DEPRESSED -> {
-                mpv.setOptionString("sub-border-size", "1")
-                mpv.setOptionString("sub-shadow-offset", "1")
+                borderSize = "1"
+                shadowOffset = "1"
             }
             else -> {
-                mpv.setOptionString("sub-border-size", "0")
-                mpv.setOptionString("sub-shadow-offset", "0")
+                borderSize = "0"
+                shadowOffset = "0"
             }
         }
+        mpv.setOptionString("sub-border-size", borderSize)
+        mpv.setPropertyString("sub-border-size", borderSize)
+        mpv.setOptionString("sub-shadow-offset", shadowOffset)
+        mpv.setPropertyString("sub-shadow-offset", shadowOffset)
         mpv.setOptionString("sub-border-color", borderColor)
+        mpv.setPropertyString("sub-border-color", borderColor)
         mpv.setOptionString("sub-shadow-color", shadowColor)
+        mpv.setPropertyString("sub-shadow-color", shadowColor)
     }
 
     private fun alphaHex(opacityPercent: Int): String {

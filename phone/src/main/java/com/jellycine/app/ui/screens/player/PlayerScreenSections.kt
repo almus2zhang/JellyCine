@@ -526,7 +526,14 @@ internal fun BoxScope.PlayerOverlayHost(
             },
             onCycleAspectRatio = {
                 resetAutoHideTimer()
-                viewModel.cycleAspectRatio()
+                val metrics = context.resources.displayMetrics
+                viewModel.cycleAspectRatio(
+                    screenWidth = metrics.widthPixels.toFloat(),
+                    screenHeight = metrics.heightPixels.toFloat(),
+                    onToast = { modeName ->
+                        android.widget.Toast.makeText(context, modeName, android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                )
             },
             onSeekBackward = {
                 resetAutoHideTimer()
@@ -818,6 +825,7 @@ internal fun PlayerDialogsHost(
     onSubtitleTrackSelected: (String) -> Unit,
     onAdjustSubtitleDelay: (Double) -> Unit = {},
     onResetSubtitleDelay: () -> Unit = {},
+    onUpdateSubtitleStyle: (fontSizeScale: Int?, textColor: String?, positionPercent: Int?) -> Unit = { _, _, _ -> },
     onStreamingQualitySelected: (String) -> Unit,
     onAudioTranscodingSelected: (AudioTranscodeMode) -> Unit,
     onDismissAudioTrackDialog: () -> Unit,
@@ -839,9 +847,13 @@ internal fun PlayerDialogsHost(
         subtitleTracks = playerState.availableSubtitleTracks,
         currentSubtitleTrack = playerState.currentSubtitleTrack,
         subtitleDelay = playerState.subtitleDelay,
+        fontSizeScale = playerState.subtitleFontSizeScale,
+        textColor = playerState.subtitleTextColor,
+        bottomPositionPercent = playerState.subtitleBottomPositionPercent,
         onTrackSelected = onSubtitleTrackSelected,
         onAdjustSubtitleDelay = onAdjustSubtitleDelay,
         onResetSubtitleDelay = onResetSubtitleDelay,
+        onUpdateSubtitleStyle = onUpdateSubtitleStyle,
         onDismiss = onDismissSubtitleTrackDialog
     )
 
