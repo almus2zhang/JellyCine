@@ -265,11 +265,21 @@ class MpvPlayerController(
         try {
             if (targetFile.exists()) targetFile.delete()
             mpv.command(arrayOf("screenshot-to-file", targetFile.absolutePath, "video"))
-            for (i in 0 until 14) {
+            for (i in 0 until 6) {
                 if (targetFile.exists() && targetFile.length() > 0) {
                     return@withContext true
                 }
                 delay(25)
+            }
+            // If direct hardware decoding restricts "video" snapshot, try without flag
+            if (!targetFile.exists() || targetFile.length() == 0L) {
+                mpv.command(arrayOf("screenshot-to-file", targetFile.absolutePath))
+                for (i in 0 until 8) {
+                    if (targetFile.exists() && targetFile.length() > 0) {
+                        return@withContext true
+                    }
+                    delay(25)
+                }
             }
             targetFile.exists() && targetFile.length() > 0
         } catch (e: Exception) {
@@ -570,6 +580,10 @@ class MpvPlayerController(
         mpv.setOptionString("sub-bitmap", "yes")
         mpv.setOptionString("sub-scale-with-window", "yes")
         mpv.setOptionString("sub-use-margins", "yes")
+        mpv.setOptionString("screenshot-format", "jpg")
+        mpv.setOptionString("screenshot-high-bit-depth", "no")
+        mpv.setOptionString("screenshot-tag-colorspace", "no")
+        mpv.setOptionString("screenshot-jpeg-quality", "80")
         mpv.setOptionString("ytdl", "no")
         applySubtitlePreferences()
     }

@@ -113,6 +113,8 @@ class PlayerViewModel @Inject constructor(
     private var mpvExternalSubtitleUrls: Map<Int, String> = emptyMap()
     private var remotePlaybackRequestKey: String? = null
     private var activeSurfaceView: WeakReference<SurfaceView>? = null
+    private var detectedVideoCropBoundaries: CropBoundaries? = null
+    private var initialCropDetectionJob: Job? = null
 
     fun setSurfaceView(surfaceView: SurfaceView) {
         activeSurfaceView = WeakReference(surfaceView)
@@ -1161,6 +1163,9 @@ class PlayerViewModel @Inject constructor(
         spatialAudioAnalysisJob?.cancel()
         spatialAudioAnalysisJob = null
         cancelMpvWatchdog()
+        initialCropDetectionJob?.cancel()
+        initialCropDetectionJob = null
+        detectedVideoCropBoundaries = null
         exoPlayer?.apply {
             removeListener(playerListener)
             release()
@@ -1387,6 +1392,9 @@ class PlayerViewModel @Inject constructor(
                 }
                 if (wasPlaying != isPlayingNow()) {
                     playbackReporter.onPlaybackPauseStateChanged()
+                }
+                if (!wasPlaying) {
+                    scheduleInitialCropDetection()
                 }
             }
 
@@ -1690,6 +1698,62 @@ class PlayerViewModel @Inject constructor(
         return 16f / 9f
     }
 
+    private fun scheduleInitialCropDetection() {
+        initialCropDetectionJob?.cancel()
+        initialCropDetectionJob = viewModelScope.launch(Dispatchers.Default) {
+            delay(800)
+            if (detectedVideoCropBoundaries != null && detectedVideoCropBoundaries!!.hasCrop) return@launch
+            val mpv = mpvPlayer
+            val ctx = playerContext
+            var detected: CropBoundaries? = null
+            if (mpv != null && ctx != null) {
+                try {
+                    val tempFile = File(ctx.cacheDir, "crop_detect.jpg")
+                    if (mpv.takeVideoSnapshot(tempFile)) {
+                        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                        val bmp = android.graphics.BitmapFactory.decodeFile(tempFile.absolutePath, opts)
+                        if (bmp != null) {
+                            val b = BlackBarDetector.analyzeBitmap(bmp)
+                            bmp.recycle()
+                            tempFile.delete()
+                            if (b.hasCrop) detected = b
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed initial MPV snapshot crop analysis", e)
+                }
+            }
+
+            val surfaceView = activeSurfaceView?.get()
+            if (detected == null && surfaceView != null && surfaceView.width > 0 && surfaceView.height > 0) {
+                withContext(Dispatchers.Main) {
+                    if (_playerState.value.videoScale == 1.0f) {
+                        BlackBarDetector.detect(surfaceView) { boundaries ->
+                            if (boundaries.hasCrop) {
+                                Log.d(TAG, "Auto-detected initial crop boundaries from default view: $boundaries")
+                                detectedVideoCropBoundaries = boundaries
+                                if (currentAspectRatio != 2) {
+                                    setAspectRatioMode(currentAspectRatio)
+                                }
+                            }
+                        }
+                    }
+                }
+                return@launch
+            }
+
+            if (detected != null && detected.hasCrop) {
+                withContext(Dispatchers.Main) {
+                    Log.d(TAG, "Auto-detected initial crop boundaries from MPV snapshot: $detected")
+                    detectedVideoCropBoundaries = detected
+                    if (currentAspectRatio != 2) {
+                        setAspectRatioMode(currentAspectRatio)
+                    }
+                }
+            }
+        }
+    }
+
     fun setAspectRatioMode(
         modeIndex: Int,
         screenWidth: Float = 0f,
@@ -1747,50 +1811,61 @@ class PlayerViewModel @Inject constructor(
             mpvPlayer?.setVideoTransform(transform.scale, transform.offsetX, transform.offsetY)
         }
 
-        // 1. Immediately apply geometric transform so UI reacts instantly with toast
-        applyTransform(CropBoundaries())
+        // 1. Immediately apply transform using cached crop boundaries (from default view)
+        val baseBoundaries = detectedVideoCropBoundaries ?: CropBoundaries()
+        applyTransform(baseBoundaries)
         onToast?.invoke(modeTitle)
 
-        // 2. Asynchronously analyze pure video frame in background to eliminate in-frame black bars
-        val mpv = mpvPlayer
-        val ctx = playerContext
-        viewModelScope.launch(Dispatchers.Default) {
-            var detectedBoundaries: CropBoundaries? = null
-            if (mpv != null && ctx != null) {
-                try {
-                    val tempFile = File(ctx.cacheDir, "crop_detect.jpg")
-                    if (mpv.takeVideoSnapshot(tempFile)) {
-                        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
-                        val bmp = android.graphics.BitmapFactory.decodeFile(tempFile.absolutePath, opts)
-                        if (bmp != null) {
-                            val b = BlackBarDetector.analyzeBitmap(bmp)
-                            bmp.recycle()
-                            tempFile.delete()
-                            if (b.hasCrop) {
-                                detectedBoundaries = b
+        // 2. If we don't have detected boundaries yet, asynchronously detect in background
+        if (detectedVideoCropBoundaries == null || !detectedVideoCropBoundaries!!.hasCrop) {
+            val mpv = mpvPlayer
+            val ctx = playerContext
+            viewModelScope.launch(Dispatchers.Default) {
+                var detectedBoundaries: CropBoundaries? = null
+                if (mpv != null && ctx != null) {
+                    try {
+                        val tempFile = File(ctx.cacheDir, "crop_detect.jpg")
+                        if (mpv.takeVideoSnapshot(tempFile)) {
+                            val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                            val bmp = android.graphics.BitmapFactory.decodeFile(tempFile.absolutePath, opts)
+                            if (bmp != null) {
+                                val b = BlackBarDetector.analyzeBitmap(bmp)
+                                bmp.recycle()
+                                tempFile.delete()
+                                if (b.hasCrop) {
+                                    detectedBoundaries = b
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed MPV snapshot crop analysis", e)
+                    }
+                }
+
+                // IMPORTANT: Only sample SurfaceView if videoScale is 1.0f (default unscaled view)!
+                // Never sample a zoomed/stretched SurfaceView because it distorts black bars detection!
+                if (detectedBoundaries == null && surfaceView != null && surfaceView.width > 0 && surfaceView.height > 0) {
+                    withContext(Dispatchers.Main) {
+                        if (_playerState.value.videoScale == 1.0f) {
+                            BlackBarDetector.detect(surfaceView) { boundaries ->
+                                if (boundaries.hasCrop) {
+                                    detectedVideoCropBoundaries = boundaries
+                                    if (currentAspectRatio == nextMode) {
+                                        applyTransform(boundaries)
+                                    }
+                                }
                             }
                         }
                     }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed MPV snapshot crop analysis", e)
+                    return@launch
                 }
-            }
 
-            if (detectedBoundaries == null && surfaceView != null && surfaceView.width > 0 && surfaceView.height > 0) {
-                withContext(Dispatchers.Main) {
-                    BlackBarDetector.detect(surfaceView) { boundaries ->
-                        if (boundaries.hasCrop && currentAspectRatio == nextMode) {
-                            applyTransform(boundaries)
+                if (detectedBoundaries != null && detectedBoundaries.hasCrop) {
+                    withContext(Dispatchers.Main) {
+                        detectedVideoCropBoundaries = detectedBoundaries
+                        if (currentAspectRatio == nextMode) {
+                            applyTransform(detectedBoundaries)
                         }
-                    }
-                }
-                return@launch
-            }
-
-            if (detectedBoundaries != null && detectedBoundaries.hasCrop) {
-                withContext(Dispatchers.Main) {
-                    if (currentAspectRatio == nextMode) {
-                        applyTransform(detectedBoundaries)
                     }
                 }
             }
@@ -1932,6 +2007,7 @@ class PlayerViewModel @Inject constructor(
             ) {
                 playbackReporter.reportPlaybackStatus()
             }
+            scheduleInitialCropDetection()
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
