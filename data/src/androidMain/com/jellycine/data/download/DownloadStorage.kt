@@ -209,12 +209,55 @@ class DownloadStorage(
         }.getOrDefault(false)
     }
 
-    private fun fileForLocation(location: String): File? {
+    fun fileForLocation(location: String): File? {
         val uri = runCatching { Uri.parse(location) }.getOrNull()
         return when {
             uri?.scheme.isNullOrBlank() -> File(location)
             uri?.scheme == "file" -> uri.path?.let(::File)
             else -> null
+        }
+    }
+
+    fun getSubtitlesDirectory(): File {
+        val dir = appContext.getExternalFilesDir("subtitles")
+            ?: appContext.filesDir.resolve("subtitles")
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        return dir
+    }
+
+    fun getSubtitleFile(
+        itemId: String,
+        streamIndex: Int,
+        language: String?,
+        extension: String
+    ): File {
+        val dir = getSubtitlesDirectory()
+        val safeLang = language?.replace(Regex("[^a-zA-Z0-9_-]"), "")?.takeIf { it.isNotBlank() } ?: "und"
+        val safeExt = extension.trimStart('.').lowercase()
+        return File(dir, "${itemId}_${streamIndex}_${safeLang}.${safeExt}")
+    }
+
+    fun deleteSubtitlesForItem(itemId: String, videoLocation: String? = null) {
+        val dir = getSubtitlesDirectory()
+        dir.listFiles { _, name -> name.startsWith("${itemId}_") }?.forEach { subFile ->
+            runCatching { subFile.delete() }
+        }
+        if (!videoLocation.isNullOrBlank()) {
+            fileForLocation(videoLocation)?.let { videoFile ->
+                val parent = videoFile.parentFile
+                val videoBaseName = videoFile.nameWithoutExtension
+                if (parent != null && !videoBaseName.isNullOrBlank()) {
+                    parent.listFiles { _, name ->
+                        name.startsWith("$videoBaseName.") &&
+                            listOf(".srt", ".vtt", ".ass", ".ssa", ".sub", ".sup")
+                                .any { ext -> name.endsWith(ext, ignoreCase = true) }
+                    }?.forEach { alongsideFile ->
+                        runCatching { alongsideFile.delete() }
+                    }
+                }
+            }
         }
     }
 
