@@ -829,6 +829,7 @@ internal fun PlayerDialogsHost(
     mediaInfoSnapshot: MediaMetadataInfo?,
     onAudioTrackSelected: (String) -> Unit,
     onSubtitleTrackSelected: (String) -> Unit,
+    onSecondarySubtitleTrackSelected: (String) -> Unit = {},
     onAdjustSubtitleDelay: (Double) -> Unit = {},
     onResetSubtitleDelay: () -> Unit = {},
     onUpdateSubtitleStyle: (fontSizeScale: Int?, textColor: String?, positionPercent: Int?) -> Unit = { _, _, _ -> },
@@ -854,7 +855,9 @@ internal fun PlayerDialogsHost(
         isVisible = showSubtitleTrackDialog,
         subtitleTracks = playerState.availableSubtitleTracks,
         currentSubtitleTrack = playerState.currentSubtitleTrack,
+        currentSecondarySubtitleTrack = playerState.currentSecondarySubtitleTrack,
         onTrackSelected = onSubtitleTrackSelected,
+        onSecondaryTrackSelected = onSecondarySubtitleTrackSelected,
         onOpenSubtitleSettings = onOpenSubtitleSettings,
         onDismiss = onDismissSubtitleTrackDialog
     )

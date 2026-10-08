@@ -37,6 +37,7 @@ import com.jellycine.player.core.PlayerState
 import com.jellycine.player.core.PlayerTrack
 import com.jellycine.player.core.PlayerUtils
 import com.jellycine.player.core.RemoteTrailerUrl
+import com.jellycine.player.core.SubtitleTrackInfo
 import com.jellycine.player.preferences.PlayerPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -514,6 +515,7 @@ class PlayerViewModel @Inject constructor(
                         ?: defaultAudioStreamIndex
                     val selectedSubtitleStreamIndex = _preferredStreamIndexes.value.subtitleStreamIndex
                         ?: defaultSubtitleStreamIndex
+                    val selectedSecondarySubtitleStreamIndex = _preferredStreamIndexes.value.secondarySubtitleStreamIndex
                     val selectedVideoStream = apiMediaStreams?.firstOrNull { it.type.equals("Video", ignoreCase = true) }
                     val hints = listOfNotNull(
                         currentItemDetails?.name,
@@ -560,7 +562,14 @@ class PlayerViewModel @Inject constructor(
                                 mpvExternalSubtitleUrls::get
                             ),
                             startPositionMs = playerStartPositionMs,
-                            startPlayback = startPlayback
+                            startPlayback = startPlayback,
+                            secondarySubtitleTrackId = MPVPlayer.subtitleTrackId(
+                                apiMediaStreams,
+                                selectedSecondarySubtitleStreamIndex
+                            ),
+                            selectedSecondarySubtitleUrl = selectedSecondarySubtitleStreamIndex?.let(
+                                mpvExternalSubtitleUrls::get
+                            )
                         )
                     }
                 } else {
@@ -1374,11 +1383,17 @@ class PlayerViewModel @Inject constructor(
             )
         }
 
+        val secSubtitle = _playerState.value.currentSecondarySubtitleTrack
+            ?: _preferredStreamIndexes.value.secondarySubtitleStreamIndex?.let { secIndex ->
+                trackState.availableSubtitleTracks.firstOrNull { it.streamIndex == secIndex }
+            }
+
         _playerState.value = _playerState.value.copy(
             availableAudioTracks = trackState.availableAudioTracks,
             currentAudioTrack = trackState.currentAudioTrack,
             availableSubtitleTracks = trackState.availableSubtitleTracks,
             currentSubtitleTrack = trackState.currentSubtitleTrack,
+            currentSecondarySubtitleTrack = secSubtitle,
             availableVideoTracks = trackState.availableVideoTracks,
             currentVideoTrack = currentVideo,
             isHdrEnabled = hdrFormat.isNotBlank(),
@@ -1534,6 +1549,52 @@ class PlayerViewModel @Inject constructor(
             viewModelScope.launch {
                 delay(500)
                 updateTrackInformation()
+            }
+        }
+    }
+
+    /**
+     * Select secondary subtitle track by ID (dual subtitle / danmaku)
+     */
+    fun selectSecondarySubtitleTrack(trackId: String) {
+        Log.d(TAG, "Selecting secondary subtitle track: $trackId")
+        if (trackId == _playerState.value.currentSecondarySubtitleTrack?.id) {
+            Log.d(TAG, "Secondary subtitle track $trackId already selected")
+            return
+        }
+        val selectedTrack = if (trackId == "off") {
+            _playerState.value.availableSubtitleTracks.firstOrNull { it.id == "off" || it.streamIndex == -1 }
+                ?: SubtitleTrackInfo(id = "off", label = "Off", language = null, streamIndex = -1)
+        } else {
+            _playerState.value.availableSubtitleTracks.firstOrNull { it.id == trackId }
+        } ?: run {
+            Log.w(TAG, "Could not find secondary subtitle track with id $trackId in available tracks")
+            return
+        }
+
+        if (isMpvPlayback()) {
+            val streamIndex = MPVPlayer.selectSecondarySubtitleTrack(
+                controller = mpvPlayer,
+                track = selectedTrack,
+                externalSubtitleUrls = mpvExternalSubtitleUrls
+            )
+            val isOff = selectedTrack.id == "off" || (streamIndex ?: -1) < 0
+            _preferredStreamIndexes.value = _preferredStreamIndexes.value.copy(
+                secondarySubtitleStreamIndex = if (isOff) null else streamIndex
+            )
+            _playerState.value = _playerState.value.copy(
+                currentSecondarySubtitleTrack = if (isOff) null else selectedTrack
+            )
+            return
+        } else {
+            playerContext?.let { ctx ->
+                viewModelScope.launch(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        ctx.applicationContext,
+                        "第二字幕/弹幕需要使用 MPV 播放核心，请在播放器设置中切换为 MPV",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }
     }

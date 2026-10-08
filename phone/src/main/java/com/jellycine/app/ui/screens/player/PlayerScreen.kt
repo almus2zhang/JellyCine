@@ -723,6 +723,10 @@ fun PlayerScreen(
                 viewModel.selectSubtitleTrack(trackId)
                 showSubtitleTrackDialog = false
             },
+            onSecondarySubtitleTrackSelected = { trackId ->
+                viewModel.selectSecondarySubtitleTrack(trackId)
+                showSubtitleTrackDialog = false
+            },
             onAdjustSubtitleDelay = { delta ->
                 viewModel.adjustSubtitleDelay(delta)
             },

@@ -12,7 +12,8 @@ data class PlayerTrackState(
     val currentAudioTrack: AudioTrackInfo?,
     val availableSubtitleTracks: List<SubtitleTrackInfo>,
     val currentSubtitleTrack: SubtitleTrackInfo?,
-    val availableVideoTracks: List<VideoTrackInfo>
+    val availableVideoTracks: List<VideoTrackInfo>,
+    val currentSecondarySubtitleTrack: SubtitleTrackInfo? = null
 )
 
 @UnstableApi
@@ -71,7 +72,8 @@ object PlayerTrack {
 
                 track.copy(
                     label = stream?.displayTitleOrNull() ?: track.label,
-                    streamIndex = stream?.index
+                    streamIndex = stream?.index,
+                    isDanmaku = isDanmakuSubtitle(stream) || isDanmakuText(track.label)
                 )
             }
         }
@@ -112,7 +114,8 @@ object PlayerTrack {
                 isDefault = false,
                 playerTrackId = "subtitle:$streamIndex", // set ID so it can be identified, even if not yet in player
                 streamIndex = streamIndex,
-                requiresPlaybackRestart = true
+                requiresPlaybackRestart = true,
+                isDanmaku = isDanmakuSubtitle(stream)
             )
         }
 
@@ -204,4 +207,27 @@ object PlayerTrack {
         .distinctBy { it.index }
         .sortedBy { it.index ?: Int.MAX_VALUE }
 
+    fun isDanmakuSubtitle(stream: MediaStream?): Boolean {
+        if (stream == null) return false
+        val text = listOfNotNull(
+            stream.displayTitle,
+            stream.title,
+            stream.comment,
+            stream.path,
+            stream.deliveryUrl
+        ).joinToString(" ")
+        return isDanmakuText(text)
+    }
+
+    fun isDanmakuText(text: String?): Boolean {
+        if (text.isNullOrBlank()) return false
+        val lower = text.lowercase(Locale.US)
+        return lower.contains("danmu") ||
+            lower.contains("danmaku") ||
+            lower.contains("弹幕") ||
+            lower.contains("iqiyiid") ||
+            lower.contains("bilibiliid") ||
+            lower.contains("tencentid") ||
+            lower.contains("youkuid")
+    }
 }

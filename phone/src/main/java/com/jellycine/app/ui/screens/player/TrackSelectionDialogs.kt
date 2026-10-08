@@ -39,7 +39,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,13 +105,22 @@ fun SubtitleTrackSelectionDialog(
     isVisible: Boolean,
     subtitleTracks: List<SubtitleTrackInfo>,
     currentSubtitleTrack: SubtitleTrackInfo?,
+    currentSecondarySubtitleTrack: SubtitleTrackInfo? = null,
     onTrackSelected: (String) -> Unit,
+    onSecondaryTrackSelected: (String) -> Unit = {},
     onOpenSubtitleSettings: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     if (!isVisible) return
 
     val subtitleAccentColor = Color(0xFFFF6B3B)
+    var selectedTab by remember { mutableStateOf(0) }
+
+    val activeCurrentTrack = if (selectedTab == 0) {
+        currentSubtitleTrack
+    } else {
+        currentSecondarySubtitleTrack ?: subtitleTracks.firstOrNull { it.id == "off" || it.streamIndex == -1 }
+    }
 
     TrackSelectionDialog(
         title = stringResource(R.string.player_dialog_subtitles_title),
@@ -117,8 +129,14 @@ fun SubtitleTrackSelectionDialog(
         icon = Icons.Rounded.ClosedCaption,
         accentColor = subtitleAccentColor,
         tracks = subtitleTracks,
-        currentTrack = currentSubtitleTrack,
-        onTrackSelected = onTrackSelected,
+        currentTrack = activeCurrentTrack,
+        onTrackSelected = { trackId ->
+            if (selectedTab == 0) {
+                onTrackSelected(trackId)
+            } else {
+                onSecondaryTrackSelected(trackId)
+            }
+        },
         onDismiss = onDismiss,
         trackKey = { track -> track.id },
         isTrackSelected = { track, selected -> track.id == selected?.id },
@@ -129,45 +147,98 @@ fun SubtitleTrackSelectionDialog(
                 description = buildSubtitleTrackDescription(track)
             )
         },
-        headerExtraContent = if (onOpenSubtitleSettings != null) {
-            {
+        headerExtraContent = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(subtitleAccentColor.copy(alpha = 0.12f))
-                        .border(1.dp, subtitleAccentColor.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                        .clickable { onOpenSubtitleSettings() }
-                        .padding(horizontal = 12.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    val tabs = listOf("主字幕", "第二字幕 / 弹幕")
+                    tabs.forEachIndexed { index, tabTitle ->
+                        val isTabActive = selectedTab == index
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(
+                                    if (isTabActive) subtitleAccentColor else Color.Transparent
+                                )
+                                .clickable { selectedTab = index }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = tabTitle,
+                                fontSize = 13.sp,
+                                fontWeight = if (isTabActive) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isTabActive) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                if (selectedTab == 1) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = subtitleAccentColor.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, subtitleAccentColor.copy(alpha = 0.25f))
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Subtitles,
-                            contentDescription = null,
-                            tint = subtitleAccentColor,
-                            modifier = Modifier.size(18.dp)
-                        )
                         Text(
-                            text = "字幕样式与位置设置",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            text = "💡 第二字幕与主字幕同时呈现，支持 ASS 弹幕横向滚动或双语字幕",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                         )
                     }
-                    Text(
-                        text = "设置 >",
-                        fontSize = 12.sp,
-                        color = subtitleAccentColor,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                }
+
+                if (onOpenSubtitleSettings != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(subtitleAccentColor.copy(alpha = 0.12f))
+                            .border(1.dp, subtitleAccentColor.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                            .clickable { onOpenSubtitleSettings() }
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Subtitles,
+                                contentDescription = null,
+                                tint = subtitleAccentColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "字幕样式与位置设置",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Text(
+                            text = "设置 >",
+                            fontSize = 12.sp,
+                            color = subtitleAccentColor,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
-        } else null
+        }
     )
 }
 
@@ -800,6 +871,7 @@ private fun buildAudioTrackDescription(track: AudioTrackInfo): String {
 
 private fun buildSubtitleTrackSubtitle(track: SubtitleTrackInfo): String {
     return buildList {
+        if (track.isDanmaku) add("弹幕")
         track.language?.takeIf {
             it.isNotEmpty() &&
                 !it.equals("und", ignoreCase = true)
@@ -813,6 +885,7 @@ private fun buildSubtitleTrackSubtitle(track: SubtitleTrackInfo): String {
 
 private fun buildSubtitleTrackDescription(track: SubtitleTrackInfo): String {
     return buildList {
+        if (track.isDanmaku) add("ASS 弹幕格式字幕")
         if (track.isForced) add("Forced subtitles")
         if (track.isDefault) add("Default track")
     }.joinToString(" | ")

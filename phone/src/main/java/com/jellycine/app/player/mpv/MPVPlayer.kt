@@ -40,6 +40,7 @@ object MPVPlayer {
             )
         ) + subtitleStreams.mapNotNull { stream ->
             val streamIndex = stream.index ?: return@mapNotNull null
+            val isDanmaku = com.jellycine.player.core.PlayerTrack.isDanmakuSubtitle(stream)
             SubtitleTrackInfo(
                 id = "subtitle:$streamIndex",
                 label = stream.displayTitle ?: stream.title ?: stream.language ?: "Subtitle $streamIndex",
@@ -48,7 +49,8 @@ object MPVPlayer {
                 isDefault = stream.isDefault == true,
                 playerTrackId = trackId(subtitleStreams, streamIndex) ?: return@mapNotNull null,
                 streamIndex = streamIndex,
-                requiresPlaybackRestart = false
+                requiresPlaybackRestart = false,
+                isDanmaku = isDanmaku
             )
         }
 
@@ -95,7 +97,24 @@ object MPVPlayer {
         val player = controller ?: return null
         player.selectSubtitleTrack(
             trackId = trackId,
-            externalUrl = externalSubtitleUrls[streamIndex]
+            externalUrl = externalSubtitleUrls[streamIndex],
+            isDanmaku = track.isDanmaku
+        )
+        return streamIndex
+    }
+
+    fun selectSecondarySubtitleTrack(
+        controller: MpvPlayerController?,
+        track: SubtitleTrackInfo,
+        externalSubtitleUrls: Map<Int, String>
+    ): Int? {
+        val streamIndex = track.streamIndex ?: return null
+        val trackId = if (streamIndex < 0) "no" else track.playerTrackId ?: return null
+        val player = controller ?: return null
+        player.selectSecondarySubtitleTrack(
+            trackId = trackId,
+            externalUrl = externalSubtitleUrls[streamIndex],
+            isDanmaku = track.isDanmaku
         )
         return streamIndex
     }

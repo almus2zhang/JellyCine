@@ -52,6 +52,7 @@ data class PlayerState(
     val currentAudioTrack: AudioTrackInfo? = null,
     val availableAudioTracks: List<AudioTrackInfo> = emptyList(),
     val currentSubtitleTrack: SubtitleTrackInfo? = null,
+    val currentSecondarySubtitleTrack: SubtitleTrackInfo? = null,
     val availableSubtitleTracks: List<SubtitleTrackInfo> = emptyList(),
     val subtitleDelay: Double = 0.0,
     val subtitleFontSizeScale: Int = 10,
@@ -98,7 +99,8 @@ data class SubtitleTrackInfo(
     val isDefault: Boolean = false,
     val playerTrackId: String? = null,
     val streamIndex: Int? = null,
-    val requiresPlaybackRestart: Boolean = false
+    val requiresPlaybackRestart: Boolean = false,
+    val isDanmaku: Boolean = false
 )
 
 /**

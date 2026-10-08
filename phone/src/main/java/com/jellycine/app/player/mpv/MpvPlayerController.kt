@@ -41,7 +41,12 @@ class MpvPlayerController(
     private var playWhenReady = true
     private var pendingSubtitleUrls: List<String> = emptyList()
     private var pendingSelectedSubtitleUrl: String? = null
+    private var pendingSelectedSecondarySubtitleUrl: String? = null
+    private var pendingSecondarySubtitleTrackId: String? = null
     private var subtitleDelaySeconds: Double = 0.0
+    private var secondarySubtitleDelaySeconds: Double = 0.0
+    private var currentSubtitleIsDanmaku: Boolean = false
+    private var currentSecondarySubtitleIsDanmaku: Boolean = false
     private val playerPreferences = PlayerPreferences(context.applicationContext)
     @Volatile
     private var listener: Listener = listener
@@ -178,7 +183,9 @@ class MpvPlayerController(
         subtitleTrackId: String?,
         selectedSubtitleUrl: String?,
         startPositionMs: Long?,
-        startPlayback: Boolean
+        startPlayback: Boolean,
+        secondarySubtitleTrackId: String? = null,
+        selectedSecondarySubtitleUrl: String? = null
     ) {
         if (released) return
         ready = false
@@ -188,6 +195,8 @@ class MpvPlayerController(
             ?.let { it / 1000.0 }
         pendingSubtitleUrls = subtitleUrls
         pendingSelectedSubtitleUrl = selectedSubtitleUrl
+        pendingSelectedSecondarySubtitleUrl = selectedSecondarySubtitleUrl
+        pendingSecondarySubtitleTrackId = secondarySubtitleTrackId
         mpv.setPropertyBoolean("pause", true)
         listener.onBuffering()
         val loadOptions = buildList {
@@ -195,6 +204,9 @@ class MpvPlayerController(
             audioTrackId?.let { add("aid=$it") }
             if (selectedSubtitleUrl == null) {
                 subtitleTrackId?.let { add("sid=$it") }
+            }
+            if (selectedSecondarySubtitleUrl == null && secondarySubtitleTrackId != null && secondarySubtitleTrackId != "no") {
+                add("secondary-sid=$secondarySubtitleTrackId")
             }
         }
         val loadCommand = if (loadOptions.isEmpty()) {
@@ -204,6 +216,9 @@ class MpvPlayerController(
         }
         mpv.command(loadCommand)
         mpv.setPropertyDouble("sub-delay", subtitleDelaySeconds)
+        if (secondarySubtitleDelaySeconds != 0.0) {
+            mpv.setPropertyDouble("secondary-sub-delay", secondarySubtitleDelaySeconds)
+        }
     }
 
     fun setListener(listener: Listener) {
@@ -222,8 +237,11 @@ class MpvPlayerController(
         mpv.setOptionString("vo", videoOutput)
         val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
         mpv.setOptionString("sub-use-margins", "yes")
-        mpv.setOptionString("sub-ass-force-margins", "yes")
-        mpv.setOptionString("sub-ass-override", if (preserveStyles) "no" else "strip")
+        mpv.setOptionString("sub-ass-force-margins", "no")
+        val assOverride = if (currentSubtitleIsDanmaku || preserveStyles) "no" else "scale"
+        mpv.setOptionString("sub-ass-override", assOverride)
+        mpv.setOptionString("secondary-sub-visibility", "yes")
+        mpv.setOptionString("secondary-sub-ass-override", "no")
         if (width > 0 && height > 0) {
             mpv.setPropertyString("android-surface-size", "${width}x$height")
         }
@@ -242,8 +260,9 @@ class MpvPlayerController(
         mpv.setOptionString("panscan", if (enabled) "1" else "0")
         val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
         mpv.setOptionString("sub-use-margins", "yes")
-        mpv.setOptionString("sub-ass-force-margins", "yes")
-        mpv.setOptionString("sub-ass-override", if (preserveStyles) "no" else "strip")
+        mpv.setOptionString("sub-ass-force-margins", "no")
+        val assOverride = if (currentSubtitleIsDanmaku || preserveStyles) "no" else "scale"
+        mpv.setOptionString("sub-ass-override", assOverride)
     }
 
     fun setVideoTransform(scale: Float, offsetX: Float, offsetY: Float) {
@@ -290,12 +309,17 @@ class MpvPlayerController(
     fun applySubtitlePreferences() {
         if (released) return
         val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
+        val assOverride = if (currentSubtitleIsDanmaku || preserveStyles) "no" else "scale"
         mpv.setOptionString("sub-use-margins", "yes")
-        mpv.setOptionString("sub-ass-force-margins", "yes")
-        mpv.setOptionString("sub-ass-override", if (preserveStyles) "no" else "strip")
+        mpv.setOptionString("sub-ass-force-margins", "no")
+        mpv.setOptionString("sub-ass-override", assOverride)
         mpv.setPropertyString("sub-use-margins", "yes")
-        mpv.setPropertyString("sub-ass-force-margins", "yes")
-        mpv.setPropertyString("sub-ass-override", if (preserveStyles) "no" else "strip")
+        mpv.setPropertyString("sub-ass-force-margins", "no")
+        mpv.setPropertyString("sub-ass-override", assOverride)
+        mpv.setOptionString("secondary-sub-visibility", "yes")
+        mpv.setPropertyString("secondary-sub-visibility", "yes")
+        mpv.setOptionString("secondary-sub-ass-override", "no")
+        mpv.setPropertyString("secondary-sub-ass-override", "no")
         val scaleFactor = (playerPreferences.getSubtitleFontSizeScale() * 0.1f).coerceIn(0.4f, 2.0f)
         val scaleStr = String.format(java.util.Locale.US, "%.2f", scaleFactor)
         mpv.setOptionString("sub-scale", scaleStr)
@@ -325,9 +349,12 @@ class MpvPlayerController(
     ) {
         if (released) return
         val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
+        val assOverride = if (currentSubtitleIsDanmaku || preserveStyles) "no" else "scale"
         mpv.setPropertyString("sub-use-margins", "yes")
-        mpv.setPropertyString("sub-ass-force-margins", "yes")
-        mpv.setPropertyString("sub-ass-override", if (preserveStyles) "no" else "strip")
+        mpv.setPropertyString("sub-ass-force-margins", "no")
+        mpv.setPropertyString("sub-ass-override", assOverride)
+        mpv.setPropertyString("secondary-sub-visibility", "yes")
+        mpv.setPropertyString("secondary-sub-ass-override", "no")
 
         if (fontSizeScale != null) {
             val scaleFactor = (fontSizeScale * 0.1f).coerceIn(0.4f, 2.0f)
@@ -397,15 +424,70 @@ class MpvPlayerController(
         }
     }
 
-    fun selectSubtitleTrack(trackId: String, externalUrl: String?) {
+    fun selectSubtitleTrack(trackId: String, externalUrl: String?, isDanmaku: Boolean = false) {
         if (released) return
+        currentSubtitleIsDanmaku = isDanmaku
         if (trackId == "no") {
             mpv.setPropertyString("sid", "no")
-        } else if (externalUrl != null) {
-            mpv.command(arrayOf("sub-add", externalUrl, "select"))
-        } else {
-            mpv.setPropertyString("sid", trackId)
+            return
         }
+        if (isDanmaku) {
+            mpv.setPropertyString("sub-ass-override", "no")
+            mpv.setPropertyString("sub-ass-force-margins", "no")
+        }
+        val targetTrackId = if (externalUrl != null) {
+            findOrAddSubtitleTrack(externalUrl, trackId)
+        } else {
+            trackId
+        }
+        mpv.setPropertyString("sid", targetTrackId)
+    }
+
+    fun selectSecondarySubtitleTrack(trackId: String, externalUrl: String?, isDanmaku: Boolean = false) {
+        if (released) return
+        currentSecondarySubtitleIsDanmaku = isDanmaku
+        if (trackId == "no") {
+            mpv.setPropertyString("secondary-sid", "no")
+            return
+        }
+        mpv.setOptionString("secondary-sub-visibility", "yes")
+        mpv.setPropertyString("secondary-sub-visibility", "yes")
+        mpv.setOptionString("secondary-sub-ass-override", "no")
+        mpv.setPropertyString("secondary-sub-ass-override", "no")
+        val targetTrackId = if (externalUrl != null) {
+            findOrAddSubtitleTrack(externalUrl, trackId)
+        } else {
+            trackId
+        }
+        mpv.setPropertyString("secondary-sid", targetTrackId)
+    }
+
+    private fun findOrAddSubtitleTrack(externalUrl: String, fallbackId: String): String {
+        val existingId = findSubtitleTrackId(externalUrl)
+        if (existingId != null) {
+            return existingId
+        }
+        mpv.command(arrayOf("sub-add", externalUrl, "auto"))
+        return findSubtitleTrackId(externalUrl) ?: fallbackId
+    }
+
+    private fun findSubtitleTrackId(externalUrl: String): String? {
+        val count = mpv.getPropertyString("track-list/count")?.toIntOrNull() ?: 0
+        for (i in 0 until count) {
+            val type = mpv.getPropertyString("track-list/$i/type")
+            if (type == "sub") {
+                val externalFilename = mpv.getPropertyString("track-list/$i/external-filename")
+                if (externalFilename != null && (externalFilename == externalUrl ||
+                        externalFilename.contains(externalUrl) ||
+                        externalUrl.contains(externalFilename))) {
+                    val id = mpv.getPropertyString("track-list/$i/id")
+                    if (!id.isNullOrBlank() && id != "0") {
+                        return id
+                    }
+                }
+            }
+        }
+        return null
     }
 
     fun setSubtitleDelay(delaySeconds: Double) {
@@ -417,6 +499,17 @@ class MpvPlayerController(
     fun getSubtitleDelay(): Double {
         if (released) return subtitleDelaySeconds
         return mpv.getPropertyDouble("sub-delay") ?: subtitleDelaySeconds
+    }
+
+    fun setSecondarySubtitleDelay(delaySeconds: Double) {
+        secondarySubtitleDelaySeconds = delaySeconds
+        if (released) return
+        mpv.setPropertyDouble("secondary-sub-delay", delaySeconds)
+    }
+
+    fun getSecondarySubtitleDelay(): Double {
+        if (released) return secondarySubtitleDelaySeconds
+        return mpv.getPropertyDouble("secondary-sub-delay") ?: secondarySubtitleDelaySeconds
     }
 
     fun release() {
@@ -468,17 +561,27 @@ class MpvPlayerController(
                     ?.coerceAtLeast(0L)
                     ?: 0L
                 pendingSubtitleUrls
-                    .filterNot { subtitleUrl -> subtitleUrl == pendingSelectedSubtitleUrl }
+                    .filterNot { subtitleUrl -> subtitleUrl == pendingSelectedSubtitleUrl || subtitleUrl == pendingSelectedSecondarySubtitleUrl }
                     .forEach { subtitleUrl ->
                         mpv.command(arrayOf("sub-add", subtitleUrl, "auto"))
                     }
                 pendingSelectedSubtitleUrl?.let { subtitleUrl ->
-                    mpv.command(arrayOf("sub-add", subtitleUrl, "select"))
+                    selectSubtitleTrack("no", subtitleUrl, currentSubtitleIsDanmaku)
+                }
+                pendingSelectedSecondarySubtitleUrl?.let { subtitleUrl ->
+                    selectSecondarySubtitleTrack("no", subtitleUrl, currentSecondarySubtitleIsDanmaku)
+                } ?: pendingSecondarySubtitleTrackId?.let { trackId ->
+                    selectSecondarySubtitleTrack(trackId, null, currentSecondarySubtitleIsDanmaku)
                 }
                 pendingSubtitleUrls = emptyList()
                 pendingSelectedSubtitleUrl = null
+                pendingSelectedSecondarySubtitleUrl = null
+                pendingSecondarySubtitleTrackId = null
                 if (subtitleDelaySeconds != 0.0) {
                     mpv.setPropertyDouble("sub-delay", subtitleDelaySeconds)
+                }
+                if (secondarySubtitleDelaySeconds != 0.0) {
+                    mpv.setPropertyDouble("secondary-sub-delay", secondarySubtitleDelaySeconds)
                 }
             }
             MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
@@ -580,6 +683,9 @@ class MpvPlayerController(
         mpv.setOptionString("sub-bitmap", "yes")
         mpv.setOptionString("sub-scale-with-window", "yes")
         mpv.setOptionString("sub-use-margins", "yes")
+        mpv.setOptionString("sub-ass-force-margins", "no")
+        mpv.setOptionString("secondary-sub-visibility", "yes")
+        mpv.setOptionString("secondary-sub-ass-override", "no")
         mpv.setOptionString("screenshot-format", "jpg")
         mpv.setOptionString("screenshot-high-bit-depth", "no")
         mpv.setOptionString("screenshot-tag-colorspace", "no")
