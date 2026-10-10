@@ -608,8 +608,14 @@ class MpvPlayerController(
     }
 
     private fun configureMpv() {
-        val cacheTimeSeconds = playerPreferences.getPlayerCacheTimeSeconds().toString()
+        val cacheTimeSec = playerPreferences.getPlayerCacheTimeSeconds()
         val cacheSizeMb = playerPreferences.getPlayerCacheSizeMb()
+        val rebufferThresholdSeconds = playerPreferences.getPlayerRebufferThresholdSeconds()
+        val hysteresisSeconds = if (rebufferThresholdSeconds <= 0) {
+            0
+        } else {
+            (cacheTimeSec - rebufferThresholdSeconds).coerceAtLeast(0)
+        }
 
         val shaderCacheDir = appContext.cacheDir.resolve("mpv-shaders")
         shaderCacheDir.mkdirs()
@@ -670,15 +676,16 @@ class MpvPlayerController(
         mpv.setOptionString("tls-verify", "no")
         mpv.setOptionString("keep-open", "no")
         mpv.setOptionString("cache", "yes")
-        mpv.setOptionString("cache-secs", cacheTimeSeconds)
+        mpv.setOptionString("cache-secs", cacheTimeSec.toString())
         mpv.setOptionString("index", "default")
         mpv.setOptionString("hr-seek", "no")
         mpv.setOptionString("demuxer-mkv-probe-start-time", "no")
         mpv.setOptionString("demuxer-mkv-probe-video-duration", "no")
         val backBytesMb = (cacheSizeMb / 4).coerceIn(32, 256)
-        mpv.setOptionString("demuxer-readahead-secs", cacheTimeSeconds)
+        mpv.setOptionString("demuxer-readahead-secs", cacheTimeSec.toString())
         mpv.setOptionString("demuxer-max-bytes", "${cacheSizeMb}MiB")
         mpv.setOptionString("demuxer-max-back-bytes", "${backBytesMb}MiB")
+        mpv.setOptionString("demuxer-hysteresis-secs", hysteresisSeconds.toString())
         mpv.setOptionString("sub-visibility", "yes")
         mpv.setOptionString("sub-bitmap", "yes")
         mpv.setOptionString("sub-scale-with-window", "yes")

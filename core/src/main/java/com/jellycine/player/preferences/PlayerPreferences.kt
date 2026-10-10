@@ -45,6 +45,7 @@ class PlayerPreferences(context: Context) {
         private const val KEY_CACHE_NEXT_EPISODE = "cache_next_episode"
         private const val KEY_PLAYER_CACHE_SIZE_MB = "player_cache_size_mb"
         private const val KEY_PLAYER_CACHE_TIME_SECONDS = "player_cache_time_seconds"
+        private const val KEY_PLAYER_REBUFFER_THRESHOLD_SECONDS = "player_rebuffer_threshold_seconds"
         private const val KEY_SEEK_BACKWARD_INTERVAL_SECONDS = "seek_backward_interval_seconds"
         private const val KEY_SEEK_FORWARD_INTERVAL_SECONDS = "seek_forward_interval_seconds"
         private const val KEY_SLIDE_SEEK_DURATION_SECONDS = "slide_seek_duration_seconds"
@@ -137,6 +138,10 @@ class PlayerPreferences(context: Context) {
         const val MAX_PLAYER_CACHE_TIME_SECONDS = 900
         const val MIN_PLAYER_CACHE_TIME_SECONDS = 30
         const val PLAYER_CACHE_TIME_STEP_SECONDS = 30
+        const val DEFAULT_PLAYER_REBUFFER_THRESHOLD_SECONDS = 0
+        const val MAX_PLAYER_REBUFFER_THRESHOLD_SECONDS = 120
+        const val MIN_PLAYER_REBUFFER_THRESHOLD_SECONDS = 0
+        const val PLAYER_REBUFFER_THRESHOLD_STEP_SECONDS = 5
         const val DEFAULT_SEEK_INTERVAL_SECONDS = 30
         const val MAX_SEEK_INTERVAL_SECONDS = 120
         const val MIN_SEEK_INTERVAL_SECONDS = 5
@@ -633,6 +638,20 @@ class PlayerPreferences(context: Context) {
             .putInt(
                 KEY_PLAYER_CACHE_TIME_SECONDS,
                 seconds.coerceIn(MIN_PLAYER_CACHE_TIME_SECONDS, MAX_PLAYER_CACHE_TIME_SECONDS)
+            )
+            .apply()
+    }
+
+    fun getPlayerRebufferThresholdSeconds(): Int {
+        return prefs.getInt(KEY_PLAYER_REBUFFER_THRESHOLD_SECONDS, DEFAULT_PLAYER_REBUFFER_THRESHOLD_SECONDS)
+            .coerceIn(MIN_PLAYER_REBUFFER_THRESHOLD_SECONDS, MAX_PLAYER_REBUFFER_THRESHOLD_SECONDS)
+    }
+
+    fun setPlayerRebufferThresholdSeconds(seconds: Int) {
+        prefs.edit()
+            .putInt(
+                KEY_PLAYER_REBUFFER_THRESHOLD_SECONDS,
+                seconds.coerceIn(MIN_PLAYER_REBUFFER_THRESHOLD_SECONDS, MAX_PLAYER_REBUFFER_THRESHOLD_SECONDS)
             )
             .apply()
     }

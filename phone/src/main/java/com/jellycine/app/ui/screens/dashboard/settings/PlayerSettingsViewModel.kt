@@ -47,6 +47,7 @@ data class PlayerSettingsUiState(
     val cacheNextEpisodeEnabled: Boolean = false,
     val playerCacheSizeMb: Int = PlayerPreferences.DEFAULT_PLAYER_CACHE_SIZE_MB,
     val playerCacheTimeSeconds: Int = PlayerPreferences.DEFAULT_PLAYER_CACHE_TIME_SECONDS,
+    val playerRebufferThresholdSeconds: Int = PlayerPreferences.DEFAULT_PLAYER_REBUFFER_THRESHOLD_SECONDS,
     val seekBackwardIntervalSeconds: Int = PlayerPreferences.DEFAULT_SEEK_INTERVAL_SECONDS,
     val seekForwardIntervalSeconds: Int = PlayerPreferences.DEFAULT_SEEK_INTERVAL_SECONDS,
     val slideSeekDurationSeconds: Int = PlayerPreferences.DEFAULT_SLIDE_SEEK_DURATION_SECONDS,
@@ -127,6 +128,7 @@ class PlayerSettingsViewModel(private val context: Context) : ViewModel() {
                 cacheNextEpisodeEnabled = playerPreferences.isCacheNextEpisodeEnabled(),
                 playerCacheSizeMb = playerPreferences.getPlayerCacheSizeMb(),
                 playerCacheTimeSeconds = playerPreferences.getPlayerCacheTimeSeconds(),
+                playerRebufferThresholdSeconds = playerPreferences.getPlayerRebufferThresholdSeconds(),
                 seekBackwardIntervalSeconds = playerPreferences.getSeekBackwardIntervalSeconds(),
                 seekForwardIntervalSeconds = playerPreferences.getSeekForwardIntervalSeconds(),
                 slideSeekDurationSeconds = playerPreferences.getSlideSeekDurationSeconds(),
@@ -335,6 +337,13 @@ class PlayerSettingsViewModel(private val context: Context) : ViewModel() {
         playerPreferences.setPlayerCacheTimeSeconds(seconds)
         _uiState.value = _uiState.value.copy(
             playerCacheTimeSeconds = playerPreferences.getPlayerCacheTimeSeconds()
+        )
+    }
+
+    fun setPlayerRebufferThresholdSeconds(seconds: Int) {
+        playerPreferences.setPlayerRebufferThresholdSeconds(seconds)
+        _uiState.value = _uiState.value.copy(
+            playerRebufferThresholdSeconds = playerPreferences.getPlayerRebufferThresholdSeconds()
         )
     }
 

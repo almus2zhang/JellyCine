@@ -223,6 +223,9 @@
     <string name="player_settings_player_cache_time">Cache Time (Seconds)</string>
     <string name="player_settings_player_cache_time_value">%1$d seconds</string>
     <string name="player_settings_player_cache_time_summary">Target forward buffer duration for streaming</string>
+    <string name="player_settings_player_rebuffer_threshold">Rebuffer Trigger Threshold</string>
+    <string name="player_settings_player_rebuffer_threshold_summary">Resume buffering when remaining buffer falls below this duration (0 for continuous)</string>
+    <string name="player_settings_player_rebuffer_threshold_continuous">Continuous (0s)</string>
     <string name="player_settings_battery_optimization">Battery Optimization</string>
     <string name="player_settings_battery_optimization_summary">Reduce power and network load during playback</string>
     <string name="player_settings_percent_value">%1$d%%</string>

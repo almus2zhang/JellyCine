@@ -221,6 +221,9 @@
     <string name="player_settings_player_cache_time">缓冲时长（秒）</string>
     <string name="player_settings_player_cache_time_value">%1$d 秒</string>
     <string name="player_settings_player_cache_time_summary">在线串流播放的目标向前预缓冲时长</string>
+    <string name="player_settings_player_rebuffer_threshold">继续缓冲触发阈值</string>
+    <string name="player_settings_player_rebuffer_threshold_summary">当剩余缓冲低于该时长时继续缓冲（设为 0 为持续即时缓冲）</string>
+    <string name="player_settings_player_rebuffer_threshold_continuous">持续即时缓冲 (0秒)</string>
     <string name="player_settings_battery_optimization">省电优化</string>
     <string name="player_settings_battery_optimization_summary">优化播放期间的功耗与网络负载</string>
     <string name="player_settings_percent_value">%1$d%%</string>

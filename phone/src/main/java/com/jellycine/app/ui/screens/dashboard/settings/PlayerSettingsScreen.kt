@@ -676,6 +676,33 @@ fun PlayerSettingsScreen(
                         },
                         accentColor = cacheColor
                     )
+
+                    SettingsDivider()
+                    ValueSliderSettingsItem(
+                        icon = Icons.Rounded.Schedule,
+                        title = stringResource(R.string.player_settings_player_rebuffer_threshold),
+                        subtitle = stringResource(R.string.player_settings_player_rebuffer_threshold_summary),
+                        value = uiState.playerRebufferThresholdSeconds,
+                        defaultValue = PlayerPreferences.DEFAULT_PLAYER_REBUFFER_THRESHOLD_SECONDS,
+                        minValue = PlayerPreferences.MIN_PLAYER_REBUFFER_THRESHOLD_SECONDS,
+                        maxValue = PlayerPreferences.MAX_PLAYER_REBUFFER_THRESHOLD_SECONDS,
+                        stepSize = PlayerPreferences.PLAYER_REBUFFER_THRESHOLD_STEP_SECONDS,
+                        onValueChanged = viewModel::setPlayerRebufferThresholdSeconds,
+                        valueLabel = { seconds ->
+                            if (seconds == 0) {
+                                stringResource(R.string.player_settings_player_rebuffer_threshold_continuous)
+                            } else {
+                                stringResource(R.string.player_settings_player_cache_time_value, seconds)
+                            }
+                        },
+                        defaultLabel = {
+                            stringResource(
+                                R.string.player_settings_default_value,
+                                stringResource(R.string.player_settings_player_rebuffer_threshold_continuous)
+                            )
+                        },
+                        accentColor = cacheColor
+                    )
                 }
             }
 

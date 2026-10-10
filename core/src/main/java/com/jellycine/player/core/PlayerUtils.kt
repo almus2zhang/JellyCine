@@ -184,7 +184,9 @@ object PlayerUtils {
         }
         val maxBufferMs = bufferOverride?.maxBufferMs
             ?: minOf(requestedCacheTimeMs, maxPlaybackBufferMs)
+        val rebufferThresholdSeconds = playerPreferences.getPlayerRebufferThresholdSeconds()
         val minPlaybackBufferMs = when {
+            rebufferThresholdSeconds > 0 -> rebufferThresholdSeconds * 1000
             batteryOptimizationEnabled -> BATTERY_MIN_PLAYBACK_BUFFER_MS
             asyncMediaCodecEnabled -> ASYNC_MIN_PLAYBACK_BUFFER_MS
             else -> DEFAULT_MIN_PLAYBACK_BUFFER_MS
