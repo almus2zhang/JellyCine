@@ -35,6 +35,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -64,7 +67,7 @@ class AuthRepository(private val context: Context) {
 
         NetworkModule.dynamic302RecoveryHandler = { _ ->
             val sourceUrl = getActiveSourceUrl()
-            if (is302Url(sourceUrl)) {
+            if (isDynamicServerUrl(sourceUrl)) {
                 refreshActive302Session(force = true).getOrNull()
             } else {
                 null
@@ -410,11 +413,11 @@ class AuthRepository(private val context: Context) {
                 ?: activeServer(preferences)?.takeIf { it.id == serverId }
                 ?: return Result.failure(Exception(string(R.string.auth_error_saved_server_not_found)))
 
-            if (is302Url(targetServer.sourceUrl)) {
+            if (isDynamicServerUrl(targetServer.sourceUrl)) {
                 val sourceUrl = targetServer.sourceUrl!!
-                val resolvedResult = resolve302ServerUrl(sourceUrl)
+                val resolvedResult = resolveServerUrl(sourceUrl)
                 if (resolvedResult.isFailure) {
-                    return Result.failure(Exception("无法获取 302 服务器地址: ${resolvedResult.exceptionOrNull()?.message}"))
+                    return Result.failure(Exception("无法获取动态服务器地址: ${resolvedResult.exceptionOrNull()?.message}"))
                 }
                 val newRealUrl = resolvedResult.getOrThrow()
                 val credentials = secureSessionStore.getCredentials(sourceUrl)
@@ -435,7 +438,7 @@ class AuthRepository(private val context: Context) {
                             ?: targetServer
                         return Result.success(switchedServer)
                     } else {
-                        return Result.failure(Exception(authResult.exceptionOrNull()?.message ?: "302 自动登录失败"))
+                        return Result.failure(Exception(authResult.exceptionOrNull()?.message ?: "动态服务器自动登录失败"))
                     }
                 }
             }
@@ -476,13 +479,13 @@ class AuthRepository(private val context: Context) {
             val active = activeServer(preferences)
             val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() }
                 ?: active?.sourceUrl?.takeIf { it.isNotBlank() }
-                ?: preferences[SERVER_URL_KEY]?.takeIf { is302Url(it) }
-                ?: active?.serverUrl?.takeIf { is302Url(it) }
-            if (!is302Url(sourceUrl)) {
-                return@withLock Result.failure(Exception("当前活跃服务器未配置 301/302 动态地址"))
+                ?: preferences[SERVER_URL_KEY]?.takeIf { isDynamicServerUrl(it) }
+                ?: active?.serverUrl?.takeIf { isDynamicServerUrl(it) }
+            if (!isDynamicServerUrl(sourceUrl)) {
+                return@withLock Result.failure(Exception("当前活跃服务器未配置动态地址"))
             }
 
-            val resolvedResult = resolve302ServerUrl(sourceUrl!!)
+            val resolvedResult = resolveServerUrl(sourceUrl!!)
             if (resolvedResult.isFailure) {
                 return@withLock Result.failure(
                     resolvedResult.exceptionOrNull() ?: Exception("无法获取目标服务器地址")
@@ -516,7 +519,7 @@ class AuthRepository(private val context: Context) {
                     Result.success(newRealUrl)
                 } else {
                     Result.failure(
-                        authResult.exceptionOrNull() ?: Exception("302 动态地址认证失败")
+                        authResult.exceptionOrNull() ?: Exception("动态地址认证失败")
                     )
                 }
             } else {
@@ -532,7 +535,7 @@ class AuthRepository(private val context: Context) {
             val preferences = dataStore.data.first()
             val active = activeServer(preferences)
             val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() } ?: active?.sourceUrl
-            if (!is302Url(sourceUrl)) {
+            if (!isDynamicServerUrl(sourceUrl)) {
                 return true
             }
             refreshActive302Session(force = false).isSuccess
@@ -618,6 +621,15 @@ class AuthRepository(private val context: Context) {
         )
     }
 
+    fun isTxtUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        val trimmed = url.trim()
+        return trimmed.startsWith("txt:", ignoreCase = true) ||
+            trimmed.startsWith("txt：", ignoreCase = true)
+    }
+
+    fun isDynamicServerUrl(url: String?): Boolean = is302Url(url) || isTxtUrl(url)
+
     fun is302Url(url: String?): Boolean {
         if (url.isNullOrBlank()) return false
         val trimmed = url.trim()
@@ -627,7 +639,48 @@ class AuthRepository(private val context: Context) {
             trimmed.startsWith("301：")
     }
 
-    fun is301Url(url: String?): Boolean = is302Url(url)
+    fun is301Url(url: String?): Boolean = isDynamicServerUrl(url)
+
+    fun extractTxtTargetDomain(url: String): String {
+        val trimmed = url.trim()
+        var target = when {
+            trimmed.startsWith("txt:", ignoreCase = true) -> trimmed.substring(4).trim()
+            trimmed.startsWith("txt：", ignoreCase = true) -> trimmed.substring(4).trim()
+            else -> trimmed
+        }
+        if (target.startsWith("https://", ignoreCase = true)) {
+            target = target.substring(8).trim()
+        } else if (target.startsWith("http://", ignoreCase = true)) {
+            target = target.substring(7).trim()
+        }
+        val slashIdx = target.indexOf('/')
+        if (slashIdx != -1) {
+            target = target.substring(0, slashIdx).trim()
+        }
+        val colonIdx = target.indexOf(':')
+        if (colonIdx != -1) {
+            target = target.substring(0, colonIdx).trim()
+        }
+        return target.trim()
+    }
+
+    fun extractAddressFromTxtData(raw: String): String {
+        val trimmed = raw.trim()
+        val quoteRegex = Regex("\"([^\"]*)\"")
+        val matches = quoteRegex.findAll(trimmed).map { it.groupValues[1] }.toList()
+        val combined = if (matches.isNotEmpty()) {
+            matches.joinToString("")
+        } else {
+            trimmed.trim('"', '\'', ' ')
+        }
+        val cleaned = trimTrailingSlash(combined.trim())
+        if (cleaned.isBlank()) return ""
+        return if (!cleaned.startsWith("http://", ignoreCase = true) && !cleaned.startsWith("https://", ignoreCase = true)) {
+            "http://$cleaned"
+        } else {
+            cleaned
+        }
+    }
 
     fun extract302TargetUrl(url: String): String {
         val trimmed = url.trim()
@@ -933,28 +986,171 @@ class AuthRepository(private val context: Context) {
         }
     }
 
-    suspend fun resolve301ServerUrl(url: String): Result<String> = resolve302ServerUrl(url)
+    suspend fun resolve301ServerUrl(url: String): Result<String> = resolveServerUrl(url)
+
+    private val dohHttpClient: okhttp3.OkHttpClient by lazy {
+        val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
+            override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>?, authType: String?) {}
+            override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>?, authType: String?) {}
+            override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = emptyArray()
+        })
+        val sslContext = javax.net.ssl.SSLContext.getInstance("TLS").apply {
+            init(null, trustAllCerts, java.security.SecureRandom())
+        }
+        val dispatcher = okhttp3.Dispatcher().apply {
+            maxRequests = 32
+            maxRequestsPerHost = 16
+        }
+        okhttp3.OkHttpClient.Builder()
+            .dispatcher(dispatcher)
+            .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as javax.net.ssl.X509TrustManager)
+            .hostnameVerifier { _, _ -> true }
+            .connectTimeout(3500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .readTimeout(3500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .callTimeout(4500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .followRedirects(true)
+            .build()
+    }
+
+    private suspend fun queryDohEndpoint(endpointUrl: String): String? = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        try {
+            val request = okhttp3.Request.Builder()
+                .url(endpointUrl)
+                .header("Accept", "application/dns-json")
+                .header("User-Agent", "JellyCine/1.3.9")
+                .build()
+            dohHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body?.string() ?: return@withContext null
+                val json = org.json.JSONObject(body)
+                val status = json.optInt("Status", -1)
+                if (status != 0 && json.has("Status")) return@withContext null
+                val answerArray = json.optJSONArray("Answer") ?: return@withContext null
+                for (i in 0 until answerArray.length()) {
+                    val answer = answerArray.optJSONObject(i) ?: continue
+                    val type = answer.optInt("type", 0)
+                    if (type == 16) { // TXT
+                        val data = answer.optString("data", "")
+                        if (data.isNotBlank()) {
+                            val parsed = extractAddressFromTxtData(data)
+                            if (parsed.isNotBlank()) {
+                                return@withContext parsed
+                            }
+                        }
+                    }
+                }
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun resolveTxtDomain(domain: String): Result<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        if (domain.isBlank()) {
+            return@withContext Result.failure(Exception("TXT 域名解析失败: 域名为空"))
+        }
+
+        val encodedDomain = java.net.URLEncoder.encode(domain, "UTF-8")
+        val domesticUrls = listOf(
+            "https://223.5.5.5/resolve?name=$encodedDomain&type=TXT",
+            "https://1.12.12.12/dns-query?name=$encodedDomain&type=TXT",
+            "https://dns.alidns.com/resolve?name=$encodedDomain&type=TXT",
+            "https://doh.pub/dns-query?name=$encodedDomain&type=TXT"
+        )
+        val backupUrls = listOf(
+            "https://1.1.1.1/dns-query?name=$encodedDomain&type=TXT",
+            "https://cloudflare-dns.com/dns-query?name=$encodedDomain&type=TXT"
+        )
+
+        val resultChannel = kotlinx.coroutines.channels.Channel<String>(capacity = 1)
+        val domesticFailCount = java.util.concurrent.atomic.AtomicInteger(0)
+        val backupSignal = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val totalFailures = java.util.concurrent.atomic.AtomicInteger(0)
+        val totalEndpoints = domesticUrls.size + backupUrls.size
+
+        val queryScope = kotlinx.coroutines.CoroutineScope(coroutineContext + kotlinx.coroutines.SupervisorJob())
+
+        try {
+            // 1. 优先并发请求国内高可用 DoH（阿里 223.5.5.5、腾讯 1.12.12.12）
+            domesticUrls.forEach { url ->
+                queryScope.launch {
+                    val res = queryDohEndpoint(url)
+                    if (!res.isNullOrBlank()) {
+                        resultChannel.trySend(res)
+                    } else {
+                        if (domesticFailCount.incrementAndGet() >= domesticUrls.size) {
+                            backupSignal.complete(Unit)
+                        }
+                        if (totalFailures.incrementAndGet() >= totalEndpoints) {
+                            resultChannel.close()
+                        }
+                    }
+                }
+            }
+
+            // 2. 国外备用（1.1.1.1 与 cloudflare-dns.com）：国内全部失败时立即发起，或 800ms 后并发加入竞速
+            queryScope.launch {
+                kotlinx.coroutines.withTimeoutOrNull(800) {
+                    backupSignal.await()
+                }
+                backupUrls.forEach { url ->
+                    queryScope.launch {
+                        val res = queryDohEndpoint(url)
+                        if (!res.isNullOrBlank()) {
+                            resultChannel.trySend(res)
+                        } else {
+                            if (totalFailures.incrementAndGet() >= totalEndpoints) {
+                                resultChannel.close()
+                            }
+                        }
+                    }
+                }
+            }
+
+            val resolved = kotlinx.coroutines.withTimeoutOrNull(5000) {
+                resultChannel.receiveCatching().getOrNull()
+            }
+
+            if (!resolved.isNullOrBlank()) {
+                Result.success(sanitizeMediaServerUrl(resolved))
+            } else {
+                Result.failure(Exception("无法通过 DoH 查询到 $domain 的 TXT 记录"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            queryScope.cancel()
+            resultChannel.close()
+        }
+    }
+
+    suspend fun resolveTxtServerUrl(url: String): Result<String> {
+        val domain = extractTxtTargetDomain(url)
+        if (domain.isBlank()) {
+            return Result.failure(Exception("无效的 TXT 域名配置"))
+        }
+        return resolveTxtDomain(domain)
+    }
 
     suspend fun resolveServerUrl(inputUrl: String): Result<String> {
-        val sanitized = sanitizeMediaServerUrl(inputUrl)
-        return if (is302Url(sanitized)) {
-            resolve302ServerUrl(sanitized)
-        } else {
-            val redirected = resolveDirectRedirect(sanitized)
-            Result.success(sanitizeMediaServerUrl(redirected))
+        val trimmed = inputUrl.trim()
+        return when {
+            isTxtUrl(trimmed) -> resolveTxtServerUrl(trimmed)
+            is302Url(trimmed) -> resolve302ServerUrl(trimmed)
+            else -> {
+                val sanitized = sanitizeMediaServerUrl(trimmed)
+                val redirected = resolveDirectRedirect(sanitized)
+                Result.success(sanitizeMediaServerUrl(redirected))
+            }
         }
     }
 
     suspend fun testServerConnection(serverUrl: String): Result<ServerInfo> {
         legacyStorageMigrated()
         return try {
-            val sanitized = sanitizeMediaServerUrl(serverUrl)
-            val resolvedUrl = if (is302Url(sanitized)) {
-                resolve302ServerUrl(sanitized).getOrElse { error ->
-                    return Result.failure(Exception("无法获取 302 服务器地址: ${error.message}"))
-                }
-            } else {
-                resolveDirectRedirect(sanitized)
+            val resolvedUrl = resolveServerUrl(serverUrl).getOrElse { error ->
+                return Result.failure(Exception("无法获取服务器地址: ${error.message}"))
             }
             val finalCleanUrl = sanitizeMediaServerUrl(resolvedUrl)
 

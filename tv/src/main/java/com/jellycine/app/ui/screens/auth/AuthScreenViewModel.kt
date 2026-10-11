@@ -66,14 +66,14 @@ class AuthScreenViewModel(application: Application) : AndroidViewModel(applicati
         )
         
         viewModelScope.launch {
-            val is302 = authRepository.is302Url(currentState.serverUrl)
-            val sourceUrl = if (is302) currentState.serverUrl.trim() else null
-            val rawActualUrl = if (is302) {
-                val resolvedResult = authRepository.resolve302ServerUrl(currentState.serverUrl)
+            val isDynamic = authRepository.isDynamicServerUrl(currentState.serverUrl)
+            val sourceUrl = if (isDynamic) currentState.serverUrl.trim() else null
+            val rawActualUrl = if (isDynamic) {
+                val resolvedResult = authRepository.resolveServerUrl(currentState.serverUrl)
                 if (resolvedResult.isFailure) {
                     _uiState.value = _uiState.value.copy(
                         isServerLoading = false,
-                        serverErrorMessage = "无法获取 302 服务器地址: ${resolvedResult.exceptionOrNull()?.message}"
+                        serverErrorMessage = "无法获取服务器地址: ${resolvedResult.exceptionOrNull()?.message}"
                     )
                     return@launch
                 }
@@ -121,7 +121,7 @@ class AuthScreenViewModel(application: Application) : AndroidViewModel(applicati
         )
         
         viewModelScope.launch {
-            val effectiveSourceUrl = currentState.sourceUrl ?: currentState.serverUrl.takeIf { authRepository.is302Url(it) }
+            val effectiveSourceUrl = currentState.sourceUrl ?: currentState.serverUrl.takeIf { authRepository.isDynamicServerUrl(it) }
             val result = authRepository.authenticateUser(
                 serverUrl = serverUrl,
                 username = currentState.username,
