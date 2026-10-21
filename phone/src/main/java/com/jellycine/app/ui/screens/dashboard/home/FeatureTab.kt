@@ -620,10 +620,12 @@ fun FeatureTab(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val displayServerName = serverName?.takeIf { it.isNotBlank() } ?: sessionSnapshot.serverName
                 HeaderNavigationChip(
                     selectedCategory = selectedCategory,
                     onCategorySelected = onCategorySelected,
                     onServerClick = onServerClick,
+                    serverName = displayServerName,
                     modifier = Modifier.weight(1f, fill = false)
                 )
 

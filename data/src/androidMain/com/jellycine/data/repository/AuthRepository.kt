@@ -210,13 +210,18 @@ class AuthRepository(private val context: Context) {
         existing: List<SavedServer>,
         incoming: SavedServer
     ): List<SavedServer> {
-        val existingMatch = existing.firstOrNull { it.id == incoming.id }
-        val mergedIncoming = if (incoming.customName.isNullOrBlank() && !existingMatch?.customName.isNullOrBlank()) {
-            incoming.copy(customName = existingMatch.customName)
-        } else {
-            incoming
+        val existingMatch = existing.firstOrNull {
+            it.id == incoming.id ||
+                (!incoming.sourceUrl.isNullOrBlank() && it.sourceUrl == incoming.sourceUrl)
         }
-        val withoutMatch = existing.filterNot { it.id == incoming.id }
+        val mergedIncoming = incoming.copy(
+            customName = if (!incoming.customName.isNullOrBlank()) incoming.customName else existingMatch?.customName,
+            profileImageUrl = if (!incoming.profileImageUrl.isNullOrBlank()) incoming.profileImageUrl else existingMatch?.profileImageUrl
+        )
+        val withoutMatch = existing.filterNot {
+            it.id == incoming.id ||
+                (!incoming.sourceUrl.isNullOrBlank() && it.sourceUrl == incoming.sourceUrl)
+        }
         return (withoutMatch + mergedIncoming)
             .sortedByDescending { it.lastUsedAt }
     }
@@ -226,18 +231,21 @@ class AuthRepository(private val context: Context) {
         val userId = preferences[USER_ID_KEY]?.takeIf { it.isNotBlank() } ?: return null
         val serverId = buildServerId(serverUrl = serverUrl, userId = userId)
         if (!secureSessionStore.hasToken(serverId)) return null
+        val sourceUrlPref = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() }
         val existingSavedServer = savedServers(preferences[SAVED_SERVERS_KEY])
-            .firstOrNull { savedServer -> savedServer.id == serverId }
+            .firstOrNull { savedServer ->
+                savedServer.id == serverId || (!sourceUrlPref.isNullOrBlank() && savedServer.sourceUrl == sourceUrlPref)
+            }
         val serverTypeRaw = preferences[SERVER_TYPE_KEY]
             ?.takeIf { it.isNotBlank() }
             ?: ServerType.UNKNOWN.name
         val serverType = runCatching { ServerType.valueOf(serverTypeRaw) }
             .getOrDefault(ServerType.UNKNOWN)
-        val serverName = preferences[SERVER_NAME_KEY]
-            ?.takeIf { it.isNotBlank() }
+        val serverName = existingSavedServer?.serverName
+            ?: preferences[SERVER_NAME_KEY]?.takeIf { it.isNotBlank() }
             ?: defaultServerName(serverType)
         val username = preferences[USERNAME_KEY].orEmpty()
-        val sourceUrl = preferences[SOURCE_URL_KEY]?.takeIf { it.isNotBlank() } ?: existingSavedServer?.sourceUrl
+        val sourceUrl = sourceUrlPref ?: existingSavedServer?.sourceUrl
         val customName = existingSavedServer?.customName
 
         return SavedServer(
@@ -374,7 +382,10 @@ class AuthRepository(private val context: Context) {
             dataStore.edit { prefs ->
                 val currentSaved = savedServers(prefs[SAVED_SERVERS_KEY])
                 val updatedServers = currentSaved.map { server ->
-                    if (server.id == serverIdentifier || isSameServer(server.serverUrl, serverIdentifier) || (server.sourceUrl != null && isSameServer(server.sourceUrl, serverIdentifier))) {
+                    val matches = server.id == serverIdentifier ||
+                        isSameServer(server.serverUrl, serverIdentifier) ||
+                        (server.sourceUrl != null && (isSameServer(server.sourceUrl, serverIdentifier) || server.sourceUrl.equals(serverIdentifier, ignoreCase = true)))
+                    if (matches) {
                         server.copy(customName = trimmedName)
                     } else {
                         server
@@ -385,9 +396,14 @@ class AuthRepository(private val context: Context) {
                 val activeServerId = prefs[ACTIVE_SERVER_ID_KEY]
                 val currentUrl = prefs[SERVER_URL_KEY]
                 val currentSourceUrl = prefs[SOURCE_URL_KEY]
-                if (activeServerId == serverIdentifier || (!currentUrl.isNullOrBlank() && isSameServer(currentUrl, serverIdentifier)) || (!currentSourceUrl.isNullOrBlank() && isSameServer(currentSourceUrl, serverIdentifier))) {
+                val isCurrentActive = activeServerId == serverIdentifier ||
+                    (!currentUrl.isNullOrBlank() && isSameServer(currentUrl, serverIdentifier)) ||
+                    (!currentSourceUrl.isNullOrBlank() && (isSameServer(currentSourceUrl, serverIdentifier) || currentSourceUrl.equals(serverIdentifier, ignoreCase = true)))
+                if (isCurrentActive) {
                     val matching = updatedServers.firstOrNull {
-                        it.id == serverIdentifier || isSameServer(it.serverUrl, serverIdentifier) || (it.sourceUrl != null && isSameServer(it.sourceUrl, serverIdentifier))
+                        it.id == serverIdentifier ||
+                            isSameServer(it.serverUrl, serverIdentifier) ||
+                            (it.sourceUrl != null && (isSameServer(it.sourceUrl, serverIdentifier) || it.sourceUrl.equals(serverIdentifier, ignoreCase = true)))
                     }
                     if (matching != null) {
                         prefs[SERVER_NAME_KEY] = matching.displayName
@@ -1308,24 +1324,33 @@ class AuthRepository(private val context: Context) {
                 try {
                     dataStore.edit { prefs ->
                         val existingServers = savedServers(prefs[SAVED_SERVERS_KEY])
-                        val serversToRetain = if (!sourceUrl.isNullOrBlank()) {
-                            val oldMatch = existingServers.firstOrNull { it.sourceUrl == sourceUrl && it.id != savedServer.id }
+                        val matchedOld = if (!sourceUrl.isNullOrBlank()) {
+                            existingServers.firstOrNull { it.sourceUrl == sourceUrl }
+                        } else {
+                            existingServers.firstOrNull { it.id == savedServer.id }
+                        }
+                        val finalCustomName = savedServer.customName ?: matchedOld?.customName
+                        val finalProfileImageUrl = savedServer.profileImageUrl ?: matchedOld?.profileImageUrl
+                        val serverToSave = savedServer.copy(
+                            customName = finalCustomName,
+                            profileImageUrl = finalProfileImageUrl
+                        )
+
+                        if (!sourceUrl.isNullOrBlank()) {
+                            val oldMatch = existingServers.firstOrNull { it.sourceUrl == sourceUrl && it.id != serverToSave.id }
                             if (oldMatch != null) {
                                 secureSessionStore.removeToken(oldMatch.id)
                             }
-                            existingServers.filterNot { it.sourceUrl == sourceUrl }
-                        } else {
-                            existingServers
                         }
-                        val updatedServers = upsertSavedServer(serversToRetain, savedServer)
+                        val updatedServers = upsertSavedServer(existingServers, serverToSave)
                         prefs[SAVED_SERVERS_KEY] = serializeSavedServers(updatedServers)
-                        prefs[ACTIVE_SERVER_ID_KEY] = savedServer.id
+                        prefs[ACTIVE_SERVER_ID_KEY] = serverToSave.id
                         val oldServerUrl = prefs[SERVER_URL_KEY]
                         if (!oldServerUrl.isNullOrBlank() && !sameServerUrl(oldServerUrl, endpoint.baseUrl)) {
                             prefs[PREVIOUS_SERVER_URL_KEY] = oldServerUrl
                         }
                         prefs[SERVER_URL_KEY] = endpoint.baseUrl
-                        prefs[SERVER_NAME_KEY] = updatedServers.firstOrNull { it.id == savedServer.id }?.displayName ?: serverName
+                        prefs[SERVER_NAME_KEY] = serverToSave.displayName
                         prefs[SERVER_TYPE_KEY] = endpoint.serverType.name
                         prefs[LEGACY_ACCESS_TOKEN_KEY] = ""
                         prefs[USER_ID_KEY] = authResult.user.id
@@ -1426,11 +1451,16 @@ class AuthRepository(private val context: Context) {
                 try {
                     dataStore.edit { prefs ->
                         val existingServers = savedServers(prefs[SAVED_SERVERS_KEY])
-                        val updatedServers = upsertSavedServer(existingServers, savedServer)
+                        val matchedOld = existingServers.firstOrNull { it.id == savedServer.id }
+                        val serverToSave = savedServer.copy(
+                            customName = matchedOld?.customName,
+                            profileImageUrl = matchedOld?.profileImageUrl
+                        )
+                        val updatedServers = upsertSavedServer(existingServers, serverToSave)
                         prefs[SAVED_SERVERS_KEY] = serializeSavedServers(updatedServers)
-                        prefs[ACTIVE_SERVER_ID_KEY] = savedServer.id
+                        prefs[ACTIVE_SERVER_ID_KEY] = serverToSave.id
                         prefs[SERVER_URL_KEY] = endpoint.baseUrl
-                        prefs[SERVER_NAME_KEY] = updatedServers.firstOrNull { it.id == savedServer.id }?.displayName ?: serverName
+                        prefs[SERVER_NAME_KEY] = serverToSave.displayName
                         prefs[SERVER_TYPE_KEY] = endpoint.serverType.name
                         prefs[LEGACY_ACCESS_TOKEN_KEY] = ""
                         prefs[USER_ID_KEY] = authResult.user.id

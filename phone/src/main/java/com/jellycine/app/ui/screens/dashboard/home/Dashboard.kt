@@ -2110,6 +2110,7 @@ internal fun HeaderNavigationChip(
     selectedCategory: String,
     onCategorySelected: (String) -> Unit,
     onServerClick: (() -> Unit)? = null,
+    serverName: String? = null,
     modifier: Modifier = Modifier
 ) {
     val menuOptions = remember(selectedCategory) {
@@ -2135,29 +2136,49 @@ internal fun HeaderNavigationChip(
                 .padding(start = 4.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Clickable Logo to switch server
-            Box(
+            // Clickable Logo and Server Name to switch server
+            Row(
                 modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.28f))
+                    .clip(RoundedCornerShape(17.dp))
                     .then(
                         if (onServerClick != null) {
                             Modifier.clickable(onClick = onServerClick)
                         } else {
                             Modifier
                         }
-                    ),
-                contentAlignment = Alignment.Center
+                    )
+                    .padding(end = if (!serverName.isNullOrBlank()) 6.dp else 0.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.jellycine_logo),
-                    contentDescription = stringResource(R.string.app_name),
-                    modifier = Modifier.size(26.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.28f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.jellycine_logo),
+                        contentDescription = stringResource(R.string.app_name),
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+
+                if (!serverName.isNullOrBlank()) {
+                    Text(
+                        text = serverName,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 110.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
             // Subtle divider between Logo and Category/Library selector
             Box(
@@ -2280,6 +2301,7 @@ private fun BrandHeader(
             selectedCategory = selectedCategory,
             onCategorySelected = onCategorySelected,
             onServerClick = onServerClick,
+            serverName = serverName,
             modifier = Modifier.weight(1f, fill = false)
         )
 
