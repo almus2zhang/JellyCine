@@ -110,7 +110,7 @@ androidComponents {
             def versionName = rootProject.ext.appVersionName as String
             def abiName = output.filters.find { it.filterType.toString() == "ABI" }?.identifier
             def abiSuffix = abiName != null ? "-${abiName}" : ""
-            output.outputFileName.set("jellycine-phone-${buildTypeName}-${versionName}${abiSuffix}.apk")
+            output.outputFileName.set("jellycine-phone-${buildTypeName}${abiSuffix}.apk")
         }
     }
 }
