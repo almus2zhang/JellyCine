@@ -1,4 +1,5 @@
 package com.jellycine.app.ui.screens.detail
+import com.jellycine.app.shortcut.DesktopShortcutManager
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*

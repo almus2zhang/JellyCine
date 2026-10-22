@@ -48,6 +48,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.jellycine.app.shortcut.DesktopShortcutManager
+import com.jellycine.data.repository.MediaRepositoryProvider
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
@@ -463,8 +467,34 @@ internal fun BoxScope.PlayerOverlayHost(
         onWatchNextEpisode()
     }
 
+    val shortcutScope = rememberCoroutineScope()
+    val shortcutMediaRepo = remember { MediaRepositoryProvider.getInstance(context) }
+
     if (uiState.controlsVisible && !isInPipMode) {
+        val currentItemDetails = viewModel.getCurrentItemDetails()
+        val sendToDesktopAction: (() -> Unit)? = if (currentItemDetails != null) {
+            {
+                resetAutoHideTimer()
+                shortcutScope.launch {
+                    DesktopShortcutManager.createMediaShortcut(
+                        context = context,
+                        item = currentItemDetails,
+                        mediaRepository = shortcutMediaRepo,
+                        showToast = true
+                    )
+                }
+            }
+        } else null
+
+        val toggleAutoRotationAction: (() -> Unit)? = if (onToggleAutoRotation != null) {
+            {
+                resetAutoHideTimer()
+                onToggleAutoRotation()
+            }
+        } else null
+
         ControlsOverlay(
+            onSendToDesktop = sendToDesktopAction,
             title = playerState.mediaTitle,
             mediaLogoUrl = playerState.mediaLogoUrl,
             seasonEpisodeLabel = playerState.seasonEpisodeLabel,
@@ -564,12 +594,7 @@ internal fun BoxScope.PlayerOverlayHost(
                 resetAutoHideTimer()
                 onToggleOrientation()
             },
-            onToggleAutoRotation = onToggleAutoRotation?.let { toggleAutoRotation ->
-                {
-                    resetAutoHideTimer()
-                    toggleAutoRotation()
-                }
-            },
+            onToggleAutoRotation = toggleAutoRotationAction,
             onEnterPip = {
                 resetAutoHideTimer()
                 onEnterPip()

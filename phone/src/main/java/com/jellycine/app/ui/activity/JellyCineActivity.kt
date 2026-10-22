@@ -1,5 +1,8 @@
 package com.jellycine.app.ui.activity
 
+import com.jellycine.app.shortcut.ShortcutPlaybackBridge
+import android.content.Intent
+
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -55,6 +58,7 @@ class JellyCineActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         AppLanguageManager.applySavedLanguage(this)
         requestNotificationPermission()
+        ShortcutPlaybackBridge.handleIntent(intent)
 
         val authStateManager = AuthStateManager.getInstance(this)
         val authCheckCompleted = AtomicBoolean(false)
@@ -112,6 +116,12 @@ class JellyCineActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        ShortcutPlaybackBridge.handleIntent(intent)
     }
 
     override fun onResume() {

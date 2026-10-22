@@ -715,4 +715,8 @@
     <string name="ota_install_ready">更新包已就绪</string>
     <string name="ota_install_now">立即安装</string>
     <string name="ota_install_later">稍后安装</string>
+    <!-- Desktop Shortcut -->
+    <string name="shortcut_send_to_desktop">发送到桌面</string>
+    <string name="shortcut_created_success">已添加到桌面快捷方式</string>
+    <string name="shortcut_not_supported">当前系统桌面不支持添加快捷方式</string>
 </resources>

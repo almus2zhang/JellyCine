@@ -732,4 +732,8 @@
     <string name="ota_install_ready">Update is ready to install</string>
     <string name="ota_install_now">Install Now</string>
     <string name="ota_install_later">Install Later</string>
+    <!-- Desktop Shortcut -->
+    <string name="shortcut_send_to_desktop">Send to Home Screen</string>
+    <string name="shortcut_created_success">Added to home screen</string>
+    <string name="shortcut_not_supported">Launcher does not support pinned shortcuts</string>
 </resources>

@@ -13,7 +13,8 @@ internal class PlayerPlaybackReporter(
     private val mediaRepository: MediaRepository,
     private val scope: CoroutineScope,
     private val positionProvider: () -> Long,
-    private val isPausedProvider: () -> Boolean
+    private val isPausedProvider: () -> Boolean,
+    private val onProgressReported: ((Long) -> Unit)? = null
 ) {
 
     companion object {
@@ -95,6 +96,7 @@ internal class PlayerPlaybackReporter(
                 )
                 if (result.isSuccess) {
                     UserDataRefreshSignals.notifyUserDataChanged(mediaId)
+                    onProgressReported?.invoke(positionProvider())
                 } else {
                     Log.e(
                         TAG,
@@ -156,6 +158,9 @@ internal class PlayerPlaybackReporter(
                 isPaused = isPausedProvider(),
                 playMethod = sessionSnapshot.playMethod.reportValue
             )
+            if (result.isSuccess) {
+                onProgressReported?.invoke(positionProvider())
+            }
             if (result.isFailure) {
                 Log.e(
                     TAG,

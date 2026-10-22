@@ -14,6 +14,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.InstallMobile
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
@@ -55,6 +63,7 @@ internal fun ActionSection(
     onPauseResumeDownload: () -> Unit,
     onCancelDownload: () -> Unit,
     onFavoriteClick: () -> Unit,
+    onSendToDesktopClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val iconOnlyDownload = !useTabletLayout
@@ -145,6 +154,13 @@ internal fun ActionSection(
             onClick = onFavoriteClick,
             size = buttonHeight
         )
+
+        if (onSendToDesktopClick != null) {
+            DesktopShortcutActionButton(
+                onClick = onSendToDesktopClick,
+                size = buttonHeight
+            )
+        }
     }
 }
 
@@ -167,6 +183,7 @@ internal fun SeriesActionSection(
     onPauseResumeSeriesDownloads: () -> Unit,
     onCancelSeriesDownloads: () -> Unit,
     onFavoriteClick: () -> Unit,
+    onSendToDesktopClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -238,5 +255,39 @@ internal fun SeriesActionSection(
             onClick = onFavoriteClick,
             size = buttonHeight
         )
+
+        if (onSendToDesktopClick != null) {
+            DesktopShortcutActionButton(
+                onClick = onSendToDesktopClick,
+                size = buttonHeight
+            )
+        }
     }
 }
+
+@Composable
+internal fun DesktopShortcutActionButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 46.dp
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.size(size),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f)),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = Color(0xFF1F1F24),
+            contentColor = Color.White
+        ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.InstallMobile,
+            contentDescription = stringResource(R.string.shortcut_send_to_desktop),
+            modifier = Modifier.size(20.dp),
+            tint = Color.White
+        )
+    }
+}
+

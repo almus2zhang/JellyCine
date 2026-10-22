@@ -102,7 +102,8 @@ fun ControlsOverlay(
     onPlayNextEpisode: () -> Unit = {},
     onScrubStateChange: (Boolean) -> Unit = {},
     onToggleOrientation: () -> Unit = {},
-    onToggleAutoRotation: (() -> Unit)? = null
+    onToggleAutoRotation: (() -> Unit)? = null,
+    onSendToDesktop: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var scrubPreviewProgress by remember { mutableStateOf<Float?>(null) }
@@ -247,6 +248,16 @@ fun ControlsOverlay(
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
+                    }
+                    if (onSendToDesktop != null) {
+                        IconButton(onClick = onSendToDesktop) {
+                            Icon(
+                                imageVector = Icons.Outlined.InstallMobile,
+                                contentDescription = stringResource(R.string.shortcut_send_to_desktop),
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                     if (showPlaybackSettingsButton) {
                         IconButton(onClick = onShowPlaybackSettings) {

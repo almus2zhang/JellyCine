@@ -2,6 +2,9 @@ package com.jellycine.app.ui.screens.dashboard.home
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.outlined.InstallMobile
+import com.jellycine.app.shortcut.DesktopShortcutManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -2913,13 +2916,16 @@ private fun ContinueWatchingSection(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ContinueWatchingCard(
     item: BaseItemDto,
     mediaRepository: MediaRepository,
     onClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var showContextMenu by remember { mutableStateOf(false) }
     val stableItem = remember(item.id, item.userData) { StableBaseItem.from(item) }
     val unknownTitle = stringResource(R.string.search_result_unknown_title)
     val unknownEpisode = stringResource(R.string.search_result_unknown_episode)
@@ -2979,13 +2985,16 @@ private fun ContinueWatchingCard(
         Card(
             modifier = Modifier
                 .width(200.dp)
-                .height(120.dp),
+                .height(120.dp)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = { showContextMenu = true }
+                ),
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color.Transparent
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            onClick = onClick
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Box(
                 modifier = Modifier.fillMaxSize()
@@ -3045,6 +3054,34 @@ private fun ContinueWatchingCard(
                 }
 
             }
+        }
+
+        DropdownMenu(
+            expanded = showContextMenu,
+            onDismissRequest = { showContextMenu = false },
+            modifier = Modifier.background(Color(0xFF222222))
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.shortcut_send_to_desktop), color = Color.White) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.InstallMobile,
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                },
+                onClick = {
+                    showContextMenu = false
+                    scope.launch {
+                        DesktopShortcutManager.createMediaShortcut(
+                            context = context,
+                            item = item,
+                            mediaRepository = mediaRepository,
+                            showToast = true
+                        )
+                    }
+                }
+            )
         }
 
         Column(

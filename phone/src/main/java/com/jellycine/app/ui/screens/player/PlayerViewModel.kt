@@ -89,7 +89,20 @@ class PlayerViewModel @Inject constructor(
         mediaRepository = mediaRepository,
         scope = viewModelScope,
         positionProvider = { getCurrentPosition() },
-        isPausedProvider = { !isPlayingNow() }
+        isPausedProvider = { !isPlayingNow() },
+        onProgressReported = { positionMs ->
+            val context = playerContext ?: return@PlayerPlaybackReporter
+            val item = currentItemDetails ?: return@PlayerPlaybackReporter
+            val durationMs = getDuration()
+            viewModelScope.launch(Dispatchers.IO) {
+                com.jellycine.app.shortcut.DesktopShortcutManager.updateShortcutProgress(
+                    context = context,
+                    item = item,
+                    positionMs = positionMs,
+                    durationMs = durationMs
+                )
+            }
+        }
     )
     private var spatializerHelper: SpatializerHelper? = null
     private var playerContext: Context? = null
@@ -104,6 +117,7 @@ class PlayerViewModel @Inject constructor(
     private var communityPlaybackSegmentsJob: Job? = null
     private var spatialAudioAnalysisJob: Job? = null
     private var currentItemDetails: BaseItemDto? = null
+    fun getCurrentItemDetails(): BaseItemDto? = currentItemDetails
     private var currentPlaybackMediaSource: MediaSource? = null
     private var currentStreamingUrl: String? = null
     var discordPosterUrl: String? = null

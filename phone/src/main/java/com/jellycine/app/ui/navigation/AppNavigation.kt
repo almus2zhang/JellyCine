@@ -29,6 +29,9 @@ import com.jellycine.app.ui.screens.dashboard.settings.PlayerSettingsScreen
 import com.jellycine.app.ui.screens.dashboard.settings.SubtitleSettingsScreen
 import com.jellycine.app.ui.screens.dashboard.settings.InterfaceSettingsScreen
 import com.jellycine.app.ui.screens.player.PlayerScreen
+import com.jellycine.app.shortcut.DesktopShortcutManager
+import com.jellycine.app.shortcut.ShortcutPlaybackBridge
+import com.jellycine.data.repository.MediaRepositoryProvider
 import com.jellycine.app.ui.screens.screentime.ScreenTimeScreen
 import com.jellycine.app.player.mpv.MpvWarmPool
 import com.jellycine.auth.AuthStateManager
@@ -51,11 +54,28 @@ fun AppNavigation() {
     val context = LocalContext.current
     val authStateManager = remember { AuthStateManager.getInstance(context) }
 
+    val mediaRepository = remember { MediaRepositoryProvider.getInstance(context) }
     var startDestination by remember { mutableStateOf<String?>(null) }
     
     LaunchedEffect(Unit) {
         val isAuthenticated = authStateManager.checkAuthenticationState()
         startDestination = if (isAuthenticated) "dashboard" else "auth"
+    }
+
+    LaunchedEffect(startDestination) {
+        if (startDestination == "dashboard") {
+            ShortcutPlaybackBridge.pendingRequest.collect { request ->
+                val resolvedId = DesktopShortcutManager.resolvePlayableMediaId(
+                    mediaRepository = mediaRepository,
+                    mediaId = request.mediaId,
+                    seriesId = request.seriesId
+                )
+                ShortcutPlaybackBridge.clear()
+                navController.navigate("player/$resolvedId") {
+                    launchSingleTop = true
+                }
+            }
+        }
     }
 
     if (startDestination == null) return
