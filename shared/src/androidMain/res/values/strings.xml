@@ -736,4 +736,16 @@
     <string name="shortcut_send_to_desktop">Send to Home Screen</string>
     <string name="shortcut_created_success">Added to home screen</string>
     <string name="shortcut_not_supported">Launcher does not support pinned shortcuts</string>
+    <!-- Startup Connection -->
+    <string name="startup_connecting_title">Connecting to Server</string>
+    <string name="startup_connecting_subtitle">Connecting to previous server…</string>
+    <string name="startup_connection_success">Connected successfully</string>
+    <string name="startup_connection_failed">Unable to connect to this server</string>
+    <string name="startup_switch_server">Switch Server</string>
+    <string name="startup_retry">Retry Connection</string>
+    <string name="startup_offline_downloads">Offline Downloads</string>
+    <string name="startup_resolving_address">Resolving server address…</string>
+    <string name="startup_mode_301">301 Dynamic</string>
+    <string name="startup_mode_txt">TXT DNS</string>
+    <string name="startup_mode_direct">Direct Connection</string>
 </resources>

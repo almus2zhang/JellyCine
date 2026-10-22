@@ -723,4 +723,16 @@
     <string name="shortcut_send_to_desktop">发送到桌面</string>
     <string name="shortcut_created_success">已添加到桌面快捷方式</string>
     <string name="shortcut_not_supported">当前系统桌面不支持添加快捷方式</string>
+    <!-- Startup Connection -->
+    <string name="startup_connecting_title">正在连接服务器</string>
+    <string name="startup_connecting_subtitle">正在连接上次的服务器…</string>
+    <string name="startup_connection_success">连接成功</string>
+    <string name="startup_connection_failed">无法连接到该服务器</string>
+    <string name="startup_switch_server">切换服务器</string>
+    <string name="startup_retry">重试连接</string>
+    <string name="startup_offline_downloads">离线下载</string>
+    <string name="startup_resolving_address">正在解析动态服务器地址…</string>
+    <string name="startup_mode_301">301 动态解析</string>
+    <string name="startup_mode_txt">TXT 域名解析</string>
+    <string name="startup_mode_direct">直连服务器</string>
 </resources>
