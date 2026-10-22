@@ -109,7 +109,9 @@ class AuthRepository(private val context: Context) {
         @SerialName("sourceUrl")
         val sourceUrl: String? = null,
         @SerialName("customName")
-        val customName: String? = null
+        val customName: String? = null,
+        @SerialName("systemServerId")
+        val systemServerId: String? = null
     ) {
         val displayName: String get() = customName?.takeIf { it.isNotBlank() } ?: serverName
     }
@@ -137,7 +139,9 @@ class AuthRepository(private val context: Context) {
         @SerialName("sourceUrl")
         val sourceUrl: String? = null,
         @SerialName("customName")
-        val customName: String? = null
+        val customName: String? = null,
+        @SerialName("systemServerId")
+        val systemServerId: String? = null
     )
 
     data class ActiveSessionSnapshot(
@@ -216,7 +220,8 @@ class AuthRepository(private val context: Context) {
         }
         val mergedIncoming = incoming.copy(
             customName = if (!incoming.customName.isNullOrBlank()) incoming.customName else existingMatch?.customName,
-            profileImageUrl = if (!incoming.profileImageUrl.isNullOrBlank()) incoming.profileImageUrl else existingMatch?.profileImageUrl
+            profileImageUrl = if (!incoming.profileImageUrl.isNullOrBlank()) incoming.profileImageUrl else existingMatch?.profileImageUrl,
+            systemServerId = if (!incoming.systemServerId.isNullOrBlank()) incoming.systemServerId else existingMatch?.systemServerId
         )
         val withoutMatch = existing.filterNot {
             it.id == incoming.id ||
@@ -258,7 +263,8 @@ class AuthRepository(private val context: Context) {
             profileImageUrl = existingSavedServer?.profileImageUrl,
             lastUsedAt = System.currentTimeMillis(),
             sourceUrl = sourceUrl,
-            customName = customName
+            customName = customName,
+            systemServerId = existingSavedServer?.systemServerId
         )
     }
 
@@ -1312,7 +1318,8 @@ class AuthRepository(private val context: Context) {
                     userId = authResult.user.id,
                     profileImageUrl = null,
                     lastUsedAt = System.currentTimeMillis(),
-                    sourceUrl = sourceUrl
+                    sourceUrl = sourceUrl,
+                    systemServerId = authResult.serverId
                 )
 
                 secureSessionStore.putToken(savedServer.id, authResult.accessToken)
@@ -1444,7 +1451,8 @@ class AuthRepository(private val context: Context) {
                     username = persistedUsername,
                     userId = authResult.user.id,
                     profileImageUrl = null,
-                    lastUsedAt = System.currentTimeMillis()
+                    lastUsedAt = System.currentTimeMillis(),
+                    systemServerId = authResult.serverId
                 )
 
                 secureSessionStore.putToken(savedServer.id, authResult.accessToken)
@@ -1567,7 +1575,8 @@ class AuthRepository(private val context: Context) {
             profileImageUrl = profileImageUrl,
             lastUsedAt = lastUsedAt,
             sourceUrl = sourceUrl,
-            customName = customName
+            customName = customName,
+            systemServerId = systemServerId
         )
     }
 

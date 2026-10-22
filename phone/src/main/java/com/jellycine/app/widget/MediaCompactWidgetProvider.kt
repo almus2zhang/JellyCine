@@ -132,6 +132,9 @@ class MediaCompactWidgetProvider : AppWidgetProvider() {
                 if (!item.seriesId.isNullOrBlank()) {
                     putExtra("shortcut_play_series_id", item.seriesId)
                 }
+                if (!item.systemServerId.isNullOrBlank()) {
+                    putExtra("shortcut_system_server_id", item.systemServerId)
+                }
                 putExtra("shortcut_title", titleText)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
@@ -259,9 +262,13 @@ class MediaCompactWidgetProvider : AppWidgetProvider() {
             val positionMs = (userData?.playbackPositionTicks ?: 0L) / 10000L
             val percent = (userData?.playedPercentage ?: 0.0).toInt().coerceIn(0, 100)
 
+            val systemServerId = item.serverId?.takeIf { it.isNotBlank() }
+                ?: resolvedEpisode?.serverId?.takeIf { it.isNotBlank() }
+
             val widgetItem = WidgetMediaItem(
                 mediaId = targetPlayableId,
                 seriesId = targetSeriesId,
+                systemServerId = systemServerId,
                 title = title,
                 seasonEpisode = seasonEpisode,
                 episodeTitle = epTitle,

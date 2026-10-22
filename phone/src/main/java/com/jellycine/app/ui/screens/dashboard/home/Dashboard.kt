@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.outlined.InstallMobile
+import androidx.compose.material.icons.rounded.Widgets
 import com.jellycine.app.shortcut.DesktopShortcutManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -3062,7 +3063,28 @@ private fun ContinueWatchingCard(
             modifier = Modifier.background(Color(0xFF222222))
         ) {
             DropdownMenuItem(
-                text = { Text(stringResource(R.string.shortcut_send_to_desktop), color = Color.White) },
+                text = { Text("添加到桌面小组件", color = Color.White) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.Widgets,
+                        contentDescription = null,
+                        tint = Color(0xFF38BDF8)
+                    )
+                },
+                onClick = {
+                    showContextMenu = false
+                    scope.launch {
+                        com.jellycine.app.widget.MediaCompactWidgetProvider.addMediaAndPinWidget(
+                            context = context,
+                            item = item,
+                            mediaRepository = mediaRepository,
+                            showToast = true
+                        )
+                    }
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("常规桌面图标", color = Color.White) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Outlined.InstallMobile,

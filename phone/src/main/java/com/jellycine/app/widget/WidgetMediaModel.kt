@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class WidgetMediaItem(
     val mediaId: String,
     val seriesId: String? = null,
+    val systemServerId: String? = null,
     val title: String,
     val seasonEpisode: String = "",
     val episodeTitle: String? = null,

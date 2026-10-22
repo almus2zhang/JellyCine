@@ -58,17 +58,15 @@ fun AppNavigation() {
     val authRepository = remember { AuthRepositoryProvider.getInstance(context) }
     val mediaRepository = remember { MediaRepositoryProvider.getInstance(context) }
     
-    val initialSnapshot = remember { authRepository.getActiveSessionSnapshot() }
-    val startDestination = remember {
-        if (initialSnapshot.savedServers.isNotEmpty()) "startup" else "auth"
-    }
+    val startDestination = "startup"
 
     LaunchedEffect(Unit) {
         ShortcutPlaybackBridge.pendingRequest.collect { request ->
-            val resolvedId = DesktopShortcutManager.resolvePlayableMediaId(
-                mediaRepository = mediaRepository,
-                mediaId = request.mediaId,
-                seriesId = request.seriesId
+            val resolvedId = com.jellycine.app.shortcut.SmartPlaybackDispatcher.resolveAndPrepare(
+                context = context,
+                request = request,
+                authRepository = authRepository,
+                mediaRepository = mediaRepository
             )
             ShortcutPlaybackBridge.clear()
             navController.navigate("player/$resolvedId") {
