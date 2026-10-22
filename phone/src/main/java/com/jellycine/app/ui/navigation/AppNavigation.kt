@@ -106,15 +106,23 @@ fun AppNavigation() {
             ) {
                 StartupConnectingScreen(
                     onConnected = {
-                        navController.navigate("dashboard") {
-                            popUpTo("startup") { inclusive = true }
-                            launchSingleTop = true
+                        try {
+                            navController.navigate("dashboard") {
+                                popUpTo("startup") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("AppNavigation", "Navigation error onConnected", e)
                         }
                     },
                     onNavigateToAuth = {
-                        navController.navigate("auth") {
-                            popUpTo("startup") { inclusive = true }
-                            launchSingleTop = true
+                        try {
+                            navController.navigate("auth") {
+                                popUpTo("startup") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("AppNavigation", "Navigation error onNavigateToAuth", e)
                         }
                     },
                     onNavigateToDownloads = {

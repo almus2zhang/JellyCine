@@ -60,17 +60,9 @@ class JellyCineActivity : ComponentActivity() {
         requestNotificationPermission()
         ShortcutPlaybackBridge.handleIntent(intent)
 
-        val authStateManager = AuthStateManager.getInstance(this)
-        val authCheckCompleted = AtomicBoolean(false)
         val firstComposeCommitted = AtomicBoolean(false)
         splashScreen.setKeepOnScreenCondition {
-            !authCheckCompleted.get() ||
-                !firstComposeCommitted.get()
-        }
-
-        lifecycleScope.launch {
-            authStateManager.checkAuthenticationState()
-            authCheckCompleted.set(true)
+            !firstComposeCommitted.get()
         }
 
         // Use modern edge-to-edge approach with dark status bar and navigation bar styles (light/white icons & text)

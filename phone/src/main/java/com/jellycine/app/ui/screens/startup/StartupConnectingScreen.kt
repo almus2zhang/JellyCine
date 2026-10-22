@@ -177,7 +177,7 @@ fun StartupConnectingScreen(
         ) {
             // App Logo
             Image(
-                painter = painterResource(com.jellycine.shared.R.drawable.ic_splash_logo),
+                painter = painterResource(com.jellycine.shared.R.drawable.jellycine_logo),
                 contentDescription = stringResource(R.string.app_name),
                 modifier = Modifier
                     .size(80.dp)
