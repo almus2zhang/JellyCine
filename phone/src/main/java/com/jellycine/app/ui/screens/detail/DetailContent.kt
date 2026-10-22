@@ -1159,7 +1159,17 @@ fun DetailContent(
                                     downloadActionMenu = false
                                     item.id?.let(downloadRepository::cancelDownload)
                                 },
-                                onFavoriteClick = ::toggleFavorite
+                                onFavoriteClick = ::toggleFavorite,
+                                onSendToDesktopClick = {
+                                    coroutineScope.launch {
+                                        DesktopShortcutManager.createMediaShortcut(
+                                            context = context,
+                                            item = item,
+                                            mediaRepository = mediaRepository,
+                                            showToast = true
+                                        )
+                                    }
+                                }
                             )
                         }
 
@@ -1306,7 +1316,17 @@ fun DetailContent(
                                         downloadRepository::cancelDownload
                                     )
                                 },
-                                onFavoriteClick = ::toggleFavorite
+                                onFavoriteClick = ::toggleFavorite,
+                                onSendToDesktopClick = {
+                                    coroutineScope.launch {
+                                        DesktopShortcutManager.createMediaShortcut(
+                                            context = context,
+                                            item = item,
+                                            mediaRepository = mediaRepository,
+                                            showToast = true
+                                        )
+                                    }
+                                }
                             )
 
                             item.id?.let { seriesId ->

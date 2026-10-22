@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 object DesktopShortcutManager {
@@ -35,26 +36,64 @@ object DesktopShortcutManager {
         return "$PREFIX_SHORTCUT_ID$rootId"
     }
 
-    fun getDisplayName(item: BaseItemDto): String {
-        return if (item.type.equals("Episode", ignoreCase = true) && !item.seriesName.isNullOrBlank()) {
-            item.seriesName!!
-        } else {
-            item.name.orEmpty()
+    fun formatSeasonEpisode(season: Int?, episode: Int?): String {
+        val s = season ?: 1
+        val e = episode ?: 1
+        return String.format(Locale.ROOT, "S%02dE%02d", s, e)
+    }
+
+    /**
+     * 剧集只显示 SxxExx，电影显示名字
+     */
+    fun getShortcutShortLabel(item: BaseItemDto, fallbackEpisode: BaseItemDto? = null): String {
+        val isEpisode = item.type.equals("Episode", ignoreCase = true)
+        val isSeries = item.type.equals("Series", ignoreCase = true)
+
+        return when {
+            isEpisode -> {
+                val s = item.parentIndexNumber
+                val e = item.indexNumber
+                when {
+                    s != null && e != null -> formatSeasonEpisode(s, e)
+                    e != null -> String.format(Locale.ROOT, "E%02d", e)
+                    else -> "S01E01"
+                }
+            }
+            isSeries -> {
+                val ep = fallbackEpisode
+                if (ep != null) {
+                    getShortcutShortLabel(ep)
+                } else {
+                    "S01E01"
+                }
+            }
+            else -> {
+                // 电影显示名字
+                item.name.orEmpty().ifBlank { "JellyCine" }
+            }
         }
     }
 
-    fun getEpisodeSubtitle(item: BaseItemDto): String {
-        return if (item.type.equals("Episode", ignoreCase = true)) {
-            val season = item.parentIndexNumber
-            val episode = item.indexNumber
-            when {
-                season != null && episode != null -> "S${season}:E${episode}"
-                episode != null -> "第${episode}集"
-                else -> item.episodeTitle.orEmpty()
-            }
-        } else {
-            item.productionYear?.toString().orEmpty()
-        }
+    fun getShortcutLongLabel(
+        item: BaseItemDto,
+        shortLabel: String,
+        progressText: String? = null
+    ): String {
+        val isEpisode = item.type.equals("Episode", ignoreCase = true)
+        val isSeries = item.type.equals("Series", ignoreCase = true)
+
+        val seriesName = if (isEpisode) {
+            item.seriesName?.takeIf { it.isNotBlank() }
+        } else if (isSeries) {
+            item.name.orEmpty().takeIf { it.isNotBlank() }
+        } else null
+
+        val parts = listOfNotNull(
+            seriesName,
+            shortLabel.takeIf { it.isNotBlank() },
+            progressText?.takeIf { it.isNotBlank() }
+        )
+        return if (parts.isNotEmpty()) parts.joinToString(" · ") else shortLabel
     }
 
     suspend fun createMediaShortcut(
@@ -76,15 +115,21 @@ object DesktopShortcutManager {
             return@withContext false
         }
 
-        val shortcutId = getShortcutId(item)
-        val shortLabel = getDisplayName(item).ifBlank { "JellyCine" }
-        val subtitle = getEpisodeSubtitle(item)
-        val longLabel = if (subtitle.isNotBlank()) "$shortLabel · $subtitle" else shortLabel
-
-        // Determine poster image item ID (use series Primary poster for episodes)
         val itemId = item.id ?: return@withContext false
         val isEpisode = item.type.equals("Episode", ignoreCase = true)
         val isSeries = item.type.equals("Series", ignoreCase = true)
+
+        // For series item, try resolving next up episode to get accurate SxxExx
+        val resolvedEpisode = if (isSeries) {
+            mediaRepository.getNextUpItems(seriesId = itemId, limit = 1).getOrNull()?.firstOrNull()
+                ?: mediaRepository.getEpisodes(seriesId = itemId).getOrNull()?.firstOrNull()
+        } else null
+
+        val shortcutId = getShortcutId(item)
+        val shortLabel = getShortcutShortLabel(item, resolvedEpisode)
+        val longLabel = getShortcutLongLabel(item, shortLabel)
+
+        // Determine poster image item ID (use series Primary poster for episodes)
         val posterItemId = when {
             isEpisode -> item.seriesId?.takeIf { it.isNotBlank() } ?: itemId
             else -> itemId
@@ -161,19 +206,13 @@ object DesktopShortcutManager {
         if (!ShortcutManagerCompat.isRequestPinShortcutSupported(context)) return@withContext
 
         val shortcutId = getShortcutId(item)
-        val shortLabel = getDisplayName(item)
+        val shortLabel = getShortcutShortLabel(item)
         if (shortLabel.isBlank()) return@withContext
 
-        val subtitle = getEpisodeSubtitle(item)
         val percent = if (durationMs > 0) ((positionMs * 100) / durationMs).toInt().coerceIn(0, 100) else 0
-        val progressText = if (percent > 0) "已看 $percent%" else ""
+        val progressText = if (percent > 0) "已看 $percent%" else null
 
-        val longLabelParts = listOfNotNull(
-            shortLabel.takeIf { it.isNotBlank() },
-            subtitle.takeIf { it.isNotBlank() },
-            progressText.takeIf { it.isNotBlank() }
-        )
-        val longLabel = longLabelParts.joinToString(" · ")
+        val longLabel = getShortcutLongLabel(item, shortLabel, progressText)
 
         val isEpisode = item.type.equals("Episode", ignoreCase = true)
         val isSeries = item.type.equals("Series", ignoreCase = true)
