@@ -191,9 +191,12 @@ class MediaCompactWidgetProvider : AppWidgetProvider() {
             val isSeries = item.type.equals("Series", ignoreCase = true)
             val isMovie = !isEpisode && !isSeries
 
-            // 解析真实可播放集数
+            // 解析真实可播放集数：优先寻找正在继续观看的单集 (Resume)，避免错位跳至 Next Up
             val resolvedEpisode = if (isSeries) {
-                mediaRepository.getNextUpItems(seriesId = itemId, limit = 1).getOrNull()?.firstOrNull()
+                val resumeEp = mediaRepository.getResumeItems(limit = 20).getOrNull()
+                    ?.firstOrNull { it.seriesId == itemId }
+                resumeEp
+                    ?: mediaRepository.getNextUpItems(seriesId = itemId, limit = 1).getOrNull()?.firstOrNull()
                     ?: mediaRepository.getEpisodes(seriesId = itemId).getOrNull()?.firstOrNull()
             } else null
 
@@ -280,11 +283,8 @@ class MediaCompactWidgetProvider : AppWidgetProvider() {
                 updatedAt = System.currentTimeMillis()
             )
 
-            // 保存到小组件媒体库
+            // 保存到小组件媒体库（添加新组件时不全量刷新已有老组件，防止旧组件被干扰）
             WidgetDataManager.addOrUpdateMedia(context, widgetItem)
-
-            // 刷新已有桌面组件
-            updateAllWidgets(context)
 
             // 尝试请求固定小组件到桌面 (Android 8.0+)
             val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -307,7 +307,7 @@ class MediaCompactWidgetProvider : AppWidgetProvider() {
                     if (showToast) {
                         Toast.makeText(
                             context,
-                            if (success) "已添加到小组件清单，请在桌面确认添加" else "已添加到小组件清单",
+                            if (success) "已请求添加到桌面小组件，请在弹窗确认（或长按桌面添加）" else "已加入小组件清单，可长按桌面添加 JellyCine 小组件",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
@@ -318,7 +318,7 @@ class MediaCompactWidgetProvider : AppWidgetProvider() {
                     if (showToast) {
                         Toast.makeText(
                             context,
-                            "已加入小组件清单，可长按桌面添加 JellyCine 小组件",
+                            "已加入小组件清单，可长按桌面微件添加 JellyCine 小组件",
                             Toast.LENGTH_LONG
                         ).show()
                     }

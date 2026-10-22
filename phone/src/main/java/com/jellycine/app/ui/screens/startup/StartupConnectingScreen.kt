@@ -65,6 +65,7 @@ import com.jellycine.auth.AuthStateManager
 import com.jellycine.data.repository.AuthRepositoryProvider
 import com.jellycine.shared.R
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -130,8 +131,13 @@ fun StartupConnectingScreen(
     // Connection attempt loop
     LaunchedEffect(connectionAttempt, activeSavedServer?.id) {
         if (sessionSnapshot.savedServers.isEmpty()) {
-            onNavigateToAuth()
-            return@LaunchedEffect
+            val loadedSnapshot = withTimeoutOrNull(600L) {
+                authRepository.observeActiveSession().first { it.savedServers.isNotEmpty() }
+            }
+            if (loadedSnapshot == null && authRepository.getActiveSessionSnapshot().savedServers.isEmpty()) {
+                onNavigateToAuth()
+                return@LaunchedEffect
+            }
         }
 
         status = ConnectionStatus.CONNECTING

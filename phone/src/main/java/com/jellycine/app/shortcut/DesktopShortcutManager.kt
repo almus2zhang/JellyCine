@@ -119,9 +119,12 @@ object DesktopShortcutManager {
         val isEpisode = item.type.equals("Episode", ignoreCase = true)
         val isSeries = item.type.equals("Series", ignoreCase = true)
 
-        // For series item, try resolving next up episode to get accurate SxxExx
+        // For series item, try resolving resume / next up episode to get accurate SxxExx
         val resolvedEpisode = if (isSeries) {
-            mediaRepository.getNextUpItems(seriesId = itemId, limit = 1).getOrNull()?.firstOrNull()
+            val resumeEp = mediaRepository.getResumeItems(limit = 20).getOrNull()
+                ?.firstOrNull { it.seriesId == itemId }
+            resumeEp
+                ?: mediaRepository.getNextUpItems(seriesId = itemId, limit = 1).getOrNull()?.firstOrNull()
                 ?: mediaRepository.getEpisodes(seriesId = itemId).getOrNull()?.firstOrNull()
         } else null
 
@@ -248,15 +251,31 @@ object DesktopShortcutManager {
     suspend fun resolvePlayableMediaId(
         mediaRepository: MediaRepository,
         mediaId: String,
-        seriesId: String?
+        seriesId: String? = null
     ): String = withContext(Dispatchers.IO) {
-        val targetSeriesId = seriesId ?: run {
-            val item = mediaRepository.getItemById(mediaId).getOrNull()
-            if (item?.type.equals("Series", ignoreCase = true)) mediaId else null
+        // 先检查目标 item 类型：如果是具体的单集或电影，直接返回该媒体 ID，绝不替换成其它集
+        val item = mediaRepository.getItemById(mediaId).getOrNull()
+        val itemType = item?.type.orEmpty()
+        if (itemType.equals("Episode", ignoreCase = true) || itemType.equals("Movie", ignoreCase = true)) {
+            return@withContext mediaId
+        }
+
+        // 仅当传入的是 Series (剧集大类) 时，才去解析 Next Up / 首集
+        val targetSeriesId = if (itemType.equals("Series", ignoreCase = true)) {
+            mediaId
+        } else {
+            seriesId
         }
 
         if (!targetSeriesId.isNullOrBlank()) {
             try {
+                // 0. 优先检查当前是否有正在继续观看的单集 (Resume)
+                val resumeEpisode = mediaRepository.getResumeItems(limit = 20).getOrNull()
+                    ?.firstOrNull { it.seriesId == targetSeriesId }
+                if (!resumeEpisode?.id.isNullOrBlank()) {
+                    return@withContext resumeEpisode!!.id!!
+                }
+
                 // 1. Try to get the next up / in-progress episode
                 val nextUpResult = mediaRepository.getNextUpItems(seriesId = targetSeriesId, limit = 1)
                 val nextUpEpisode = nextUpResult.getOrNull()?.firstOrNull()

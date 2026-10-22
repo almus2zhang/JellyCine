@@ -39,6 +39,7 @@ import com.jellycine.app.player.mpv.MpvWarmPool
 import com.jellycine.auth.AuthStateManager
 import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // Pure Animation helpers - no sliding, only fade with content transforms
 private fun textTransition(duration: Int = 400): EnterTransition {
@@ -58,20 +59,38 @@ fun AppNavigation() {
     val authRepository = remember { AuthRepositoryProvider.getInstance(context) }
     val mediaRepository = remember { MediaRepositoryProvider.getInstance(context) }
     
+    val scope = rememberCoroutineScope()
     val startDestination = "startup"
 
-    LaunchedEffect(Unit) {
-        ShortcutPlaybackBridge.pendingRequest.collect { request ->
-            val resolvedId = com.jellycine.app.shortcut.SmartPlaybackDispatcher.resolveAndPrepare(
-                context = context,
-                request = request,
-                authRepository = authRepository,
-                mediaRepository = mediaRepository
-            )
-            ShortcutPlaybackBridge.clear()
-            navController.navigate("player/$resolvedId") {
-                launchSingleTop = true
+    fun processShortcutRequest(request: com.jellycine.app.shortcut.ShortcutPlaybackBridge.PlaybackRequest) {
+        scope.launch {
+            try {
+                val resolvedId = com.jellycine.app.shortcut.SmartPlaybackDispatcher.resolveAndPrepare(
+                    context = context,
+                    request = request,
+                    authRepository = authRepository,
+                    mediaRepository = mediaRepository
+                )
+                com.jellycine.app.shortcut.ShortcutPlaybackBridge.clear()
+                if (resolvedId.isNotBlank()) {
+                    navController.navigate("player/$resolvedId") {
+                        launchSingleTop = true
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AppNavigation", "Failed to dispatch shortcut playback", e)
             }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        // 消费冷启动单次快捷起播意图
+        com.jellycine.app.shortcut.ShortcutPlaybackBridge.consumeActiveRequest()?.let { req ->
+            processShortcutRequest(req)
+        }
+        // 监听热启动事件
+        com.jellycine.app.shortcut.ShortcutPlaybackBridge.pendingRequest.collect { request ->
+            processShortcutRequest(request)
         }
     }
 
