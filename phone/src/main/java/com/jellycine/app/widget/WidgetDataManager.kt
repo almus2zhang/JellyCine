@@ -86,6 +86,9 @@ object WidgetDataManager {
 
         // 记录最新被添加到桌面的待绑定媒体
         setPendingPinMediaId(context, item.mediaId)
+
+        // 自动通知桌面媒体清单（多条目）小组件刷新
+        WidgetListProvider.notifyDataChanged(context)
     }
 
     /**
@@ -97,6 +100,9 @@ object WidgetDataManager {
         val itemToRemove = currentList.firstOrNull { it.mediaId == mediaId }
         currentList.removeAll { it.mediaId == mediaId }
         saveMediaList(context, currentList)
+
+        // 自动通知桌面媒体清单小组件刷新
+        WidgetListProvider.notifyDataChanged(context)
 
         // 清理解绑
         val prefs = getPrefs(context)
@@ -149,6 +155,7 @@ object WidgetDataManager {
             updatedAt = System.currentTimeMillis()
         )
         saveMediaList(context, currentList)
+        WidgetListProvider.notifyDataChanged(context)
         return true
     }
 

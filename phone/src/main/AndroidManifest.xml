@@ -99,6 +99,24 @@
                 android:resource="@xml/widget_media_compact_info" />
         </receiver>
 
+        <!-- 媒体清单小组件 (单组件内展示多个媒体条目) -->
+        <receiver
+            android:name=".widget.WidgetListProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_media_list_info" />
+        </receiver>
+
+        <!-- 媒体清单小组件 RemoteViews 数据提供服务 -->
+        <service
+            android:name=".widget.WidgetListService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
         <service
             android:name=".download.DownloadForegroundService"
             android:exported="false"

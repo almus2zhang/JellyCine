@@ -33,6 +33,7 @@ import coil3.compose.AsyncImage
 import com.jellycine.app.ui.activity.JellyCineActivity
 import com.jellycine.app.widget.MediaCompactWidgetProvider
 import com.jellycine.app.widget.WidgetDataManager
+import com.jellycine.app.widget.WidgetListProvider
 import com.jellycine.app.widget.WidgetMediaItem
 import java.io.File
 
@@ -48,6 +49,7 @@ fun WidgetManagementScreen(
     fun refreshList() {
         mediaList = WidgetDataManager.getMediaList(context)
         MediaCompactWidgetProvider.updateAllWidgets(context)
+        WidgetListProvider.notifyDataChanged(context)
     }
 
     Scaffold(
@@ -106,12 +108,40 @@ fun WidgetManagementScreen(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "小组件海报直接点击起播，右侧显示 SxxExx 与进度。点击右侧【固定】可将该剧单独固定到桌面。",
+                                text = "支持单组件内展示多个媒体（滚动列表），也支持独立固定多个单条微件。点击海报直接起播并同步进度。",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
+                }
+            }
+
+            // 快捷添加媒体清单（多条目列表）大组件到桌面
+            item {
+                Button(
+                    onClick = {
+                        WidgetListProvider.pinListWidget(context)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF0284C7)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Widgets,
+                        contentDescription = null,
+                        modifier = Modifier.size(19.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "添加【媒体清单（多条目列表）】微件到桌面",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
                 }
             }
 
@@ -310,6 +340,7 @@ private fun playMedia(context: Context, item: WidgetMediaItem) {
 }
 
 private fun pinItemToHome(context: Context, item: WidgetMediaItem) {
+    WidgetDataManager.setPendingPinMediaId(context, item.mediaId)
     val appWidgetManager = AppWidgetManager.getInstance(context)
     val component = ComponentName(context, MediaCompactWidgetProvider::class.java)
 
@@ -327,7 +358,7 @@ private fun pinItemToHome(context: Context, item: WidgetMediaItem) {
         val success = appWidgetManager.requestPinAppWidget(component, null, successPendingIntent)
         Toast.makeText(
             context,
-            if (success) "请在桌面确认添加小组件" else "系统未允许添加",
+            if (success) "请在系统弹窗中确认添加" else "系统拦截了自动添加，可在桌面长按微件手动放置",
             Toast.LENGTH_SHORT
         ).show()
     } else {
