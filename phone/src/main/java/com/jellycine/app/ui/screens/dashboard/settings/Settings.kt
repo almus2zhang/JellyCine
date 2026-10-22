@@ -57,6 +57,7 @@ fun Settings(
     onNavigateToAbout: () -> Unit = {},
     onNavigateToServerInfo: () -> Unit = {},
     onNavigateToScreenTime: () -> Unit = {},
+    onNavigateToWidgetManagement: () -> Unit = {},
     onNavigateToRequestedItem: (BaseItemDto) -> Unit = {},
     onAddServer: () -> Unit = {},
     onAddUser: (serverUrl: String, serverName: String?) -> Unit = { _, _ -> }
@@ -181,6 +182,17 @@ fun Settings(
             item { SectionLabel(stringResource(R.string.settings_preferences)) }
             item {
                 SettingsSection {
+                    SettingsItem(
+                        icon = Icons.Rounded.Widgets,
+                        title = "桌面小组件",
+                        subtitle = "管理已添加到小组件的剧集与追剧清单",
+                        accentColor = Color(0xFF38BDF8),
+                        onClick = onNavigateToWidgetManagement
+                    )
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
                     SettingsItem(
                         icon = Icons.Rounded.DisplaySettings,
                         title = stringResource(R.string.settings_interface),

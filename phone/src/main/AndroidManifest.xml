@@ -87,6 +87,18 @@
             android:name=".download.DownloadActionReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".widget.MediaCompactWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.jellycine.app.widget.ACTION_PIN_SUCCESS" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_media_compact_info" />
+        </receiver>
+
         <service
             android:name=".download.DownloadForegroundService"
             android:exported="false"

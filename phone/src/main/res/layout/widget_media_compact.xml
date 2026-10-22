@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_widget_card"
+    android:padding="8dp">
+
+    <!-- 左侧海报容器 (带小播放按钮覆盖) -->
+    <FrameLayout
+        android:id="@+id/widget_poster_container"
+        android:layout_width="54dp"
+        android:layout_height="76dp"
+        android:layout_alignParentStart="true"
+        android:layout_centerVertical="true">
+
+        <ImageView
+            android:id="@+id/widget_poster"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_widget_poster"
+            android:scaleType="centerCrop"
+            android:contentDescription="Poster" />
+
+        <ImageView
+            android:id="@+id/widget_play_badge"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_widget_play_badge"
+            android:contentDescription="Play" />
+    </FrameLayout>
+
+    <!-- 右侧信息区域 -->
+    <LinearLayout
+        android:id="@+id/widget_info_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_toEndOf="@id/widget_poster_container"
+        android:layout_centerVertical="true"
+        android:layout_marginStart="10dp"
+        android:orientation="vertical">
+
+        <!-- SxxExx 标题或电影名称 -->
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="S01E01 · 剧名"
+            android:textColor="#FFFFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <!-- 单集标题或辅助信息 -->
+        <TextView
+            android:id="@+id/widget_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="单集名称"
+            android:textColor="#B3FFFFFF"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <!-- 进度条与百分比行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ProgressBar
+                android:id="@+id/widget_progress_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="0dp"
+                android:layout_height="4dp"
+                android:layout_weight="1"
+                android:max="100"
+                android:progress="0"
+                android:progressDrawable="@drawable/widget_progress_drawable" />
+
+            <TextView
+                android:id="@+id/widget_progress_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="45%"
+                android:textColor="#80FFFFFF"
+                android:textSize="10sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+</RelativeLayout>

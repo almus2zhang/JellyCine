@@ -136,6 +136,7 @@ fun DetailContent(
     val detailListState = rememberLazyListState()
     val isEpisode = item.type == "Episode"
     val overviewInteractionSource = remember { MutableInteractionSource() }
+    var showSendToDesktopDialog by remember { mutableStateOf(false) }
     val overviewModifier = item.seriesId?.takeIf {
         isEpisode && it.isNotBlank()
     }?.let { seriesId ->
@@ -1161,14 +1162,7 @@ fun DetailContent(
                                 },
                                 onFavoriteClick = ::toggleFavorite,
                                 onSendToDesktopClick = {
-                                    coroutineScope.launch {
-                                        DesktopShortcutManager.createMediaShortcut(
-                                            context = context,
-                                            item = item,
-                                            mediaRepository = mediaRepository,
-                                            showToast = true
-                                        )
-                                    }
+                                    showSendToDesktopDialog = true
                                 }
                             )
                         }
@@ -1318,14 +1312,7 @@ fun DetailContent(
                                 },
                                 onFavoriteClick = ::toggleFavorite,
                                 onSendToDesktopClick = {
-                                    coroutineScope.launch {
-                                        DesktopShortcutManager.createMediaShortcut(
-                                            context = context,
-                                            item = item,
-                                            mediaRepository = mediaRepository,
-                                            showToast = true
-                                        )
-                                    }
+                                    showSendToDesktopDialog = true
                                 }
                             )
 
@@ -1500,6 +1487,144 @@ fun DetailContent(
             },
             containerColor = Color(0xFF1E1E22),
             shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    if (showSendToDesktopDialog) {
+        AlertDialog(
+            onDismissRequest = { showSendToDesktopDialog = false },
+            title = {
+                Text(
+                    text = "发送到手机桌面",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "选择桌面展示方式：",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // 选项 1：桌面小组件 (推荐)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showSendToDesktopDialog = false
+                                coroutineScope.launch {
+                                    com.jellycine.app.widget.MediaCompactWidgetProvider.addMediaAndPinWidget(
+                                        context = context,
+                                        item = item,
+                                        mediaRepository = mediaRepository,
+                                        showToast = true
+                                    )
+                                }
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Widgets,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "桌面小组件",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "推荐",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "小海报点击直接播放，显示 SxxExx 及实时进度条，支持添加多个剧集",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // 选项 2：常规桌面快捷方式图标
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showSendToDesktopDialog = false
+                                coroutineScope.launch {
+                                    DesktopShortcutManager.createMediaShortcut(
+                                        context = context,
+                                        item = item,
+                                        mediaRepository = mediaRepository,
+                                        showToast = true
+                                    )
+                                }
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Smartphone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "常规桌面图标",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "在桌面生成单图标快捷方式",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSendToDesktopDialog = false }) {
+                    Text("取消")
+                }
+            }
         )
     }
 

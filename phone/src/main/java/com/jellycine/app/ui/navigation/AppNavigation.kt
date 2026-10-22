@@ -275,6 +275,9 @@ fun AppNavigation() {
                     onNavigateToScreenTime = {
                         navController.navigate("screen_time")
                     },
+                    onNavigateToWidgetManagement = {
+                        navController.navigate("widget_management")
+                    },
                     onAddServer = {
                         navController.navigate("server_connection") {
                             launchSingleTop = true
@@ -607,6 +610,16 @@ fun AppNavigation() {
             ) {
                 ScreenTimeScreen(
                     onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                "widget_management",
+                enterTransition = { textTransition(450) },
+                exitTransition = { textExitTransition(350) }
+            ) {
+                com.jellycine.app.ui.screens.widget.WidgetManagementScreen(
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

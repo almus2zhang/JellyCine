@@ -170,6 +170,7 @@ fun DashboardContainer(
     onNavigateToAbout: () -> Unit = {},
     onNavigateToServerInfo: () -> Unit = {},
     onNavigateToScreenTime: () -> Unit = {},
+    onNavigateToWidgetManagement: () -> Unit = {},
     onAddServer: () -> Unit = {},
     onAddUser: (serverUrl: String, serverName: String?) -> Unit = { _, _ -> }
 ) {
@@ -569,6 +570,7 @@ fun DashboardContainer(
                             onNavigateToAbout = onNavigateToAbout,
                             onNavigateToServerInfo = onNavigateToServerInfo,
                             onNavigateToScreenTime = onNavigateToScreenTime,
+                            onNavigateToWidgetManagement = onNavigateToWidgetManagement,
                             onNavigateToRequestedItem = onNavigateToDetail,
                             onAddServer = onAddServer,
                             onAddUser = onAddUser

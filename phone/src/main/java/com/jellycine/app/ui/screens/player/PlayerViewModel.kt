@@ -101,6 +101,13 @@ class PlayerViewModel @Inject constructor(
                     positionMs = positionMs,
                     durationMs = durationMs
                 )
+                com.jellycine.app.widget.MediaCompactWidgetProvider.updateProgress(
+                    context = context,
+                    mediaId = item.id.orEmpty(),
+                    seriesId = item.seriesId,
+                    positionMs = positionMs,
+                    durationMs = durationMs
+                )
             }
         }
     )
