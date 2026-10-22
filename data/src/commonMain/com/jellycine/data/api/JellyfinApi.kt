@@ -138,6 +138,11 @@ interface MediaServerApi {
         itemId: String
     ): ApiResponse<Unit>
 
+    suspend fun clearPlaybackPosition(
+        userId: String,
+        itemId: String
+    ): ApiResponse<Unit>
+
     suspend fun getGenres(
         userId: String,
         parentId: String? = null,

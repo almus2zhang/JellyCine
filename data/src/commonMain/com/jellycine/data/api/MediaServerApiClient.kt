@@ -254,6 +254,20 @@ internal class MediaServerApiClient(
         endpoint = "Users/$userId/PlayedItems/$itemId"
     )
 
+    override suspend fun clearPlaybackPosition(
+        userId: String,
+        itemId: String
+    ): ApiResponse<Unit> {
+        val deleteResponse = unmarkAsPlayed(userId = userId, itemId = itemId)
+        try {
+            reportPlaybackStopped(PlaybackStoppedRequest(itemId = itemId, positionTicks = 0L))
+        } catch (_: Exception) {}
+        try {
+            post<Unit>("Users/$userId/Items/$itemId/UserData", mapOf("PlaybackPositionTicks" to 0L))
+        } catch (_: Exception) {}
+        return deleteResponse
+    }
+
     override suspend fun getGenres(
         userId: String,
         parentId: String?,

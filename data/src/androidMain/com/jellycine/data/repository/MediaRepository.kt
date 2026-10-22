@@ -920,6 +920,27 @@ class MediaRepository(private val context: Context) {
         return setPlayedStatus(itemId = seriesId, isPlayed = isPlayed)
     }
 
+    suspend fun removeFromContinueWatching(itemId: String): Result<Unit> {
+        return try {
+            val api = getApi() ?: return Result.failure(Exception(string(R.string.data_error_api_not_available)))
+            val userId = getUserId() ?: return Result.failure(Exception(string(R.string.data_error_user_id_not_available)))
+
+            val response = api.clearPlaybackPosition(userId = userId, itemId = itemId)
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                val fallback = api.unmarkAsPlayed(userId = userId, itemId = itemId)
+                if (fallback.isSuccessful) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(Exception("Failed to remove item: ${response.code()} - ${response.message()}"))
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun deleteItem(itemId: String): Result<Unit> {
         return try {
             val api = getApi() ?: return Result.failure(Exception(string(R.string.data_error_api_not_available)))

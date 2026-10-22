@@ -126,6 +126,9 @@ import coil3.size.Precision
 import com.jellycine.shared.util.image.imageTagFor
 import com.jellycine.shared.util.image.WarmImageUrl
 import com.jellycine.shared.playback.UserDataRefreshSignals
+import android.widget.Toast
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Close
 import java.util.concurrent.ConcurrentHashMap
 
 @Stable
@@ -1607,6 +1610,10 @@ fun Dashboard(
             emptyList()
         }
         val ContinueWatchingItems = continueWatchingQuery.data ?: persistedContinueWatchingItems
+        val hiddenContinueWatchingIds = remember { mutableStateListOf<String>() }
+        val VisibleContinueWatchingItems = remember(ContinueWatchingItems, hiddenContinueWatchingIds.toList()) {
+            ContinueWatchingItems.filter { it.id !in hiddenContinueWatchingIds }
+        }
 
         val persistedNextUpItems = if (selectedCategory == HomeCategory.HOME && nextUpEnabled) {
             persistedHomeSnapshot?.nextUpItems.orEmpty()
@@ -1845,7 +1852,7 @@ fun Dashboard(
 
                 val ShowContinueWatchingSection =
                     continueWatchingEnabled && selectedCategory == HomeCategory.HOME && (
-                        ContinueWatchingItems.isNotEmpty() ||
+                        VisibleContinueWatchingItems.isNotEmpty() ||
                             continueWatchingQuery.isError ||
                             (continueWatchingQuery.isLoading && persistedContinueWatchingItems.isNotEmpty())
                         )
@@ -1911,10 +1918,17 @@ fun Dashboard(
                                 .offset(y = continueWatchingTopOffset)
                         ) {
                             ContinueWatchingSection(
-                                items = ContinueWatchingItems,
-                                isLoading = continueWatchingQuery.isLoading && ContinueWatchingItems.isEmpty(),
+                                items = VisibleContinueWatchingItems,
+                                isLoading = continueWatchingQuery.isLoading && VisibleContinueWatchingItems.isEmpty(),
                                 error = if (continueWatchingQuery.isError) continueWatchingQuery.error else null,
-                                onItemClick = onNavigateToDetail
+                                onItemClick = onNavigateToDetail,
+                                onRemoveItem = { removedId ->
+                                    hiddenContinueWatchingIds.add(removedId)
+                                    val updated = VisibleContinueWatchingItems.filter { it.id != removedId }
+                                    scope.launch {
+                                        mediaRepository.persistHomeSnapshot(continueWatchingItems = updated)
+                                    }
+                                }
                             )
                         }
                     }
@@ -2803,7 +2817,8 @@ private fun ContinueWatchingSection(
     items: List<BaseItemDto>,
     isLoading: Boolean,
     error: String?,
-    onItemClick: (BaseItemDto) -> Unit = {}
+    onItemClick: (BaseItemDto) -> Unit = {},
+    onRemoveItem: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val mediaRepository = remember { MediaRepositoryProvider.getInstance(context) }
@@ -2873,7 +2888,8 @@ private fun ContinueWatchingSection(
                                 ContinueWatchingCard(
                                     item = item,
                                     mediaRepository = mediaRepository,
-                                    onClick = stableOnClick
+                                    onClick = stableOnClick,
+                                    onRemoveFromContinueWatching = onRemoveItem
                                 )
                             }
                         }
@@ -2922,7 +2938,8 @@ private fun ContinueWatchingSection(
 private fun ContinueWatchingCard(
     item: BaseItemDto,
     mediaRepository: MediaRepository,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    onRemoveFromContinueWatching: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -3101,6 +3118,74 @@ private fun ContinueWatchingCard(
                             mediaRepository = mediaRepository,
                             showToast = true
                         )
+                    }
+                }
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                color = Color.White.copy(alpha = 0.12f)
+            )
+
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        if (stableItem.isWatched) "标记为未看" else "标记为已看",
+                        color = Color.White
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = if (stableItem.isWatched) Icons.Rounded.Close else Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = Color(0xFF4ADE80)
+                    )
+                },
+                onClick = {
+                    showContextMenu = false
+                    val itemId = item.id ?: return@DropdownMenuItem
+                    val willBeWatched = !stableItem.isWatched
+                    onRemoveFromContinueWatching?.invoke(itemId)
+                    scope.launch {
+                        val result = mediaRepository.setPlayedStatus(itemId, isPlayed = willBeWatched)
+                        if (result.isSuccess) {
+                            UserDataRefreshSignals.notifyUserDataChanged(itemId, played = willBeWatched)
+                            Toast.makeText(
+                                context,
+                                if (willBeWatched) "已标记为已看" else "已标记为未看",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Toast.makeText(context, "操作失败", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
+
+            DropdownMenuItem(
+                text = { Text("从继续观看中移除", color = Color(0xFFEF4444)) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteOutline,
+                        contentDescription = null,
+                        tint = Color(0xFFEF4444)
+                    )
+                },
+                onClick = {
+                    showContextMenu = false
+                    val itemId = item.id ?: return@DropdownMenuItem
+                    onRemoveFromContinueWatching?.invoke(itemId)
+                    scope.launch {
+                        val result = mediaRepository.removeFromContinueWatching(itemId)
+                        if (result.isSuccess) {
+                            com.jellycine.app.widget.WidgetDataManager.removeMedia(context, itemId)
+                            com.jellycine.app.widget.WidgetListProvider.notifyDataChanged(context)
+                            com.jellycine.app.widget.MediaCompactWidgetProvider.updateAllWidgets(context)
+                            UserDataRefreshSignals.notifyUserDataChanged(itemId, played = false)
+                            Toast.makeText(context, "已从继续观看中移除", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "移除失败", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             )
