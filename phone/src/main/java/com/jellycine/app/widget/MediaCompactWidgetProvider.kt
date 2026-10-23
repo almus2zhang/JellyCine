@@ -169,6 +169,28 @@ class MediaCompactWidgetProvider : AppWidgetProvider() {
 
         fun updateProgress(
             context: Context,
+            item: BaseItemDto,
+            positionMs: Long,
+            durationMs: Long
+        ) {
+            val updated = WidgetDataManager.updateMediaProgress(context, item, positionMs, durationMs)
+            if (updated) {
+                updateAllWidgets(context)
+            }
+        }
+
+        fun syncContinueWatching(
+            context: Context,
+            items: List<BaseItemDto>
+        ) {
+            val updated = WidgetDataManager.syncFromContinueWatching(context, items)
+            if (updated) {
+                updateAllWidgets(context)
+            }
+        }
+
+        fun updateProgress(
+            context: Context,
             mediaId: String,
             seriesId: String?,
             positionMs: Long,

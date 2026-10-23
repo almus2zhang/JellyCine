@@ -103,8 +103,7 @@ class PlayerViewModel @Inject constructor(
                 )
                 com.jellycine.app.widget.MediaCompactWidgetProvider.updateProgress(
                     context = context,
-                    mediaId = item.id.orEmpty(),
-                    seriesId = item.seriesId,
+                    item = item,
                     positionMs = positionMs,
                     durationMs = durationMs
                 )
@@ -291,6 +290,20 @@ class PlayerViewModel @Inject constructor(
                     resumePositionTicks / 10000L
                 } else {
                     null
+                }
+                if (itemDetails != null) {
+                    val activeContext = playerContext
+                    if (activeContext != null) {
+                        val currentResumeMs = storedResumePositionMs ?: 0L
+                        viewModelScope.launch(Dispatchers.IO) {
+                            com.jellycine.app.widget.MediaCompactWidgetProvider.updateProgress(
+                                context = activeContext,
+                                item = itemDetails,
+                                positionMs = currentResumeMs,
+                                durationMs = 0L
+                            )
+                        }
+                    }
                 }
                 val mediaTitle = itemDetails?.name ?: "Unknown Title"
                 val logoSourceId = when {

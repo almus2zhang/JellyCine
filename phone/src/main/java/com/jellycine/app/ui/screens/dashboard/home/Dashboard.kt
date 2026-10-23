@@ -1702,6 +1702,12 @@ fun Dashboard(
             if (!isNetworkAvailable) return@LaunchedEffect
             val items = continueWatchingQuery.data ?: return@LaunchedEffect
             mediaRepository.persistHomeSnapshot(continueWatchingItems = items)
+            withContext(Dispatchers.IO) {
+                com.jellycine.app.widget.MediaCompactWidgetProvider.syncContinueWatching(
+                    context = context,
+                    items = items
+                )
+            }
             if (items.isEmpty()) return@LaunchedEffect
             ImagePreloader.continueWatchingImages(
                 items = items,
@@ -1716,6 +1722,12 @@ fun Dashboard(
             if (!isNetworkAvailable) return@LaunchedEffect
             val items = nextUpQuery.data ?: return@LaunchedEffect
             mediaRepository.persistHomeSnapshot(nextUpItems = items)
+            withContext(Dispatchers.IO) {
+                com.jellycine.app.widget.MediaCompactWidgetProvider.syncContinueWatching(
+                    context = context,
+                    items = items
+                )
+            }
             if (items.isEmpty()) return@LaunchedEffect
             ImagePreloader.continueWatchingImages(
                 items = items,

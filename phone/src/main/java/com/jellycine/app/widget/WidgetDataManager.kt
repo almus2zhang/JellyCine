@@ -17,6 +17,8 @@ import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
+import java.util.Locale
+import com.jellycine.data.model.BaseItemDto
 
 object WidgetDataManager {
 
@@ -125,6 +127,118 @@ object WidgetDataManager {
     }
 
     /**
+     * 依据 BaseItemDto 全面更新小组件媒体条目（集数、剧名、单集名、进度、绑定迁移）
+     */
+    @Synchronized
+    fun updateMediaProgress(
+        context: Context,
+        item: BaseItemDto,
+        positionMs: Long,
+        durationMs: Long
+    ): Boolean {
+        val currentMediaId = item.id.orEmpty()
+        val seriesId = item.seriesId
+        if (currentMediaId.isBlank() && seriesId.isNullOrBlank()) return false
+
+        val isEpisode = item.type.equals("Episode", ignoreCase = true)
+        val isMovie = item.type.equals("Movie", ignoreCase = true)
+
+        val currentList = getMediaList(context).toMutableList()
+        val index = currentList.indexOfFirst {
+            (!seriesId.isNullOrBlank() && it.seriesId == seriesId) || it.mediaId == currentMediaId
+        }
+        if (index < 0) return false
+
+        val existing = currentList[index]
+        val oldMediaId = existing.mediaId
+
+        val userPlayedPercentage = item.userData?.playedPercentage
+        val percent = if (durationMs > 0) {
+            ((positionMs * 100) / durationMs).toInt().coerceIn(0, 100)
+        } else if (userPlayedPercentage != null) {
+            userPlayedPercentage.toInt().coerceIn(0, 100)
+        } else {
+            existing.progressPercent
+        }
+
+        // 格式化新集数 (如 S01E17)
+        val seasonEpisode = if (isEpisode) {
+            val s = item.parentIndexNumber
+            val e = item.indexNumber
+            when {
+                s != null && e != null -> String.format(Locale.ROOT, "S%02dE%02d", s, e)
+                e != null -> String.format(Locale.ROOT, "E%02d", e)
+                else -> existing.seasonEpisode
+            }
+        } else {
+            existing.seasonEpisode
+        }
+
+        val title = if (isEpisode) {
+            item.seriesName?.takeIf { it.isNotBlank() } ?: existing.title
+        } else {
+            item.name?.takeIf { it.isNotBlank() } ?: existing.title
+        }
+
+        val epTitle = if (isEpisode) {
+            item.name?.takeIf { it.isNotBlank() } ?: existing.episodeTitle
+        } else {
+            existing.episodeTitle
+        }
+
+        val resolvedMediaId = currentMediaId.ifBlank { existing.mediaId }
+
+        val updated = existing.copy(
+            mediaId = resolvedMediaId,
+            seriesId = seriesId ?: existing.seriesId,
+            systemServerId = item.serverId?.takeIf { it.isNotBlank() } ?: existing.systemServerId,
+            title = title,
+            seasonEpisode = seasonEpisode,
+            episodeTitle = epTitle,
+            positionMs = if (positionMs > 0) positionMs else existing.positionMs,
+            durationMs = if (durationMs > 0) durationMs else existing.durationMs,
+            progressPercent = percent,
+            isMovie = if (item.type != null) isMovie else existing.isMovie,
+            updatedAt = System.currentTimeMillis()
+        )
+
+        currentList[index] = updated
+        saveMediaList(context, currentList)
+
+        // 如果剧集跳转至新集数，迁移桌面小组件专属绑定
+        if (oldMediaId != resolvedMediaId) {
+            migrateWidgetBindings(context, oldMediaId, resolvedMediaId)
+            Log.d(TAG, "Migrated widget binding from $oldMediaId to $resolvedMediaId ($seasonEpisode)")
+        }
+
+        WidgetListProvider.notifyDataChanged(context)
+        return true
+    }
+
+    /**
+     * 批量依据继续观看列表同步小组件集数与进度
+     */
+    @Synchronized
+    fun syncFromContinueWatching(
+        context: Context,
+        continueWatchingItems: List<BaseItemDto>
+    ): Boolean {
+        if (continueWatchingItems.isEmpty()) return false
+        var anyUpdated = false
+
+        for (item in continueWatchingItems) {
+            val resumeTicks = item.userData?.playbackPositionTicks ?: 0L
+            val positionMs = resumeTicks / 10000L
+            val durationTicks = item.runTimeTicks ?: 0L
+            val durationMs = durationTicks / 10000L
+            if (updateMediaProgress(context, item, positionMs, durationMs)) {
+                anyUpdated = true
+            }
+        }
+        return anyUpdated
+    }
+
+    /**
      * 更新播放进度
      */
     @Synchronized
@@ -142,19 +256,28 @@ object WidgetDataManager {
         if (index < 0) return false
 
         val item = currentList[index]
+        val oldMediaId = item.mediaId
         val percent = if (durationMs > 0) {
             ((positionMs * 100) / durationMs).toInt().coerceIn(0, 100)
         } else {
             item.progressPercent
         }
 
-        currentList[index] = item.copy(
+        val resolvedMediaId = mediaId.ifBlank { item.mediaId }
+        val updated = item.copy(
+            mediaId = resolvedMediaId,
             positionMs = positionMs,
             durationMs = durationMs,
             progressPercent = percent,
             updatedAt = System.currentTimeMillis()
         )
+        currentList[index] = updated
         saveMediaList(context, currentList)
+
+        if (oldMediaId != resolvedMediaId) {
+            migrateWidgetBindings(context, oldMediaId, resolvedMediaId)
+        }
+
         WidgetListProvider.notifyDataChanged(context)
         return true
     }
