@@ -58,6 +58,10 @@ import com.jellycine.player.preferences.PlayerPreferences
 import com.jellycine.app.discord.DiscordRpcEffect
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import com.jellycine.data.repository.MediaRepositoryProvider
+import com.jellycine.data.repository.EpisodeNavigationIds
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Player state data class to group related states
@@ -338,20 +342,73 @@ fun PlayerScreen(
     val chapterMarkersEnabled = playerPreferences.areChapterMarkersEnabled()
 
     // Track initialized media so this screen can switch to a new episode in-place.
+    val mediaRepository = remember { MediaRepositoryProvider.getInstance(context) }
+    var currentPlayingMediaId by remember(mediaId) { mutableStateOf(mediaId) }
+    var autoEpisodeNavIds by remember(currentPlayingMediaId) { mutableStateOf<EpisodeNavigationIds?>(null) }
+
+    LaunchedEffect(currentPlayingMediaId, previousEpisodeId, nextEpisodeId) {
+        if (previousEpisodeId.isNullOrBlank() || nextEpisodeId.isNullOrBlank()) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val navIds = mediaRepository.getEpisodeNavigationIds(currentPlayingMediaId)
+                    autoEpisodeNavIds = navIds
+                } catch (e: Exception) {
+                    android.util.Log.w("PlayerScreen", "Failed to fetch episode nav ids: ${e.message}")
+                }
+            }
+        }
+    }
+
+    val effectivePreviousEpisodeId = previousEpisodeId?.takeIf { it.isNotBlank() } ?: autoEpisodeNavIds?.previousEpisodeId
+    val effectiveNextEpisodeId = nextEpisodeId?.takeIf { it.isNotBlank() } ?: autoEpisodeNavIds?.nextEpisodeId
+
+    val effectiveOnWatchPreviousEpisode: () -> Unit = {
+        val prevId = effectivePreviousEpisodeId
+        if (!prevId.isNullOrBlank()) {
+            if (onWatchPreviousEpisode != null) {
+                onWatchPreviousEpisode.invoke(prevId)
+            } else {
+                currentPlayingMediaId = prevId
+            }
+        }
+    }
+
+    val effectiveOnWatchNextEpisode: () -> Unit = {
+        val nxtId = effectiveNextEpisodeId
+        if (!nxtId.isNullOrBlank()) {
+            if (onWatchNextEpisode != null) {
+                onWatchNextEpisode.invoke(nxtId)
+            } else {
+                currentPlayingMediaId = nxtId
+            }
+        }
+    }
+
+    val canWatchPreviousEpisode = !effectivePreviousEpisodeId.isNullOrBlank()
+    val canWatchNextEpisode = !effectiveNextEpisodeId.isNullOrBlank()
+
+    val effectiveOnPlaybackCompleted: ((String) -> Unit) = { completedId ->
+        if (onPlaybackCompleted != null) {
+            onPlaybackCompleted.invoke(completedId)
+        } else if (!effectiveNextEpisodeId.isNullOrBlank()) {
+            effectiveOnWatchNextEpisode()
+        }
+    }
+
     var initializedMediaId by remember { mutableStateOf<String?>(null) }
 
     PlayerScreenEffects(
         context = context,
         currentView = currentView,
         lifecycleOwner = lifecycleOwner,
-        mediaId = mediaId,
-        initialItemDetails = initialItemDetails,
+        mediaId = currentPlayingMediaId,
+        initialItemDetails = if (currentPlayingMediaId == mediaId) initialItemDetails else null,
         remoteMediaUrl = remoteMediaUrl,
         remoteMediaTitle = remoteMediaTitle,
         preferredAudioStreamIndex = preferredAudioStreamIndex,
         preferredSubtitleStreamIndex = preferredSubtitleStreamIndex,
         viewModel = viewModel,
-        onPlaybackCompleted = onPlaybackCompleted,
+        onPlaybackCompleted = effectiveOnPlaybackCompleted,
         preferredStreamIndexes = preferredStreamIndexes,
         playerState = playerState,
         useDeviceVolumeInPlayer = useDeviceVolumeInPlayer,
@@ -419,8 +476,7 @@ fun PlayerScreen(
     val activeCreditsSegment = activeSkippableSegment?.takeIf {
         it.type == SkippableSegmentType.CREDITS
     }
-    val canWatchPreviousEpisode = !previousEpisodeId.isNullOrBlank() && onWatchPreviousEpisode != null
-    val canWatchNextEpisode = !nextEpisodeId.isNullOrBlank() && onWatchNextEpisode != null
+    // canWatchPreviousEpisode & canWatchNextEpisode are calculated above from effective episode IDs
 
     LaunchedEffect(activeCreditsSegment?.startMs, activeCreditsSegment?.endMs) {
         if (activeCreditsSegment == null) {
@@ -430,7 +486,7 @@ fun PlayerScreen(
 
     LaunchedEffect(
         initializedMediaId,
-        nextEpisodeId,
+        effectiveNextEpisodeId,
         activeCreditsSegment != null,
         canWatchNextEpisode,
         dismissedCreditsPrompt,
@@ -439,8 +495,8 @@ fun PlayerScreen(
     ) {
         viewModel.updateNextEpisodeCache(
             context = context,
-            nextEpisodeId = nextEpisodeId.takeIf {
-                initializedMediaId == mediaId &&
+            nextEpisodeId = effectiveNextEpisodeId.takeIf {
+                initializedMediaId == currentPlayingMediaId &&
                     activeCreditsSegment != null &&
                     canWatchNextEpisode &&
                     !dismissedCreditsPrompt
@@ -480,14 +536,14 @@ fun PlayerScreen(
         initializedMediaId = null
         viewModel.initializePlayer(
             context = context,
-            mediaId = mediaId,
-            initialItemDetails = initialItemDetails,
+            mediaId = currentPlayingMediaId,
+            initialItemDetails = if (currentPlayingMediaId == mediaId) initialItemDetails else null,
             preferredAudioStreamIndex = preferredAudio,
             preferredSubtitleStreamIndex = preferredSubtitle,
             initialSeekPositionMs = resumePositionMs,
             startPlayback = shouldResumePlaying
         )
-        initializedMediaId = mediaId
+        initializedMediaId = currentPlayingMediaId
     }
 
     val applyStreamingQualitySelection: (String) -> Unit = { selectedQuality ->
@@ -678,16 +734,8 @@ fun PlayerScreen(
                 dismissedCreditsPrompt = true
                 uiState = uiState.copy(controlsVisible = false)
             },
-            onWatchPreviousEpisode = {
-                previousEpisodeId
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { onWatchPreviousEpisode?.invoke(it) }
-            },
-            onWatchNextEpisode = {
-                nextEpisodeId
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { onWatchNextEpisode?.invoke(it) }
-            },
+            onWatchPreviousEpisode = effectiveOnWatchPreviousEpisode,
+            onWatchNextEpisode = effectiveOnWatchNextEpisode,
             onShowMediaInfo = { showMediaInfo = true },
             onShowStreamingQualityDialog = { showStreamingQualityDialog = true },
             onShowAudioTranscodingDialog = {
