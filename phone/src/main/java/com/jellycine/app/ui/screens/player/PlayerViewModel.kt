@@ -581,8 +581,17 @@ class PlayerViewModel @Inject constructor(
                                 ).show()
                             }
                         }
+                        val mpvPlayUrl = if (sessionIsOfflinePlayback && !offlinePath.isNullOrBlank()) {
+                            if (offlinePath.startsWith("file://")) {
+                                android.net.Uri.parse(offlinePath).path ?: offlinePath
+                            } else {
+                                offlinePath
+                            }
+                        } else {
+                            mediaItem.localConfiguration?.uri?.toString().orEmpty()
+                        }
                         player.load(
-                            url = mediaItem.localConfiguration?.uri?.toString().orEmpty(),
+                            url = mpvPlayUrl,
                             subtitleUrls = mpvExternalSubtitleUrls.values.toList(),
                             audioTrackId = MPVPlayer.audioTrackId(
                                 apiMediaStreams,

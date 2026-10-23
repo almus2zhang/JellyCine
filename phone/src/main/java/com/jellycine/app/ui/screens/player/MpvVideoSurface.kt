@@ -109,14 +109,30 @@ fun MpvVideoSurface(
                         player.detachSurface()
                     }
                 })
+                if (holder.surface.isValid) {
+                    val frame = holder.surfaceFrame
+                    player.attachSurface(
+                        surface = holder.surface,
+                        width = frame.width(),
+                        height = frame.height()
+                    )
+                }
             }
         },
-        update = {
-            onSurfaceViewAvailable(it)
+        update = { surfaceView ->
+            onSurfaceViewAvailable(surfaceView)
+            if (surfaceView.holder.surface.isValid && !player.isSurfaceAttached()) {
+                val frame = surfaceView.holder.surfaceFrame
+                player.attachSurface(
+                    surface = surfaceView.holder.surface,
+                    width = frame.width(),
+                    height = frame.height()
+                )
+            }
             player.applySubtitlePreferences()
             player.setZoomMode(resizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM)
             player.setVideoTransform(scale, offsetX, offsetY)
-            val activity = it.context as? android.app.Activity
+            val activity = surfaceView.context as? android.app.Activity
             val isInPip = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
                 activity?.isInPictureInPictureMode == true
             } else false

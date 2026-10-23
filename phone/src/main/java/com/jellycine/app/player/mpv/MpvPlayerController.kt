@@ -49,6 +49,9 @@ class MpvPlayerController(
     private var currentSecondarySubtitleIsDanmaku: Boolean = false
     private val playerPreferences = PlayerPreferences(context.applicationContext)
     @Volatile
+    private var attachedSurface: Surface? = null
+    private var pendingLoadCommand: Array<String>? = null
+    @Volatile
     private var listener: Listener = listener
 
     val isPlaying: Boolean
@@ -214,7 +217,12 @@ class MpvPlayerController(
         } else {
             arrayOf("loadfile", url, "replace", "-1", loadOptions.joinToString(","))
         }
-        mpv.command(loadCommand)
+        if (attachedSurface?.isValid == true) {
+            pendingLoadCommand = null
+            mpv.command(loadCommand)
+        } else {
+            pendingLoadCommand = loadCommand
+        }
         mpv.setPropertyDouble("sub-delay", subtitleDelaySeconds)
         if (secondarySubtitleDelaySeconds != 0.0) {
             mpv.setPropertyDouble("secondary-sub-delay", secondarySubtitleDelaySeconds)
@@ -230,11 +238,14 @@ class MpvPlayerController(
 
     fun attachSurface(surface: Surface, width: Int, height: Int) {
         if (released) return
+        this.attachedSurface = surface
         this.surfaceWidth = width
         this.surfaceHeight = height
         mpv.attachSurface(surface)
-        mpv.setOptionString("force-window", "yes")
-        mpv.setOptionString("vo", videoOutput)
+        runCatching { mpv.setOptionString("force-window", "yes") }
+        runCatching { mpv.setPropertyString("force-window", "yes") }
+        runCatching { mpv.setOptionString("vo", videoOutput) }
+        runCatching { mpv.setPropertyString("vo", videoOutput) }
         val preserveStyles = playerPreferences.isPreserveSubtitleStylesEnabled()
         mpv.setOptionString("sub-use-margins", "yes")
         mpv.setOptionString("sub-ass-force-margins", "no")
@@ -245,6 +256,22 @@ class MpvPlayerController(
         if (width > 0 && height > 0) {
             mpv.setPropertyString("android-surface-size", "${width}x$height")
         }
+        val pendingCmd = pendingLoadCommand
+        if (pendingCmd != null) {
+            pendingLoadCommand = null
+            mpv.command(pendingCmd)
+        } else {
+            runCatching {
+                val currentVid = mpv.getPropertyString("vid")
+                if (currentVid == null || currentVid == "no" || currentVid == "0") {
+                    mpv.setPropertyString("vid", "auto")
+                }
+            }
+        }
+    }
+
+    fun isSurfaceAttached(): Boolean {
+        return !released && attachedSurface?.isValid == true
     }
 
     fun resizeSurface(width: Int, height: Int) {
@@ -377,8 +404,11 @@ class MpvPlayerController(
 
     fun detachSurface() {
         if (released) return
-        mpv.setOptionString("vo", "null")
-        mpv.setOptionString("force-window", "no")
+        this.attachedSurface = null
+        runCatching { mpv.setOptionString("vo", "null") }
+        runCatching { mpv.setPropertyString("vo", "null") }
+        runCatching { mpv.setOptionString("force-window", "no") }
+        runCatching { mpv.setPropertyString("force-window", "no") }
         mpv.detachSurface()
     }
 
@@ -515,6 +545,8 @@ class MpvPlayerController(
     fun release() {
         if (released) return
         released = true
+        attachedSurface = null
+        pendingLoadCommand = null
         runCatching { mpv.removeObserver(this) }
         runCatching { mpv.detachSurface() }
         runCatching { mpv.destroy() }
