@@ -61,8 +61,10 @@ fun AppNavigation() {
     
     val scope = rememberCoroutineScope()
     val startDestination = "startup"
+    var isProcessingShortcut by remember { mutableStateOf(false) }
 
     fun processShortcutRequest(request: com.jellycine.app.shortcut.ShortcutPlaybackBridge.PlaybackRequest) {
+        isProcessingShortcut = true
         scope.launch {
             try {
                 val resolvedId = com.jellycine.app.shortcut.SmartPlaybackDispatcher.resolveAndPrepare(
@@ -74,11 +76,14 @@ fun AppNavigation() {
                 com.jellycine.app.shortcut.ShortcutPlaybackBridge.clear()
                 if (resolvedId.isNotBlank()) {
                     navController.navigate("player/$resolvedId") {
+                        popUpTo("startup") { inclusive = true }
                         launchSingleTop = true
                     }
                 }
             } catch (e: Exception) {
                 android.util.Log.e("AppNavigation", "Failed to dispatch shortcut playback", e)
+            } finally {
+                isProcessingShortcut = false
             }
         }
     }
@@ -107,9 +112,11 @@ fun AppNavigation() {
                 StartupConnectingScreen(
                     onConnected = {
                         try {
-                            navController.navigate("dashboard") {
-                                popUpTo("startup") { inclusive = true }
-                                launchSingleTop = true
+                            if (!isProcessingShortcut && !com.jellycine.app.shortcut.ShortcutPlaybackBridge.hasActiveRequest()) {
+                                navController.navigate("dashboard") {
+                                    popUpTo("startup") { inclusive = true }
+                                    launchSingleTop = true
+                                }
                             }
                         } catch (e: Exception) {
                             android.util.Log.e("AppNavigation", "Navigation error onConnected", e)

@@ -47,6 +47,8 @@ object ShortcutPlaybackBridge {
         return req
     }
 
+    fun hasActiveRequest(): Boolean = activeRequest != null
+
     fun clear() {
         activeRequest = null
         _pendingRequest.resetReplayCache()

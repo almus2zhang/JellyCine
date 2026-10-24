@@ -217,7 +217,7 @@ class MpvPlayerController(
         } else {
             arrayOf("loadfile", url, "replace", "-1", loadOptions.joinToString(","))
         }
-        if (attachedSurface?.isValid == true) {
+        if (attachedSurface?.isValid == true && surfaceWidth > 0 && surfaceHeight > 0) {
             pendingLoadCommand = null
             mpv.command(loadCommand)
         } else {
@@ -239,8 +239,10 @@ class MpvPlayerController(
     fun attachSurface(surface: Surface, width: Int, height: Int) {
         if (released) return
         this.attachedSurface = surface
-        this.surfaceWidth = width
-        this.surfaceHeight = height
+        if (width > 0 && height > 0) {
+            this.surfaceWidth = width
+            this.surfaceHeight = height
+        }
         mpv.attachSurface(surface)
         runCatching { mpv.setOptionString("force-window", "yes") }
         runCatching { mpv.setPropertyString("force-window", "yes") }
@@ -253,18 +255,28 @@ class MpvPlayerController(
         mpv.setOptionString("sub-ass-override", assOverride)
         mpv.setOptionString("secondary-sub-visibility", "yes")
         mpv.setOptionString("secondary-sub-ass-override", "no")
-        if (width > 0 && height > 0) {
-            mpv.setPropertyString("android-surface-size", "${width}x$height")
+        if (this.surfaceWidth > 0 && this.surfaceHeight > 0) {
+            mpv.setPropertyString("android-surface-size", "${this.surfaceWidth}x${this.surfaceHeight}")
         }
         val pendingCmd = pendingLoadCommand
         if (pendingCmd != null) {
-            pendingLoadCommand = null
-            mpv.command(pendingCmd)
+            if (this.surfaceWidth > 0 && this.surfaceHeight > 0) {
+                pendingLoadCommand = null
+                mpv.command(pendingCmd)
+            }
         } else {
             runCatching {
                 val currentVid = mpv.getPropertyString("vid")
                 if (currentVid == null || currentVid == "no" || currentVid == "0") {
                     mpv.setPropertyString("vid", "auto")
+                }
+            }
+            if (ready) {
+                runCatching {
+                    mpv.command(arrayOf("seek", "0", "relative+exact"))
+                }
+                if (playWhenReady) {
+                    mpv.setPropertyBoolean("pause", false)
                 }
             }
         }
@@ -279,6 +291,11 @@ class MpvPlayerController(
             this.surfaceWidth = width
             this.surfaceHeight = height
             mpv.setPropertyString("android-surface-size", "${width}x$height")
+            val pendingCmd = pendingLoadCommand
+            if (pendingCmd != null && attachedSurface?.isValid == true) {
+                pendingLoadCommand = null
+                mpv.command(pendingCmd)
+            }
         }
     }
 
@@ -405,10 +422,6 @@ class MpvPlayerController(
     fun detachSurface() {
         if (released) return
         this.attachedSurface = null
-        runCatching { mpv.setOptionString("vo", "null") }
-        runCatching { mpv.setPropertyString("vo", "null") }
-        runCatching { mpv.setOptionString("force-window", "no") }
-        runCatching { mpv.setPropertyString("force-window", "no") }
         mpv.detachSurface()
     }
 

@@ -82,10 +82,12 @@ fun MpvVideoSurface(
                 holder.addCallback(object : SurfaceHolder.Callback {
                     override fun surfaceCreated(holder: SurfaceHolder) {
                         val frame = holder.surfaceFrame
+                        val w = frame.width().takeIf { it > 0 } ?: this@apply.width
+                        val h = frame.height().takeIf { it > 0 } ?: this@apply.height
                         player.attachSurface(
                             surface = holder.surface,
-                            width = frame.width(),
-                            height = frame.height()
+                            width = w,
+                            height = h
                         )
                     }
 
@@ -95,26 +97,25 @@ fun MpvVideoSurface(
                         width: Int,
                         height: Int
                     ) {
-                        player.resizeSurface(width, height)
+                        if (!player.isSurfaceAttached()) {
+                            player.attachSurface(holder.surface, width, height)
+                        } else {
+                            player.resizeSurface(width, height)
+                        }
                     }
 
                     override fun surfaceDestroyed(holder: SurfaceHolder) {
-                        val activity = context as? android.app.Activity
-                        val isInPip = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                            activity?.isInPictureInPictureMode == true
-                        } else false
-                        if (!isInPip) {
-                            player.pause()
-                        }
                         player.detachSurface()
                     }
                 })
                 if (holder.surface.isValid) {
                     val frame = holder.surfaceFrame
+                    val w = frame.width().takeIf { it > 0 } ?: this.width
+                    val h = frame.height().takeIf { it > 0 } ?: this.height
                     player.attachSurface(
                         surface = holder.surface,
-                        width = frame.width(),
-                        height = frame.height()
+                        width = w,
+                        height = h
                     )
                 }
             }
@@ -123,10 +124,12 @@ fun MpvVideoSurface(
             onSurfaceViewAvailable(surfaceView)
             if (surfaceView.holder.surface.isValid && !player.isSurfaceAttached()) {
                 val frame = surfaceView.holder.surfaceFrame
+                val w = frame.width().takeIf { it > 0 } ?: surfaceView.width
+                val h = frame.height().takeIf { it > 0 } ?: surfaceView.height
                 player.attachSurface(
                     surface = surfaceView.holder.surface,
-                    width = frame.width(),
-                    height = frame.height()
+                    width = w,
+                    height = h
                 )
             }
             player.applySubtitlePreferences()
