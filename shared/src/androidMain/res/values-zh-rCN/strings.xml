@@ -788,4 +788,8 @@
     <string name="oneyes_connected_status">已连接 OneYes 配置中心</string>
     <string name="oneyes_push_success">配置成功推送到云端</string>
     <string name="oneyes_pull_success">配置成功从云端拉取并应用</string>
+    <string name="auth_or_divider">或者</string>
+    <string name="auth_btn_oneyes_sync">OneYes 云端同步 / 恢复配置</string>
+    <string name="auth_tooltip_cloud_sync">云端同步 / 备份恢复</string>
+    <string name="settings_cloud_sync_short">云端同步</string>
 </resources>

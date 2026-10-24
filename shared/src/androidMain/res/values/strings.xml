@@ -801,4 +801,8 @@
     <string name="oneyes_connected_status">Connected to OneYes Hub</string>
     <string name="oneyes_push_success">Configuration pushed to cloud successfully</string>
     <string name="oneyes_pull_success">Configuration pulled from cloud successfully</string>
+    <string name="auth_or_divider">OR</string>
+    <string name="auth_btn_oneyes_sync">OneYes Cloud Sync / Restore</string>
+    <string name="auth_tooltip_cloud_sync">Cloud Sync &amp; Restore</string>
+    <string name="settings_cloud_sync_short">Cloud Sync</string>
 </resources>

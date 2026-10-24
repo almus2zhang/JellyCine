@@ -1,4 +1,14 @@
 package com.jellycine.app.ui.screens.auth
+import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableIntStateOf
+import com.jellycine.app.ui.screens.dashboard.settings.BackupRestoreDialog
+import com.jellycine.app.ui.screens.dashboard.settings.SettingsViewModel
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -99,6 +109,16 @@ fun AuthScreen(
     val authViewModel: AuthScreenViewModel = viewModel {
         AuthScreenViewModel(context.applicationContext as android.app.Application)
     }
+    val settingsViewModel: SettingsViewModel = viewModel {
+        SettingsViewModel(
+            context = context.applicationContext,
+            includeProfileData = false,
+            includeLocalSettings = false
+        )
+    }
+    var showBackupRestoreDialog by remember { mutableStateOf(false) }
+    var backupRestoreInitialTab by remember { mutableIntStateOf(2) }
+    val scope = rememberCoroutineScope()
     val authRepository = remember { AuthRepositoryProvider.getInstance(context) }
     val serverSwitchViewModel: ServerSwitchViewModel = viewModel {
         ServerSwitchViewModel(context.applicationContext as android.app.Application)
@@ -171,6 +191,10 @@ fun AuthScreen(
                 currentServerName = selectedServerName,
                 currentServerUrl = selectedServerUrl,
                 isSwitching = serverSwitchUiState.isBusy,
+                onOpenBackupRestore = {
+                    backupRestoreInitialTab = 2
+                    showBackupRestoreDialog = true
+                },
                 onAddServer = onAddServer,
                 onAddUser = { restoredServerUrl, restoredServerName ->
                     selectedServerUrl = restoredServerUrl
@@ -231,6 +255,10 @@ fun AuthScreen(
                                 selectedServerName = name
                                 currentStep = AuthStep.LOGIN
                             }
+                        },
+                        onOpenOneYesSync = {
+                            backupRestoreInitialTab = 2
+                            showBackupRestoreDialog = true
                         }
                     )
 
@@ -255,29 +283,76 @@ fun AuthScreen(
                 }
             }
 
-            IconButton(
-                onClick = {
-                    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        Intent(AndroidSettings.ACTION_APP_LOCALE_SETTINGS).apply {
-                            data = Uri.fromParts("package", context.packageName, null)
-                        }
-                    } else {
-                        Intent(AndroidSettings.ACTION_LOCALE_SETTINGS)
-                    }
-                    runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                },
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 4.dp, end = 4.dp)
-                    .size(48.dp)
+                    .padding(top = 4.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Translate,
-                    contentDescription = stringResource(R.string.settings_language),
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
+                IconButton(
+                    onClick = {
+                        backupRestoreInitialTab = 2
+                        showBackupRestoreDialog = true
+                    },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CloudSync,
+                        contentDescription = stringResource(R.string.auth_tooltip_cloud_sync),
+                        tint = Color(0xFF3B82F6),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            Intent(AndroidSettings.ACTION_APP_LOCALE_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                        } else {
+                            Intent(AndroidSettings.ACTION_LOCALE_SETTINGS)
+                        }
+                        runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    },
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Translate,
+                        contentDescription = stringResource(R.string.settings_language),
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
+        }
+
+        if (showBackupRestoreDialog) {
+            BackupRestoreDialog(
+                viewModel = settingsViewModel,
+                initialTabIndex = backupRestoreInitialTab,
+                onRestoreSuccess = {
+                    scope.launch {
+                        val secureStore = com.jellycine.data.security.SecureSessionStore(context)
+                        val snapshot = authRepository.getActiveSessionSnapshot()
+                        if (snapshot.savedServers.isNotEmpty()) {
+                            val activeServer = snapshot.savedServers.firstOrNull { it.id == snapshot.activeServerId }
+                                ?: snapshot.savedServers.first()
+                            val token = secureStore.getToken(activeServer.id)
+                            if (!token.isNullOrBlank()) {
+                                onAuthSuccess()
+                            } else {
+                                selectedServerUrl = activeServer.serverUrl
+                                selectedServerName = activeServer.displayName
+                                authViewModel.updateServerUrl(activeServer.serverUrl)
+                                authViewModel.updateUsername(activeServer.username)
+                                currentStep = AuthStep.LOGIN
+                            }
+                        }
+                    }
+                },
+                onDismiss = { showBackupRestoreDialog = false }
+            )
         }
     }
 }
@@ -374,7 +449,8 @@ private fun ServerConnectionContent(
     isLoading: Boolean,
     errorMessage: String?,
     onServerUrlChange: (String) -> Unit,
-    onConnect: () -> Unit
+    onConnect: () -> Unit,
+    onOpenOneYesSync: () -> Unit = {}
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()),
@@ -413,6 +489,7 @@ private fun ServerConnectionContent(
                 errorMessage = errorMessage,
                 onServerUrlChange = onServerUrlChange,
                 onConnect = onConnect,
+                onOpenOneYesSync = onOpenOneYesSync,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -470,7 +547,8 @@ private fun ConnectionForm(
     isLoading: Boolean,
     errorMessage: String?,
     onServerUrlChange: (String) -> Unit,
-    onConnect: () -> Unit
+    onConnect: () -> Unit,
+    onOpenOneYesSync: () -> Unit = {}
 ) {
     val serverUrlBringIntoView = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
@@ -550,6 +628,53 @@ private fun ConnectionForm(
                 } else {
                     Text(stringResource(R.string.auth_connect_to_server))
                 }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalDivider(
+                    modifier = Modifier.weight(1f),
+                    color = Color.White.copy(alpha = 0.15f)
+                )
+                Text(
+                    text = stringResource(R.string.auth_or_divider),
+                    color = Color.White.copy(alpha = 0.5f),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                HorizontalDivider(
+                    modifier = Modifier.weight(1f),
+                    color = Color.White.copy(alpha = 0.15f)
+                )
+            }
+
+            OutlinedButton(
+                onClick = onOpenOneYesSync,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color(0xFF3B82F6)
+                ),
+                border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.45f))
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.CloudSync,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = Color(0xFF3B82F6)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.auth_btn_oneyes_sync),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
             }
         }
     }

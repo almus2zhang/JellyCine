@@ -52,12 +52,14 @@ import java.util.*
 @Composable
 fun BackupRestoreDialog(
     viewModel: SettingsViewModel,
+    initialTabIndex: Int = 0,
+    onRestoreSuccess: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var selectedTabIndex by remember { mutableIntStateOf(initialTabIndex) }
 
     // Export states
     var isEncryptEnabled by remember { mutableStateOf(true) }
@@ -776,6 +778,7 @@ fun BackupRestoreDialog(
                                             oneYesLastSyncVersion = syncRes.version
                                             oneYesStatusMessage = syncRes.message
                                             Toast.makeText(context, syncRes.message, Toast.LENGTH_LONG).show()
+                                            onRestoreSuccess?.invoke()
                                         } else {
                                             val err = res.exceptionOrNull()?.message ?: "同步失败"
                                             oneYesStatusMessage = "失败: $err"
@@ -873,6 +876,7 @@ fun BackupRestoreDialog(
                                                     val msg = context.getString(R.string.oneyes_pull_success) + " (v$ver)"
                                                     oneYesStatusMessage = msg
                                                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                                    onRestoreSuccess?.invoke()
                                                 } else {
                                                     oneYesStatusMessage = context.getString(R.string.oneyes_pull_empty)
                                                     Toast.makeText(context, context.getString(R.string.oneyes_pull_empty), Toast.LENGTH_SHORT).show()
@@ -1059,6 +1063,7 @@ fun BackupRestoreDialog(
                                     context.getString(R.string.backup_import_success, count),
                                     Toast.LENGTH_LONG
                                 ).show()
+                                onRestoreSuccess?.invoke()
                                 onDismiss()
                             } else {
                                 Toast.makeText(

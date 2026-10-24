@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -87,6 +88,14 @@ fun StartupConnectingScreen(
     val serverSwitchViewModel: ServerSwitchViewModel = viewModel {
         ServerSwitchViewModel(context.applicationContext as android.app.Application)
     }
+    val settingsViewModel: com.jellycine.app.ui.screens.dashboard.settings.SettingsViewModel = viewModel {
+        com.jellycine.app.ui.screens.dashboard.settings.SettingsViewModel(
+            context = context.applicationContext,
+            includeProfileData = false,
+            includeLocalSettings = false
+        )
+    }
+    var showBackupRestoreDialog by remember { mutableStateOf(false) }
 
     val sessionSnapshot by authRepository.observeActiveSession().collectAsState(
         initial = authRepository.getActiveSessionSnapshot()
@@ -382,8 +391,34 @@ fun StartupConnectingScreen(
                 }
             }
 
-            // Offline Downloads shortcut if in error state
+            // Cloud Sync & Offline Downloads shortcut if in error state
             if (status == ConnectionStatus.FAILED) {
+                Spacer(modifier = Modifier.height(14.dp))
+                OutlinedButton(
+                    onClick = { showBackupRestoreDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.45f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color(0xFF1A1A20),
+                        contentColor = Color(0xFF3B82F6)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CloudSync,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color(0xFF3B82F6)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.auth_btn_oneyes_sync),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedButton(
                     onClick = onNavigateToDownloads,
@@ -444,7 +479,19 @@ fun StartupConnectingScreen(
             onRenameServer = { serverId, newName ->
                 serverSwitchViewModel.renameServer(serverId, newName)
             },
-            showRemoveAction = true
+            showRemoveAction = true,
+            onOpenBackupRestore = { showBackupRestoreDialog = true }
         )
+
+        if (showBackupRestoreDialog) {
+            com.jellycine.app.ui.screens.dashboard.settings.BackupRestoreDialog(
+                viewModel = settingsViewModel,
+                initialTabIndex = 2,
+                onRestoreSuccess = {
+                    connectionAttempt++
+                },
+                onDismiss = { showBackupRestoreDialog = false }
+            )
+        }
     }
 }

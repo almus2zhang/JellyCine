@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
@@ -166,6 +167,7 @@ internal fun ServerSwitchDialogsHost(
     dismissServerDialogOnRequest: Boolean = true,
     dismissUserDialogOnRequest: Boolean = true,
     showServerCloseAction: Boolean = true,
+    onOpenBackupRestore: (() -> Unit)? = null,
     onServerDialogDismiss: (() -> Unit)? = null,
     onUserDialogDismiss: (() -> Unit)? = null
 ) {
@@ -180,6 +182,7 @@ internal fun ServerSwitchDialogsHost(
             showRemoveAction = showRemoveAction,
             dismissOnRequest = dismissServerDialogOnRequest,
             showCloseAction = showServerCloseAction,
+            onOpenBackupRestore = onOpenBackupRestore,
             onDismiss = dismissServers,
             onAddServer = {
                 state.dismissServers()
@@ -304,6 +307,7 @@ internal fun ServerSwitchDialog(
     showRemoveAction: Boolean = true,
     dismissOnRequest: Boolean = true,
     showCloseAction: Boolean = true,
+    onOpenBackupRestore: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onAddServer: () -> Unit,
     onRequestRemoveServer: (AuthRepository.SavedServer) -> Unit,
@@ -499,20 +503,46 @@ internal fun ServerSwitchDialog(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = if (showCloseAction) Arrangement.SpaceBetween else Arrangement.End,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (showCloseAction) {
                     TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.settings_close), color = Color(0xFFD0D0D0))
                     }
+                } else if (onOpenBackupRestore != null) {
+                    TextButton(onClick = onOpenBackupRestore) {
+                        Icon(
+                            imageVector = Icons.Rounded.CloudSync,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Color(0xFF3B82F6)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.settings_cloud_sync_short), color = Color(0xFF3B82F6))
+                    }
                 }
 
-                TextButton(
-                    enabled = !isSwitching,
-                    onClick = onAddServer
-                ) {
-                    Text(stringResource(R.string.settings_add_server), color = Color(0xFFF97316))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (showCloseAction && onOpenBackupRestore != null) {
+                        TextButton(onClick = onOpenBackupRestore) {
+                            Icon(
+                                imageVector = Icons.Rounded.CloudSync,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color(0xFF3B82F6)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(stringResource(R.string.settings_cloud_sync_short), color = Color(0xFF3B82F6))
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    TextButton(
+                        enabled = !isSwitching,
+                        onClick = onAddServer
+                    ) {
+                        Text(stringResource(R.string.settings_add_server), color = Color(0xFFF97316))
+                    }
                 }
             }
         }
