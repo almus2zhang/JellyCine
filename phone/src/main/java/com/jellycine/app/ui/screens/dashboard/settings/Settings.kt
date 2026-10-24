@@ -74,6 +74,7 @@ fun Settings(
     val serverSwitchDialogsState = rememberServerSwitchDialogsState()
 
     var showNetworkDialog by remember { mutableStateOf(false) }
+    var showBackupDialog by remember { mutableStateOf(false) }
     var editingNetworkTimeout by remember { mutableStateOf<NetworkTimeoutField?>(null) }
     val activeSavedServer = remember(uiState.savedServers, uiState.activeServerId) {
         uiState.savedServers.firstOrNull { it.id == uiState.activeServerId }
@@ -240,6 +241,17 @@ fun Settings(
                         accentColor = Color(0xFF22D3EE),
                         onClick = onNavigateToCacheSettings
                     )
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+                    SettingsItem(
+                        icon = Icons.Rounded.CloudSync,
+                        title = stringResource(R.string.settings_backup_and_restore),
+                        subtitle = stringResource(R.string.settings_backup_and_restore_subtitle),
+                        accentColor = Color(0xFF3B82F6),
+                        onClick = { showBackupDialog = true }
+                    )
                 }
             }
 
@@ -303,6 +315,13 @@ fun Settings(
         LaunchedEffect(error) {
             viewModel.clearError()
         }
+    }
+
+    if (showBackupDialog) {
+        BackupRestoreDialog(
+            viewModel = viewModel,
+            onDismiss = { showBackupDialog = false }
+        )
     }
 
     if (showNetworkDialog) {

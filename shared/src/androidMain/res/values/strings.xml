@@ -748,4 +748,36 @@
     <string name="startup_mode_301">301 Dynamic</string>
     <string name="startup_mode_txt">TXT DNS</string>
     <string name="startup_mode_direct">Direct Connection</string>
+    <!-- Backup and Restore -->
+    <string name="settings_backup_and_restore">Backup &amp; Restore</string>
+    <string name="settings_backup_and_restore_subtitle">Import or export servers, player &amp; app preferences</string>
+    <string name="backup_dialog_title">Configuration Backup &amp; Restore</string>
+    <string name="backup_tab_export">Export</string>
+    <string name="backup_tab_import">Import</string>
+    <string name="backup_export_desc">Export your saved servers, player settings, and preferences to a backup file.</string>
+    <string name="backup_encrypt_toggle">Encrypt Backup (Recommended)</string>
+    <string name="backup_encrypt_hint">Protects server credentials and settings with AES-256-GCM encryption</string>
+    <string name="backup_password_label">Password</string>
+    <string name="backup_confirm_password_label">Confirm Password</string>
+    <string name="backup_password_mismatch">Passwords do not match</string>
+    <string name="backup_password_empty">Please enter a password</string>
+    <string name="backup_include_credentials">Include Login Credentials &amp; Tokens</string>
+    <string name="backup_include_credentials_hint">Allows direct connection to servers after restore without re-login</string>
+    <string name="backup_export_btn_save">Save to File</string>
+    <string name="backup_export_btn_share">Share File</string>
+    <string name="backup_import_desc">Select a backup file or paste exported JSON to restore your configuration.</string>
+    <string name="backup_import_btn_file">Select Backup File</string>
+    <string name="backup_import_btn_clipboard">Paste from Clipboard</string>
+    <string name="backup_decrypt_title">Encrypted Backup</string>
+    <string name="backup_decrypt_desc">Please enter the password used to encrypt this backup</string>
+    <string name="backup_decrypt_error">Decryption failed: Incorrect password or corrupted file</string>
+    <string name="backup_invalid_format">Invalid backup file format</string>
+    <string name="backup_preview_title">Confirm Restore</string>
+    <string name="backup_preview_servers">Saved servers: %d</string>
+    <string name="backup_preview_time">Exported: %s</string>
+    <string name="backup_preview_version">Version: %s</string>
+    <string name="backup_confirm_import_btn">Restore &amp; Apply</string>
+    <string name="backup_import_success">Configuration restored successfully (%d servers)</string>
+    <string name="backup_export_success">Backup exported successfully</string>
+    <string name="backup_clipboard_empty">Clipboard is empty or contains invalid content</string>
 </resources>

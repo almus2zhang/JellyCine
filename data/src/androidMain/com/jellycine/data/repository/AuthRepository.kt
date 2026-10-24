@@ -492,6 +492,40 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    suspend fun importSavedServers(
+        newServers: List<SavedServer>,
+        preferredActiveServerId: String? = null
+    ): Result<Unit> {
+        return try {
+            legacyStorageMigrated()
+            dataStore.edit { prefs ->
+                val currentServers = savedServers(prefs[SAVED_SERVERS_KEY])
+                val merged = (newServers + currentServers).distinctBy { it.id }
+                prefs[SAVED_SERVERS_KEY] = serializeSavedServers(merged)
+
+                val targetActiveId = preferredActiveServerId?.takeIf { id -> merged.any { it.id == id } }
+                    ?: prefs[ACTIVE_SERVER_ID_KEY]?.takeIf { id -> merged.any { it.id == id } }
+                    ?: merged.firstOrNull()?.id
+
+                if (targetActiveId != null) {
+                    val active = merged.first { it.id == targetActiveId }
+                    val token = secureSessionStore.getToken(active.id)
+                    prefs[ACTIVE_SERVER_ID_KEY] = active.id
+                    prefs[SERVER_URL_KEY] = active.serverUrl
+                    prefs[SERVER_NAME_KEY] = active.displayName
+                    prefs[SERVER_TYPE_KEY] = active.serverTypeRaw
+                    prefs[USER_ID_KEY] = active.userId
+                    prefs[USERNAME_KEY] = active.username
+                    prefs[SOURCE_URL_KEY] = active.sourceUrl ?: ""
+                    prefs[IS_AUTHENTICATED_KEY] = !token.isNullOrBlank() && active.userId.isNotBlank()
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun getActiveSourceUrl(): String? = cachedSnapshot?.sourceUrl
 
     suspend fun refreshActive302Session(force: Boolean = false): Result<String> = refreshSessionMutex.withLock {

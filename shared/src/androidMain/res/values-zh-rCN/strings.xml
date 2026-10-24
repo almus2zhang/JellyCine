@@ -735,4 +735,36 @@
     <string name="startup_mode_301">301 动态解析</string>
     <string name="startup_mode_txt">TXT 域名解析</string>
     <string name="startup_mode_direct">直连服务器</string>
+    <!-- Backup and Restore -->
+    <string name="settings_backup_and_restore">配置备份与还原</string>
+    <string name="settings_backup_and_restore_subtitle">导入或导出服务器连接、播放器与偏好设置</string>
+    <string name="backup_dialog_title">配置备份与还原</string>
+    <string name="backup_tab_export">导出配置</string>
+    <string name="backup_tab_import">导入配置</string>
+    <string name="backup_export_desc">将已保存的服务器连接、播放器参数及应用偏好设置导出为备份文件。</string>
+    <string name="backup_encrypt_toggle">使用密码加密导出（推荐）</string>
+    <string name="backup_encrypt_hint">使用 AES-256-GCM 高强度加密保护服务器地址、登录账号与 Token 凭据</string>
+    <string name="backup_password_label">加密密码</string>
+    <string name="backup_confirm_password_label">确认密码</string>
+    <string name="backup_password_mismatch">两次输入的密码不一致</string>
+    <string name="backup_password_empty">请输入加密密码</string>
+    <string name="backup_include_credentials">包含服务器登录凭据与 Token</string>
+    <string name="backup_include_credentials_hint">还原后可免重新登录直接连入服务器</string>
+    <string name="backup_export_btn_save">保存到文件</string>
+    <string name="backup_export_btn_share">分享备份文件</string>
+    <string name="backup_import_desc">选择此前导出的备份文件或从剪贴板粘贴恢复配置。</string>
+    <string name="backup_import_btn_file">选择备份文件</string>
+    <string name="backup_import_btn_clipboard">从剪贴板导入</string>
+    <string name="backup_decrypt_title">需要解密密码</string>
+    <string name="backup_decrypt_desc">此备份文件已加密，请输入导出时设置的加密密码</string>
+    <string name="backup_decrypt_error">解密失败：密码错误或文件已损坏</string>
+    <string name="backup_invalid_format">无效的配置文件格式</string>
+    <string name="backup_preview_title">确认导入配置</string>
+    <string name="backup_preview_servers">包含服务器：%d 个</string>
+    <string name="backup_preview_time">导出时间：%s</string>
+    <string name="backup_preview_version">应用版本：%s</string>
+    <string name="backup_confirm_import_btn">立即恢复并应用</string>
+    <string name="backup_import_success">配置导入成功，已恢复 %d 个服务器及偏好</string>
+    <string name="backup_export_success">备份导出成功</string>
+    <string name="backup_clipboard_empty">剪贴板中没有有效的备份内容</string>
 </resources>

@@ -557,4 +557,36 @@ class SettingsViewModel(
             message = message
         )
     }
+
+    private val backupManager = com.jellycine.app.backup.ConfigBackupManager(context)
+
+    suspend fun exportConfiguration(
+        password: String?,
+        includeCredentials: Boolean = true
+    ): Result<String> {
+        return backupManager.exportConfig(password, includeCredentials)
+    }
+
+    fun inspectBackup(jsonString: String): Result<com.jellycine.app.backup.BackupEnvelopeInfo> {
+        return backupManager.inspectBackup(jsonString)
+    }
+
+    suspend fun parseBackup(
+        jsonString: String,
+        password: String? = null
+    ): Result<com.jellycine.app.backup.BackupPreview> {
+        return backupManager.parseAndVerify(jsonString, password)
+    }
+
+    suspend fun restoreConfiguration(
+        payload: com.jellycine.app.backup.ConfigBackupPayload
+    ): Result<Int> {
+        val result = backupManager.applyBackup(payload)
+        if (result.isSuccess) {
+            loadPreferences()
+            loadNetworkPreferences()
+            reloadSeerrConnection()
+        }
+        return result
+    }
 }
