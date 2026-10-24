@@ -3,6 +3,7 @@ package com.jellycine.app.backup
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
+import com.jellycine.app.backup.oneyes.OneYesClient
 import com.jellycine.app.BuildConfig
 import com.jellycine.data.preferences.DownloadPreferences
 import com.jellycine.data.preferences.NetworkPreferences
@@ -90,52 +91,57 @@ class ConfigBackupManager(private val context: Context) {
         encodeDefaults = true
     }
 
+    suspend fun getLocalConfigPayload(
+        includeCredentials: Boolean = true
+    ): ConfigBackupPayload = withContext(Dispatchers.IO) {
+        val savedServers = authRepository.getSavedServers().first()
+        val activeServerId = authRepository.getActiveServerId().first()
+
+        val tokens = mutableMapOf<String, String>()
+        val credentials = mutableMapOf<String, CredentialBackup>()
+
+        if (includeCredentials) {
+            savedServers.forEach { server ->
+                val token = secureSessionStore.getToken(server.id)
+                if (!token.isNullOrBlank()) {
+                    tokens[server.id] = token
+                }
+                val cred = secureSessionStore.getCredentials(server.id)
+                    ?: server.sourceUrl?.let { secureSessionStore.getCredentials(it) }
+                if (cred != null) {
+                    credentials[server.id] = CredentialBackup(cred.first, cred.second)
+                }
+            }
+        }
+
+        val playerPrefs = appContext.getSharedPreferences("jellycine_player_prefs", Context.MODE_PRIVATE)
+        val interfacePrefs = appContext.getSharedPreferences("jellycine_download_prefs", Context.MODE_PRIVATE)
+        val networkPrefs = appContext.getSharedPreferences("network_preferences", Context.MODE_PRIVATE)
+        val downloadPrefs = appContext.getSharedPreferences("download_preferences", Context.MODE_PRIVATE)
+        val seerrPrefs = appContext.getSharedPreferences("seerr_prefs", Context.MODE_PRIVATE)
+
+        ConfigBackupPayload(
+            createdAt = System.currentTimeMillis(),
+            appVersionName = BuildConfig.VERSION_NAME,
+            appVersionCode = BuildConfig.VERSION_CODE,
+            servers = savedServers,
+            activeServerId = activeServerId,
+            tokens = tokens,
+            credentials = credentials,
+            playerPreferences = dumpPreferences(playerPrefs),
+            interfacePreferences = dumpPreferences(interfacePrefs),
+            networkPreferences = dumpPreferences(networkPrefs),
+            downloadPreferences = dumpPreferences(downloadPrefs),
+            seerrPreferences = dumpPreferences(seerrPrefs)
+        )
+    }
+
     suspend fun exportConfig(
         password: String?,
         includeCredentials: Boolean = true
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val savedServers = authRepository.getSavedServers().first()
-            val activeServerId = authRepository.getActiveServerId().first()
-
-            val tokens = mutableMapOf<String, String>()
-            val credentials = mutableMapOf<String, CredentialBackup>()
-
-            if (includeCredentials) {
-                savedServers.forEach { server ->
-                    val token = secureSessionStore.getToken(server.id)
-                    if (!token.isNullOrBlank()) {
-                        tokens[server.id] = token
-                    }
-                    val cred = secureSessionStore.getCredentials(server.id)
-                        ?: server.sourceUrl?.let { secureSessionStore.getCredentials(it) }
-                    if (cred != null) {
-                        credentials[server.id] = CredentialBackup(cred.first, cred.second)
-                    }
-                }
-            }
-
-            val playerPrefs = appContext.getSharedPreferences("jellycine_player_prefs", Context.MODE_PRIVATE)
-            val interfacePrefs = appContext.getSharedPreferences("jellycine_download_prefs", Context.MODE_PRIVATE)
-            val networkPrefs = appContext.getSharedPreferences("network_preferences", Context.MODE_PRIVATE)
-            val downloadPrefs = appContext.getSharedPreferences("download_preferences", Context.MODE_PRIVATE)
-            val seerrPrefs = appContext.getSharedPreferences("seerr_prefs", Context.MODE_PRIVATE)
-
-            val payload = ConfigBackupPayload(
-                createdAt = System.currentTimeMillis(),
-                appVersionName = BuildConfig.VERSION_NAME,
-                appVersionCode = BuildConfig.VERSION_CODE,
-                servers = savedServers,
-                activeServerId = activeServerId,
-                tokens = tokens,
-                credentials = credentials,
-                playerPreferences = dumpPreferences(playerPrefs),
-                interfacePreferences = dumpPreferences(interfacePrefs),
-                networkPreferences = dumpPreferences(networkPrefs),
-                downloadPreferences = dumpPreferences(downloadPrefs),
-                seerrPreferences = dumpPreferences(seerrPrefs)
-            )
-
+            val payload = getLocalConfigPayload(includeCredentials)
             val payloadJson = json.encodeToString(payload)
 
             val envelope = if (!password.isNullOrBlank()) {
@@ -268,6 +274,161 @@ class ConfigBackupManager(private val context: Context) {
             }
 
             Result.success(payload.servers.size)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    data class OneYesSyncResult(
+        val version: Int,
+        val serverCount: Int,
+        val isFirstUpload: Boolean,
+        val message: String
+    )
+
+    suspend fun syncWithOneYes(
+        client: OneYesClient,
+        mergeStrategy: String = "remote_first"
+    ): Result<OneYesSyncResult> = withContext(Dispatchers.IO) {
+        try {
+            client.ensureAccount().getOrThrow()
+
+            val (remoteJson, remoteVer) = client.pull().getOrThrow()
+            val localPayload = getLocalConfigPayload(includeCredentials = true)
+
+            if (remoteJson.isNullOrBlank()) {
+                val newVer = client.push(json.encodeToString(localPayload), "首次同步本地配置").getOrThrow()
+                return@withContext Result.success(
+                    OneYesSyncResult(
+                        version = newVer,
+                        serverCount = localPayload.servers.size,
+                        isFirstUpload = true,
+                        message = "首次同步成功，本地配置已上传至云端 (v$newVer)"
+                    )
+                )
+            }
+
+            val remotePayload = json.decodeFromString<ConfigBackupPayload>(remoteJson)
+
+            val mergedServers = if (mergeStrategy == "remote_first") {
+                val remoteIds = remotePayload.servers.map { it.id }.toSet()
+                remotePayload.servers + localPayload.servers.filter { it.id !in remoteIds }
+            } else {
+                val localIds = localPayload.servers.map { it.id }.toSet()
+                localPayload.servers + remotePayload.servers.filter { it.id !in localIds }
+            }
+
+            val mergedTokens = if (mergeStrategy == "remote_first") {
+                localPayload.tokens.toMutableMap().apply { putAll(remotePayload.tokens) }
+            } else {
+                remotePayload.tokens.toMutableMap().apply { putAll(localPayload.tokens) }
+            }
+
+            val mergedCredentials = if (mergeStrategy == "remote_first") {
+                localPayload.credentials.toMutableMap().apply { putAll(remotePayload.credentials) }
+            } else {
+                remotePayload.credentials.toMutableMap().apply { putAll(localPayload.credentials) }
+            }
+
+            val mergedPlayerPrefs = if (mergeStrategy == "remote_first") {
+                localPayload.playerPreferences.toMutableMap().apply { putAll(remotePayload.playerPreferences) }
+            } else {
+                remotePayload.playerPreferences.toMutableMap().apply { putAll(localPayload.playerPreferences) }
+            }
+
+            val mergedInterfacePrefs = if (mergeStrategy == "remote_first") {
+                localPayload.interfacePreferences.toMutableMap().apply { putAll(remotePayload.interfacePreferences) }
+            } else {
+                remotePayload.interfacePreferences.toMutableMap().apply { putAll(localPayload.interfacePreferences) }
+            }
+
+            val mergedNetworkPrefs = if (mergeStrategy == "remote_first") {
+                localPayload.networkPreferences.toMutableMap().apply { putAll(remotePayload.networkPreferences) }
+            } else {
+                remotePayload.networkPreferences.toMutableMap().apply { putAll(localPayload.networkPreferences) }
+            }
+
+            val mergedDownloadPrefs = if (mergeStrategy == "remote_first") {
+                localPayload.downloadPreferences.toMutableMap().apply { putAll(remotePayload.downloadPreferences) }
+            } else {
+                remotePayload.downloadPreferences.toMutableMap().apply { putAll(localPayload.downloadPreferences) }
+            }
+
+            val mergedSeerrPrefs = if (mergeStrategy == "remote_first") {
+                localPayload.seerrPreferences.toMutableMap().apply { putAll(remotePayload.seerrPreferences) }
+            } else {
+                remotePayload.seerrPreferences.toMutableMap().apply { putAll(localPayload.seerrPreferences) }
+            }
+
+            val mergedPayload = ConfigBackupPayload(
+                createdAt = System.currentTimeMillis(),
+                appVersionName = BuildConfig.VERSION_NAME,
+                appVersionCode = BuildConfig.VERSION_CODE,
+                servers = mergedServers,
+                activeServerId = remotePayload.activeServerId ?: localPayload.activeServerId,
+                tokens = mergedTokens,
+                credentials = mergedCredentials,
+                playerPreferences = mergedPlayerPrefs,
+                interfacePreferences = mergedInterfacePrefs,
+                networkPreferences = mergedNetworkPrefs,
+                downloadPreferences = mergedDownloadPrefs,
+                seerrPreferences = mergedSeerrPrefs
+            )
+
+            applyBackup(mergedPayload).getOrThrow()
+
+            var finalVer = remoteVer
+            if (mergedPayload.servers != remotePayload.servers ||
+                mergedPayload.tokens != remotePayload.tokens ||
+                mergedPayload.credentials != remotePayload.credentials ||
+                mergedPayload.playerPreferences != remotePayload.playerPreferences ||
+                mergedPayload.interfacePreferences != remotePayload.interfacePreferences ||
+                mergedPayload.networkPreferences != remotePayload.networkPreferences ||
+                mergedPayload.downloadPreferences != remotePayload.downloadPreferences ||
+                mergedPayload.seerrPreferences != remotePayload.seerrPreferences
+            ) {
+                finalVer = client.push(json.encodeToString(mergedPayload), "客户端双向合并同步").getOrThrow()
+            }
+
+            Result.success(
+                OneYesSyncResult(
+                    version = finalVer,
+                    serverCount = mergedServers.size,
+                    isFirstUpload = false,
+                    message = "同步合并成功 (v$finalVer)，已同步 ${mergedServers.size} 个服务器"
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun pushToOneYes(
+        client: OneYesClient,
+        remark: String = "客户端手动推送覆盖"
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            client.ensureAccount().getOrThrow()
+            val localPayload = getLocalConfigPayload(includeCredentials = true)
+            val newVer = client.push(json.encodeToString(localPayload), remark).getOrThrow()
+            Result.success(newVer)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun pullFromOneYes(
+        client: OneYesClient
+    ): Result<Pair<ConfigBackupPayload?, Int>> = withContext(Dispatchers.IO) {
+        try {
+            client.ensureAccount().getOrThrow()
+            val (remoteJson, ver) = client.pull().getOrThrow()
+            if (remoteJson.isNullOrBlank()) {
+                return@withContext Result.success(null to 0)
+            }
+            val payload = json.decodeFromString<ConfigBackupPayload>(remoteJson)
+            applyBackup(payload).getOrThrow()
+            Result.success(payload to ver)
         } catch (e: Exception) {
             Result.failure(e)
         }

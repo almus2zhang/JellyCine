@@ -559,6 +559,7 @@ class SettingsViewModel(
     }
 
     private val backupManager = com.jellycine.app.backup.ConfigBackupManager(context)
+    val oneYesPrefs = com.jellycine.app.backup.oneyes.OneYesPreferences(context)
 
     suspend fun exportConfiguration(
         password: String?,
@@ -588,5 +589,107 @@ class SettingsViewModel(
             reloadSeerrConnection()
         }
         return result
+    }
+
+    suspend fun syncWithOneYes(
+        serverUrl: String,
+        email: String,
+        password: String,
+        remember: Boolean
+    ): Result<com.jellycine.app.backup.ConfigBackupManager.OneYesSyncResult> {
+        val client = com.jellycine.app.backup.oneyes.OneYesClient(serverUrl, email, password)
+        val result = backupManager.syncWithOneYes(client)
+        if (result.isSuccess) {
+            val syncRes = result.getOrThrow()
+            oneYesPrefs.serverUrl = serverUrl
+            oneYesPrefs.email = email
+            oneYesPrefs.rememberPassword = remember
+            if (remember) {
+                oneYesPrefs.savePassword(password)
+            } else {
+                oneYesPrefs.clearSavedPassword()
+            }
+            oneYesPrefs.lastSyncTime = System.currentTimeMillis()
+            oneYesPrefs.lastSyncVersion = syncRes.version
+            loadPreferences()
+            loadNetworkPreferences()
+            reloadSeerrConnection()
+        }
+        return result
+    }
+
+    suspend fun pushToOneYes(
+        serverUrl: String,
+        email: String,
+        password: String,
+        remember: Boolean
+    ): Result<Int> {
+        val client = com.jellycine.app.backup.oneyes.OneYesClient(serverUrl, email, password)
+        val result = backupManager.pushToOneYes(client)
+        if (result.isSuccess) {
+            val newVer = result.getOrThrow()
+            oneYesPrefs.serverUrl = serverUrl
+            oneYesPrefs.email = email
+            oneYesPrefs.rememberPassword = remember
+            if (remember) {
+                oneYesPrefs.savePassword(password)
+            } else {
+                oneYesPrefs.clearSavedPassword()
+            }
+            oneYesPrefs.lastSyncTime = System.currentTimeMillis()
+            oneYesPrefs.lastSyncVersion = newVer
+        }
+        return result
+    }
+
+    suspend fun pullFromOneYes(
+        serverUrl: String,
+        email: String,
+        password: String,
+        remember: Boolean
+    ): Result<Pair<com.jellycine.app.backup.ConfigBackupPayload?, Int>> {
+        val client = com.jellycine.app.backup.oneyes.OneYesClient(serverUrl, email, password)
+        val result = backupManager.pullFromOneYes(client)
+        if (result.isSuccess) {
+            val (_, ver) = result.getOrThrow()
+            oneYesPrefs.serverUrl = serverUrl
+            oneYesPrefs.email = email
+            oneYesPrefs.rememberPassword = remember
+            if (remember) {
+                oneYesPrefs.savePassword(password)
+            } else {
+                oneYesPrefs.clearSavedPassword()
+            }
+            if (ver > 0) {
+                oneYesPrefs.lastSyncTime = System.currentTimeMillis()
+                oneYesPrefs.lastSyncVersion = ver
+            }
+            loadPreferences()
+            loadNetworkPreferences()
+            reloadSeerrConnection()
+        }
+        return result
+    }
+
+    suspend fun testOrRegisterOneYes(
+        serverUrl: String,
+        email: String,
+        password: String,
+        remember: Boolean
+    ): Result<String> {
+        val client = com.jellycine.app.backup.oneyes.OneYesClient(serverUrl, email, password)
+        val result = client.ensureAccount()
+        if (result.isSuccess) {
+            oneYesPrefs.serverUrl = serverUrl
+            oneYesPrefs.email = email
+            oneYesPrefs.rememberPassword = remember
+            if (remember) {
+                oneYesPrefs.savePassword(password)
+            } else {
+                oneYesPrefs.clearSavedPassword()
+            }
+            return Result.success("连接与认证成功")
+        }
+        return Result.failure(result.exceptionOrNull() ?: Exception("连接失败"))
     }
 }

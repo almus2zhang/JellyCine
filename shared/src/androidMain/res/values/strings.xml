@@ -780,4 +780,25 @@
     <string name="backup_import_success">Configuration restored successfully (%d servers)</string>
     <string name="backup_export_success">Backup exported successfully</string>
     <string name="backup_clipboard_empty">Clipboard is empty or contains invalid content</string>
+    <string name="backup_tab_cloud">Cloud Sync</string>
+    <string name="oneyes_server_url_label">OneYes Config Hub URL</string>
+    <string name="oneyes_server_url_hint">e.g. http://192.168.10.66:8890</string>
+    <string name="oneyes_email_label">Account Email</string>
+    <string name="oneyes_password_label">Master Password</string>
+    <string name="oneyes_remember_pwd">Remember Password (Secure Keystore)</string>
+    <string name="oneyes_e2ee_desc">Zero-Knowledge E2EE: Master password and plaintext never leave this device. PBKDF2 (100,000 iterations) derives keys locally with AES-256-GCM encryption.</string>
+    <string name="oneyes_last_sync">Last synced: %1$s (v%2$d)</string>
+    <string name="oneyes_not_synced">Not synced yet</string>
+    <string name="oneyes_btn_sync">Sync &amp; Merge</string>
+    <string name="oneyes_btn_push">Push to Cloud</string>
+    <string name="oneyes_btn_pull">Pull from Cloud</string>
+    <string name="oneyes_btn_test_or_register">Test / Register</string>
+    <string name="oneyes_syncing">Syncing and merging with OneYes cloud...</string>
+    <string name="oneyes_pushing">Pushing encrypted config to cloud...</string>
+    <string name="oneyes_pulling">Pulling and decrypting from cloud...</string>
+    <string name="oneyes_account_empty">Please enter your email and master password</string>
+    <string name="oneyes_pull_empty">No remote configuration found</string>
+    <string name="oneyes_connected_status">Connected to OneYes Hub</string>
+    <string name="oneyes_push_success">Configuration pushed to cloud successfully</string>
+    <string name="oneyes_pull_success">Configuration pulled from cloud successfully</string>
 </resources>

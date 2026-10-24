@@ -763,4 +763,25 @@
     <string name="backup_import_success">配置导入成功，已恢复 %d 个服务器及偏好</string>
     <string name="backup_export_success">备份导出成功</string>
     <string name="backup_clipboard_empty">剪贴板中没有有效的备份内容</string>
+    <string name="backup_tab_cloud">云端同步</string>
+    <string name="oneyes_server_url_label">OneYes 配置中心地址</string>
+    <string name="oneyes_server_url_hint">例如 http://192.168.10.66:8890</string>
+    <string name="oneyes_email_label">账户邮箱</string>
+    <string name="oneyes_password_label">主密码</string>
+    <string name="oneyes_remember_pwd">记住密码 (安全硬件加密存储)</string>
+    <string name="oneyes_e2ee_desc">零知识端到端加密：主密码与明文配置绝不出网，仅在本地通过 PBKDF2 (100,000次) 派生双密钥并使用 AES-256-GCM 加解密。</string>
+    <string name="oneyes_last_sync">上次同步：%1$s (v%2$d)</string>
+    <string name="oneyes_not_synced">尚未进行云端同步</string>
+    <string name="oneyes_btn_sync">一键同步合并</string>
+    <string name="oneyes_btn_push">推送到云端</string>
+    <string name="oneyes_btn_pull">从云端拉取</string>
+    <string name="oneyes_btn_test_or_register">测试连接 / 注册</string>
+    <string name="oneyes_syncing">正在与 OneYes 云端同步合并...</string>
+    <string name="oneyes_pushing">正在加密推送到云端...</string>
+    <string name="oneyes_pulling">正在拉取并解密云端配置...</string>
+    <string name="oneyes_account_empty">请输入账号邮箱和主密码</string>
+    <string name="oneyes_pull_empty">云端暂无配置记录</string>
+    <string name="oneyes_connected_status">已连接 OneYes 配置中心</string>
+    <string name="oneyes_push_success">配置成功推送到云端</string>
+    <string name="oneyes_pull_success">配置成功从云端拉取并应用</string>
 </resources>

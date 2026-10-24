@@ -77,6 +77,17 @@ fun BackupRestoreDialog(
     var decryptError by remember { mutableStateOf<String?>(null) }
     var pendingPreview by remember { mutableStateOf<BackupPreview?>(null) }
 
+    // OneYes Cloud Sync states
+    var oneYesServerUrl by remember { mutableStateOf(viewModel.oneYesPrefs.serverUrl) }
+    var oneYesEmail by remember { mutableStateOf(viewModel.oneYesPrefs.email) }
+    var oneYesPassword by remember { mutableStateOf(viewModel.oneYesPrefs.getSavedPassword() ?: "") }
+    var oneYesRememberPassword by remember { mutableStateOf(viewModel.oneYesPrefs.rememberPassword) }
+    var isOneYesPasswordVisible by remember { mutableStateOf(false) }
+    var isOneYesLoading by remember { mutableStateOf(false) }
+    var oneYesStatusMessage by remember { mutableStateOf<String?>(null) }
+    var oneYesLastSyncTime by remember { mutableLongStateOf(viewModel.oneYesPrefs.lastSyncTime) }
+    var oneYesLastSyncVersion by remember { mutableIntStateOf(viewModel.oneYesPrefs.lastSyncVersion) }
+
     // System File Save (CreateDocument) Launcher
     var pendingExportJson by remember { mutableStateOf<String?>(null) }
     val createDocumentLauncher = rememberLauncherForActivityResult(
@@ -245,6 +256,12 @@ fun BackupRestoreDialog(
                         onClick = { selectedTabIndex = 1 },
                         text = { Text(stringResource(R.string.backup_tab_import), fontWeight = FontWeight.SemiBold) },
                         icon = { Icon(Icons.Rounded.FileDownload, contentDescription = null) }
+                    )
+                    Tab(
+                        selected = selectedTabIndex == 2,
+                        onClick = { selectedTabIndex = 2 },
+                        text = { Text(stringResource(R.string.backup_tab_cloud), fontWeight = FontWeight.SemiBold) },
+                        icon = { Icon(Icons.Rounded.CloudSync, contentDescription = null) }
                     )
                 }
 
@@ -438,7 +455,7 @@ fun BackupRestoreDialog(
                                 }
                             }
                         }
-                    } else {
+                    } else if (selectedTabIndex == 1) {
                         // Import View
                         Column(
                             modifier = Modifier
@@ -567,6 +584,344 @@ fun BackupRestoreDialog(
                                         )
                                     }
                                     Icon(Icons.Rounded.ChevronRight, contentDescription = null)
+                                }
+                            }
+                        }
+                    } else if (selectedTabIndex == 2) {
+                        // OneYes Cloud Sync View
+                        val syncTimeStr = if (oneYesLastSyncTime > 0) {
+                            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(oneYesLastSyncTime))
+                        } else null
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            // Status Banner
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (oneYesLastSyncTime > 0) Color(0xFF10B981).copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (oneYesLastSyncTime > 0) Color(0xFF10B981).copy(alpha = 0.2f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = if (oneYesLastSyncTime > 0) Icons.Rounded.CloudDone else Icons.Rounded.CloudQueue,
+                                                contentDescription = null,
+                                                tint = if (oneYesLastSyncTime > 0) Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (oneYesLastSyncTime > 0) stringResource(R.string.oneyes_connected_status) else "OneYes 配置中心",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = if (oneYesLastSyncTime > 0 && syncTimeStr != null) {
+                                                stringResource(R.string.oneyes_last_sync, syncTimeStr, oneYesLastSyncVersion)
+                                            } else {
+                                                stringResource(R.string.oneyes_not_synced)
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            // E2EE Notice
+                            Card(
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.Top,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Security,
+                                        contentDescription = null,
+                                        tint = Color(0xFF3B82F6),
+                                        modifier = Modifier.size(20.dp).padding(top = 2.dp)
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.oneyes_e2ee_desc),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = 18.sp
+                                    )
+                                }
+                            }
+
+                            // Inputs
+                            OutlinedTextField(
+                                value = oneYesServerUrl,
+                                onValueChange = { oneYesServerUrl = it },
+                                label = { Text(stringResource(R.string.oneyes_server_url_label)) },
+                                placeholder = { Text(stringResource(R.string.oneyes_server_url_hint)) },
+                                leadingIcon = { Icon(Icons.Rounded.Dns, contentDescription = null) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = oneYesEmail,
+                                onValueChange = { oneYesEmail = it },
+                                label = { Text(stringResource(R.string.oneyes_email_label)) },
+                                leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = oneYesPassword,
+                                onValueChange = { oneYesPassword = it },
+                                label = { Text(stringResource(R.string.oneyes_password_label)) },
+                                leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                                visualTransformation = if (isOneYesPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                trailingIcon = {
+                                    IconButton(onClick = { isOneYesPasswordVisible = !isOneYesPasswordVisible }) {
+                                        Icon(
+                                            imageVector = if (isOneYesPasswordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                            contentDescription = null
+                                        )
+                                    }
+                                },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        text = stringResource(R.string.oneyes_remember_pwd),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                Switch(
+                                    checked = oneYesRememberPassword,
+                                    onCheckedChange = { oneYesRememberPassword = it }
+                                )
+                            }
+
+                            if (oneYesStatusMessage != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = oneYesStatusMessage!!,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(10.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // One-Click Sync & Merge Button
+                            Button(
+                                onClick = {
+                                    if (oneYesEmail.isBlank() || oneYesPassword.isBlank()) {
+                                        Toast.makeText(context, context.getString(R.string.oneyes_account_empty), Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    isOneYesLoading = true
+                                    oneYesStatusMessage = context.getString(R.string.oneyes_syncing)
+                                    scope.launch {
+                                        val res = viewModel.syncWithOneYes(
+                                            serverUrl = oneYesServerUrl,
+                                            email = oneYesEmail,
+                                            password = oneYesPassword,
+                                            remember = oneYesRememberPassword
+                                        )
+                                        isOneYesLoading = false
+                                        if (res.isSuccess) {
+                                            val syncRes = res.getOrThrow()
+                                            oneYesLastSyncTime = viewModel.oneYesPrefs.lastSyncTime
+                                            oneYesLastSyncVersion = syncRes.version
+                                            oneYesStatusMessage = syncRes.message
+                                            Toast.makeText(context, syncRes.message, Toast.LENGTH_LONG).show()
+                                        } else {
+                                            val err = res.exceptionOrNull()?.message ?: "同步失败"
+                                            oneYesStatusMessage = "失败: $err"
+                                            Toast.makeText(context, "同步失败: $err", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                enabled = !isOneYesLoading,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                if (isOneYesLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                } else {
+                                    Icon(Icons.Rounded.CloudSync, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(
+                                    text = stringResource(R.string.oneyes_btn_sync),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                            }
+
+                            // Secondary actions
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        if (oneYesEmail.isBlank() || oneYesPassword.isBlank()) {
+                                            Toast.makeText(context, context.getString(R.string.oneyes_account_empty), Toast.LENGTH_SHORT).show()
+                                            return@OutlinedButton
+                                        }
+                                        isOneYesLoading = true
+                                        oneYesStatusMessage = context.getString(R.string.oneyes_pushing)
+                                        scope.launch {
+                                            val res = viewModel.pushToOneYes(
+                                                serverUrl = oneYesServerUrl,
+                                                email = oneYesEmail,
+                                                password = oneYesPassword,
+                                                remember = oneYesRememberPassword
+                                            )
+                                            isOneYesLoading = false
+                                            if (res.isSuccess) {
+                                                val ver = res.getOrThrow()
+                                                oneYesLastSyncTime = viewModel.oneYesPrefs.lastSyncTime
+                                                oneYesLastSyncVersion = ver
+                                                val msg = context.getString(R.string.oneyes_push_success) + " (v$ver)"
+                                                oneYesStatusMessage = msg
+                                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                val err = res.exceptionOrNull()?.message ?: "推送失败"
+                                                oneYesStatusMessage = "推送失败: $err"
+                                                Toast.makeText(context, "推送失败: $err", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    },
+                                    enabled = !isOneYesLoading,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(stringResource(R.string.oneyes_btn_push), fontSize = 12.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        if (oneYesEmail.isBlank() || oneYesPassword.isBlank()) {
+                                            Toast.makeText(context, context.getString(R.string.oneyes_account_empty), Toast.LENGTH_SHORT).show()
+                                            return@OutlinedButton
+                                        }
+                                        isOneYesLoading = true
+                                        oneYesStatusMessage = context.getString(R.string.oneyes_pulling)
+                                        scope.launch {
+                                            val res = viewModel.pullFromOneYes(
+                                                serverUrl = oneYesServerUrl,
+                                                email = oneYesEmail,
+                                                password = oneYesPassword,
+                                                remember = oneYesRememberPassword
+                                            )
+                                            isOneYesLoading = false
+                                            if (res.isSuccess) {
+                                                val (payload, ver) = res.getOrThrow()
+                                                if (payload != null) {
+                                                    oneYesLastSyncTime = viewModel.oneYesPrefs.lastSyncTime
+                                                    oneYesLastSyncVersion = ver
+                                                    val msg = context.getString(R.string.oneyes_pull_success) + " (v$ver)"
+                                                    oneYesStatusMessage = msg
+                                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    oneYesStatusMessage = context.getString(R.string.oneyes_pull_empty)
+                                                    Toast.makeText(context, context.getString(R.string.oneyes_pull_empty), Toast.LENGTH_SHORT).show()
+                                                }
+                                            } else {
+                                                val err = res.exceptionOrNull()?.message ?: "拉取失败"
+                                                oneYesStatusMessage = "拉取失败: $err"
+                                                Toast.makeText(context, "拉取失败: $err", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    },
+                                    enabled = !isOneYesLoading,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(stringResource(R.string.oneyes_btn_pull), fontSize = 12.sp)
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        if (oneYesEmail.isBlank() || oneYesPassword.isBlank()) {
+                                            Toast.makeText(context, context.getString(R.string.oneyes_account_empty), Toast.LENGTH_SHORT).show()
+                                            return@OutlinedButton
+                                        }
+                                        isOneYesLoading = true
+                                        oneYesStatusMessage = "正在连接验证..."
+                                        scope.launch {
+                                            val res = viewModel.testOrRegisterOneYes(
+                                                serverUrl = oneYesServerUrl,
+                                                email = oneYesEmail,
+                                                password = oneYesPassword,
+                                                remember = oneYesRememberPassword
+                                            )
+                                            isOneYesLoading = false
+                                            if (res.isSuccess) {
+                                                oneYesStatusMessage = res.getOrThrow()
+                                                Toast.makeText(context, res.getOrThrow(), Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                val err = res.exceptionOrNull()?.message ?: "连接失败"
+                                                oneYesStatusMessage = "连接失败: $err"
+                                                Toast.makeText(context, "连接失败: $err", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    },
+                                    enabled = !isOneYesLoading,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(stringResource(R.string.oneyes_btn_test_or_register), fontSize = 12.sp)
                                 }
                             }
                         }
