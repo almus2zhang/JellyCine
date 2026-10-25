@@ -192,6 +192,7 @@ class MpvPlayerController(
     ) {
         if (released) return
         ready = false
+        needsVideoReload = false
         playWhenReady = startPlayback
         val startPositionSeconds = startPositionMs
             ?.takeIf { it > 0L }
@@ -235,6 +236,17 @@ class MpvPlayerController(
 
     private var surfaceWidth: Int = 0
     private var surfaceHeight: Int = 0
+    private var needsVideoReload: Boolean = false
+
+    private fun reloadVideoTrack() {
+        if (released) return
+        runCatching {
+            val currentVid = runCatching { mpv.getPropertyInt("vid") }.getOrNull()?.takeIf { it > 0 } ?: 1
+            runCatching { mpv.setPropertyString("vid", "no") }
+            runCatching { mpv.setPropertyInt("vid", currentVid) }
+            runCatching { mpv.command(arrayOf("seek", "0", "relative+exact")) }
+        }
+    }
 
     fun attachSurface(surface: Surface, width: Int, height: Int) {
         if (released) return
@@ -262,18 +274,24 @@ class MpvPlayerController(
         if (pendingCmd != null) {
             if (this.surfaceWidth > 0 && this.surfaceHeight > 0) {
                 pendingLoadCommand = null
+                needsVideoReload = false
                 mpv.command(pendingCmd)
             }
         } else {
-            runCatching {
-                val currentVid = mpv.getPropertyString("vid")
-                if (currentVid == null || currentVid == "no" || currentVid == "0") {
-                    mpv.setPropertyString("vid", "auto")
-                }
-            }
             if (ready) {
-                runCatching {
-                    mpv.command(arrayOf("seek", "0", "relative+exact"))
+                if (needsVideoReload && this.surfaceWidth > 0 && this.surfaceHeight > 0) {
+                    needsVideoReload = false
+                    reloadVideoTrack()
+                } else if (!needsVideoReload) {
+                    runCatching {
+                        val currentVid = runCatching { mpv.getPropertyInt("vid") }.getOrNull()
+                        if (currentVid == null || currentVid <= 0) {
+                            mpv.setPropertyInt("vid", 1)
+                        }
+                    }
+                    runCatching {
+                        mpv.command(arrayOf("seek", "0", "relative+exact"))
+                    }
                 }
                 if (playWhenReady) {
                     mpv.setPropertyBoolean("pause", false)
@@ -294,7 +312,14 @@ class MpvPlayerController(
             val pendingCmd = pendingLoadCommand
             if (pendingCmd != null && attachedSurface?.isValid == true) {
                 pendingLoadCommand = null
+                needsVideoReload = false
                 mpv.command(pendingCmd)
+            } else if (needsVideoReload && ready && attachedSurface?.isValid == true) {
+                needsVideoReload = false
+                reloadVideoTrack()
+                if (playWhenReady) {
+                    mpv.setPropertyBoolean("pause", false)
+                }
             }
         }
     }
@@ -422,12 +447,17 @@ class MpvPlayerController(
     fun detachSurface() {
         if (released) return
         this.attachedSurface = null
+        this.needsVideoReload = true
         mpv.detachSurface()
     }
 
     fun play() {
         if (released) return
         playWhenReady = true
+        if (needsVideoReload && ready && attachedSurface?.isValid == true) {
+            needsVideoReload = false
+            reloadVideoTrack()
+        }
         mpv.setPropertyBoolean("pause", false)
     }
 
