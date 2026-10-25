@@ -198,6 +198,7 @@ class PlayerViewModel @Inject constructor(
         startPlayback: Boolean = true,
         forcedPlayerEngine: String? = null
     ) {
+        releasePlayer()
         viewModelScope.launch {
             try {
                 _playerState.value = _playerState.value.copy(

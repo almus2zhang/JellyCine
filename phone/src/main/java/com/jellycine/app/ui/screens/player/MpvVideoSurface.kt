@@ -6,6 +6,8 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.ViewGroup
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -47,9 +49,12 @@ fun MpvVideoSurface(
     subtitleConfigVersion: Int = 0,
     modifier: Modifier
 ) {
+    val currentPlayer by rememberUpdatedState(player)
+
     AndroidView(
         factory = { context ->
             SurfaceView(context).apply {
+                keepScreenOn = true
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -84,7 +89,7 @@ fun MpvVideoSurface(
                         val frame = holder.surfaceFrame
                         val w = frame.width().takeIf { it > 0 } ?: this@apply.width
                         val h = frame.height().takeIf { it > 0 } ?: this@apply.height
-                        player.attachSurface(
+                        currentPlayer.attachSurface(
                             surface = holder.surface,
                             width = w,
                             height = h
@@ -97,22 +102,22 @@ fun MpvVideoSurface(
                         width: Int,
                         height: Int
                     ) {
-                        if (!player.isSurfaceAttached()) {
-                            player.attachSurface(holder.surface, width, height)
+                        if (!currentPlayer.isSurfaceAttached()) {
+                            currentPlayer.attachSurface(holder.surface, width, height)
                         } else {
-                            player.resizeSurface(width, height)
+                            currentPlayer.resizeSurface(width, height)
                         }
                     }
 
                     override fun surfaceDestroyed(holder: SurfaceHolder) {
-                        player.detachSurface()
+                        currentPlayer.detachSurface()
                     }
                 })
                 if (holder.surface.isValid) {
                     val frame = holder.surfaceFrame
                     val w = frame.width().takeIf { it > 0 } ?: this.width
                     val h = frame.height().takeIf { it > 0 } ?: this.height
-                    player.attachSurface(
+                    currentPlayer.attachSurface(
                         surface = holder.surface,
                         width = w,
                         height = h
@@ -121,6 +126,7 @@ fun MpvVideoSurface(
             }
         },
         update = { surfaceView ->
+            surfaceView.keepScreenOn = true
             onSurfaceViewAvailable(surfaceView)
             if (surfaceView.holder.surface.isValid && !player.isSurfaceAttached()) {
                 val frame = surfaceView.holder.surfaceFrame

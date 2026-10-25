@@ -192,6 +192,7 @@ private fun ExoPlayerView(
     AndroidView(
         factory = { viewContext ->
             PlayerView(viewContext).apply {
+                keepScreenOn = true
                 useController = false
                 setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
                 setKeepContentOnPlayerReset(true)

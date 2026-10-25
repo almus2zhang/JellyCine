@@ -178,6 +178,15 @@ internal fun PlayerScreenEffects(
         }
     }
 
+    LaunchedEffect(playerState.isPlaying, playerState.playWhenReady) {
+        val activity = context as? Activity
+        val shouldKeepScreenOn = playerState.isPlaying || playerState.playWhenReady
+        if (shouldKeepScreenOn) {
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            currentView.keepScreenOn = true
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             val activity = context as? Activity

@@ -242,7 +242,6 @@ class MpvPlayerController(
         if (released) return
         runCatching {
             val currentVid = runCatching { mpv.getPropertyInt("vid") }.getOrNull()?.takeIf { it > 0 } ?: 1
-            runCatching { mpv.setPropertyString("vid", "no") }
             runCatching { mpv.setPropertyInt("vid", currentVid) }
             runCatching { mpv.command(arrayOf("seek", "0", "relative+exact")) }
         }

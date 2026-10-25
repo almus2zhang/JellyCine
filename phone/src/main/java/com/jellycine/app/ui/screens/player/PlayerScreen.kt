@@ -17,6 +17,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.provider.Settings
 import android.util.Rational
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -396,6 +397,14 @@ fun PlayerScreen(
     }
 
     var initializedMediaId by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(Unit) {
+        val activity = context as? Activity
+        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            viewModel.releasePlayer()
+        }
+    }
 
     PlayerScreenEffects(
         context = context,
@@ -837,6 +846,7 @@ fun PlayerScreen(
                                             context.getString(R.string.media_delete_success),
                                             Toast.LENGTH_SHORT
                                         ).show()
+                                        viewModel.releasePlayer()
                                         onBackPressed?.invoke()
                                     },
                                     onError = { errorMsg ->
