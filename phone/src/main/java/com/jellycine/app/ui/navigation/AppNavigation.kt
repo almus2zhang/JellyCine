@@ -74,8 +74,10 @@ fun AppNavigation() {
                     mediaRepository = mediaRepository
                 )
                 com.jellycine.app.shortcut.ShortcutPlaybackBridge.clear()
-                if (resolvedId.isNotBlank()) {
-                    navController.navigate("player/$resolvedId") {
+                val targetDetailId = request.seriesId?.takeIf { it.isNotBlank() } ?: request.mediaId
+                val preferredPlayableId = resolvedId.takeIf { it.isNotBlank() } ?: request.mediaId
+                if (targetDetailId.isNotBlank()) {
+                    navController.navigate("detail/$targetDetailId?mergeVersions=false&autoPlay=true&preferredPlayableId=$preferredPlayableId") {
                         popUpTo("startup") { inclusive = true }
                         launchSingleTop = true
                     }
@@ -376,12 +378,21 @@ fun AppNavigation() {
             }
 
             composable(
-                "detail/{itemId}?mergeVersions={mergeVersions}",
+                "detail/{itemId}?mergeVersions={mergeVersions}&autoPlay={autoPlay}&preferredPlayableId={preferredPlayableId}",
                 arguments = listOf(
                     navArgument("itemId") { type = NavType.StringType },
                     navArgument("mergeVersions") {
                         type = NavType.BoolType
                         defaultValue = false
+                    },
+                    navArgument("autoPlay") {
+                        type = NavType.BoolType
+                        defaultValue = false
+                    },
+                    navArgument("preferredPlayableId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
                     }
                 ),
                 enterTransition = { textTransition(500) },
@@ -389,11 +400,15 @@ fun AppNavigation() {
             ) { backStackEntry ->
                 val itemId = backStackEntry.arguments?.getString("itemId")
                 val forceMergeVersions = backStackEntry.arguments?.getBoolean("mergeVersions") ?: false
+                val autoPlay = backStackEntry.arguments?.getBoolean("autoPlay") ?: false
+                val preferredPlayableId = backStackEntry.arguments?.getString("preferredPlayableId")
 
                 if (itemId != null) {
                     DetailScreenContainer(
                         itemId = itemId,
                         forceMergeVersions = forceMergeVersions,
+                        autoPlay = autoPlay,
+                        preferredPlayableId = preferredPlayableId,
                         onNavigateToDetail = { selectedItemId ->
                             if (selectedItemId != itemId) {
                                 navController.navigate("detail/$selectedItemId?mergeVersions=true")

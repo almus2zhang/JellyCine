@@ -97,6 +97,8 @@ private data class SeasonDetailData(
 fun DetailScreenContainer(
     itemId: String,
     forceMergeVersions: Boolean = false,
+    autoPlay: Boolean = false,
+    preferredPlayableId: String? = null,
     onBackPressed: () -> Unit = {},
     onNavigateToDetail: (String) -> Unit = {},
     onNavigateToPerson: (String) -> Unit = {}
@@ -113,6 +115,7 @@ fun DetailScreenContainer(
     var isLoading by remember(itemId) { mutableStateOf(item == null) }
     var error by remember { mutableStateOf<String?>(null) }
     var showPlayer by remember { mutableStateOf(false) }
+    var pendingAutoPlay by rememberSaveable(itemId) { mutableStateOf(autoPlay) }
     var remoteTrailerUrl by remember { mutableStateOf<String?>(null) }
     var remoteTrailerTitle by remember { mutableStateOf<String?>(null) }
     var playbackItemId by remember { mutableStateOf<String?>(null) }
@@ -467,6 +470,51 @@ fun DetailScreenContainer(
                 onSuccess = { fetchedItem ->
                     item = fetchedItem
                     isLoading = false
+
+                    if (pendingAutoPlay) {
+                        pendingAutoPlay = false
+                        scope.launch {
+                            val isSeries = fetchedItem.type.equals("Series", ignoreCase = true)
+                            if (isSeries) {
+                                // 1. 优先检查当前是否有正在继续观看的单集 (Resume)
+                                val resumeEpisode = mediaRepository.getResumeItems(limit = 20).getOrNull()
+                                    ?.firstOrNull { it.seriesId == fetchedItem.id }
+                                // 2. 尝试获取 Next Up
+                                val nextUpEpisode = if (resumeEpisode == null) {
+                                    mediaRepository.getNextUpItems(seriesId = fetchedItem.id, limit = 1).getOrNull()?.firstOrNull()
+                                } else null
+                                // 3. 尝试首集或指定单集
+                                val targetEpisode = resumeEpisode ?: nextUpEpisode ?: preferredPlayableId?.let { pid ->
+                                    mediaRepository.getItemById(pid).getOrNull()
+                                } ?: fetchedItem.id?.let { sid -> mediaRepository.getEpisodes(seriesId = sid).getOrNull()?.firstOrNull() }
+
+                                if (targetEpisode != null) {
+                                    // 确保获取最新单集数据包含播放进度
+                                    val freshEpisode = mediaRepository.getItemById(targetEpisode.id ?: "").getOrNull() ?: targetEpisode
+                                    startPlaybackForItem(
+                                        targetItem = freshEpisode,
+                                        fallbackItemId = freshEpisode.id ?: "",
+                                        audioStreamIndex = null,
+                                        subtitleStreamIndex = null
+                                    )
+                                } else {
+                                    startPlaybackForItem(
+                                        targetItem = fetchedItem,
+                                        fallbackItemId = fetchedItem.id ?: itemId,
+                                        audioStreamIndex = null,
+                                        subtitleStreamIndex = null
+                                    )
+                                }
+                            } else {
+                                startPlaybackForItem(
+                                    targetItem = fetchedItem,
+                                    fallbackItemId = fetchedItem.id ?: itemId,
+                                    audioStreamIndex = null,
+                                    subtitleStreamIndex = null
+                                )
+                            }
+                        }
+                    }
                 },
                 onFailure = { exception ->
                     if (item == null) {
